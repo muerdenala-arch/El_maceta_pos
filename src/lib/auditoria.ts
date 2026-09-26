@@ -23,7 +23,13 @@ export type AccionAuditoria =
   | "producto_creado"
   | "producto_editado"
   | "cambio_precio"
-  | "configuracion_editada";
+  | "configuracion_editada"
+  // Fase 3
+  | "ingreso_mercaderia"
+  | "ajuste_stock"
+  | "transferencia_enviada"
+  | "transferencia_recibida"
+  | "transferencia_cancelada";
 
 export async function registrarAuditoria(
   accion: AccionAuditoria,

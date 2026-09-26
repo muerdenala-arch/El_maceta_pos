@@ -68,6 +68,21 @@ Credenciales de prueba locales: en `.env.local` (`SEED_*`), nunca en el código 
   siempre queda ≥1 admin activo; nadie se desactiva ni cambia su propio rol; una sucursal con cajeros
   activos no se desactiva; cambios de precio → auditoría `cambio_precio`.
 
+## Inventario (Fase 3)
+
+- **Todo cambio de stock pasa por `cambiarStock(tx, …)`** (`lib/inventario/stock.ts`), dentro de
+  `db.transaction`: suma atómica en `inventario`, lotes FEFO y registro en `movimientos_inventario`.
+  Lanza `ErrorStock` si el stock quedaría negativo (salvo `permitirNegativo`: ajustes y, en F6, ventas offline).
+- Lotes: entran con su vencimiento; salen primero los que vencen antes (reglas puras y probadas en
+  `lib/inventario/lotes.ts`). Las transferencias guardan en `detalle_transferencia.lotes` las fechas que
+  viajan, y se recrean en el destino al recibir (o en el origen al cancelar).
+- Transferencia: al enviar sale del origen ("en camino"); al recibir entra al destino. Solo admin.
+- Ajuste: a una cantidad contada, motivo obligatorio + auditoría `ajuste_stock`.
+- Cajero (`/cajero/bodega`): solo lectura de su sucursal + bodega, sin precios; "Pedir" crea una alerta
+  `solicitud_reposicion` (mensaje con formato fijo "Solicita N unidades…"), que el admin atiende desde Bodega.
+- `/admin/inventario?resaltar=ID` resalta y desplaza hasta el producto (lo usarán las alertas en F7).
+- Migraciones con PGlite: detener el servidor de desarrollo antes de `npm run db:migrate`.
+
 ## Reglas no negociables
 
 - **Permisos en el servidor**: `proxy.ts` protege rutas por rol y *además* cada server action /

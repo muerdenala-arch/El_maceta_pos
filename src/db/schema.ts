@@ -161,8 +161,14 @@ export const lotes = pgTable(
     fechaVencimiento: date("fecha_vencimiento"),
     creadoEn: creadoEn(),
   },
-  (t) => [index("lotes_vencimiento_idx").on(t.fechaVencimiento)],
+  (t) => [
+    index("lotes_vencimiento_idx").on(t.fechaVencimiento),
+    index("lotes_producto_ubicacion_idx").on(t.productoId, t.ubicacionId),
+  ],
 );
+
+/** Parte de un lote que viaja en una transferencia (conserva la fecha de vencimiento). */
+export type LoteEnTransito = { vencimiento: string | null; cantidad: number };
 
 export const transferencias = pgTable("transferencias", {
   id: serial("id").primaryKey(),
@@ -177,7 +183,9 @@ export const transferencias = pgTable("transferencias", {
     .notNull()
     .references(() => usuarios.id),
   usuarioRecibeId: integer("usuario_recibe_id").references(() => usuarios.id),
+  nota: text("nota"),
   enviadaEn: timestamp("enviada_en", { withTimezone: true }).notNull().defaultNow(),
+  /** Fecha de recepción o de cancelación. */
   recibidaEn: timestamp("recibida_en", { withTimezone: true }),
 });
 
@@ -190,6 +198,8 @@ export const detalleTransferencia = pgTable("detalle_transferencia", {
     .notNull()
     .references(() => productos.id),
   cantidad: integer("cantidad").notNull(),
+  /** Lotes descontados del origen al enviar; se recrean en el destino al recibir. */
+  lotes: jsonb("lotes").$type<LoteEnTransito[]>().notNull().default([]),
 });
 
 export const movimientosInventario = pgTable(
