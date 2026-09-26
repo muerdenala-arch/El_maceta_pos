@@ -1,7 +1,8 @@
 "use client";
 
 /* eslint-disable @next/next/no-img-element -- fotos propias, ya comprimidas */
-import { Minus, Package, Plus, Search, ShoppingCart, Trash2, X, ZoomIn } from "lucide-react";
+import { Minus, Package, Plus, ReceiptText, Search, ShoppingCart, Trash2, X, ZoomIn } from "lucide-react";
+import Link from "next/link";
 import { AnimatePresence, motion } from "motion/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -151,6 +152,11 @@ export function PuntoDeVenta({ cajaId, productos, qrs }: { cajaId: number; produ
   return (
     <div className="mx-auto grid max-w-[100rem] gap-6 lg:grid-cols-[1fr_24rem]">
       <section className="min-w-0">
+        <div className="mb-3 flex justify-end">
+          <Link href="/cajero/ventas" className="flex items-center gap-1.5 rounded-full border bg-card px-4 py-2 text-sm font-semibold hover:bg-accent">
+            <ReceiptText className="size-4" /> Ventas de hoy
+          </Link>
+        </div>
         <label className="relative block">
           <span className="sr-only">Buscar producto</span>
           <Search className="pointer-events-none absolute top-1/2 left-4 size-5 -translate-y-1/2 text-muted-foreground" />

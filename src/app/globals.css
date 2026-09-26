@@ -51,6 +51,8 @@
   --color-aviso: var(--aviso);
   --color-aviso-foreground: var(--aviso-foreground);
   --color-resaltado: var(--resaltado);
+  /* Color de marca de WhatsApp (botón de envío) */
+  --color-whatsapp: #25d366;
   --color-nav-activo: var(--nav-activo);
   --color-nav-activo-foreground: var(--nav-activo-foreground);
   --color-ficha-naranja: var(--ficha-naranja);
@@ -226,5 +228,33 @@
   .fila-resaltada {
     animation: none;
     background-color: var(--resaltado);
+  }
+}
+
+/*
+ * Impresión de comprobantes: al imprimir solo se muestra la zona de impresión
+ * (un portal directo en <body>); el resto de la app se oculta. El tamaño de página
+ * (58/80 mm o carta) lo inyecta <AccionesComprobante> justo antes de imprimir.
+ */
+.zona-impresion {
+  display: none;
+}
+@media print {
+  /* Solo cuando hay un comprobante preparado para imprimir; si no, se imprime la página normal. */
+  body:has(> .zona-impresion) > *:not(.zona-impresion) {
+    display: none !important;
+  }
+  .zona-impresion {
+    display: block !important;
+  }
+  html,
+  body {
+    background: #fff !important;
+    color: #000 !important;
+    min-height: 0 !important;
+  }
+  .comprobante {
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 }

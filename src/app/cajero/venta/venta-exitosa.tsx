@@ -3,11 +3,12 @@
 import { Check, Plus } from "lucide-react";
 import { motion } from "motion/react";
 import { useEffect, useRef } from "react";
+import { AccionesComprobante } from "@/components/comprobante/acciones-comprobante";
 import { Button } from "@/components/ui/button";
 import { formatoBs } from "@/lib/formato";
 import type { VentaRealizada } from "../acciones";
 
-/** Pantalla "Venta realizada". Las opciones de comprobante (imprimir, PDF, WhatsApp) llegan en la Fase 4b. */
+/** Pantalla "Venta realizada" con las opciones de comprobante: imprimir, PDF y WhatsApp (sección 6). */
 export function VentaExitosa({ venta, onNueva }: { venta: VentaRealizada; onNueva: () => void }) {
   const boton = useRef<HTMLButtonElement>(null);
   useEffect(() => {
@@ -42,7 +43,14 @@ export function VentaExitosa({ venta, onNueva }: { venta: VentaRealizada; onNuev
         )}
       </div>
 
-      <Button ref={boton} size="lg" className="mt-6 h-14 w-full rounded-2xl text-lg font-bold" onClick={onNueva}>
+      {venta.comprobante && (
+        <div className="mt-5 w-full">
+          <p className="mb-2 text-left text-sm font-semibold text-muted-foreground">Comprobante</p>
+          <AccionesComprobante datos={venta.comprobante} />
+        </div>
+      )}
+
+      <Button ref={boton} size="lg" className="mt-5 h-14 w-full rounded-2xl text-lg font-bold" onClick={onNueva}>
         <Plus className="size-5" /> Nueva venta
       </Button>
     </div>

@@ -1,0 +1,118 @@
+import "server-only";
+import { and, asc, eq, sql } from "drizzle-orm";
+import { db } from "@/db";
+import { clientes, configuracion, detalleVenta, productos, sucursales, usuarios, ventas } from "@/db/schema";
+import type { Sesion } from "@/lib/auth/sesion";
+import { aCentavos, deCentavos } from "@/lib/dinero";
+import { hoyEnBolivia, ZONA_HORARIA } from "@/lib/formato";
+import type { DatosComprobante } from "./datos";
+
+/** Arma el comprobante de una venta por id o por token público. */
+export async function obtenerComprobante(filtro: { ventaId: number } | { token: string }): Promise<DatosComprobante | null> {
+  const [v] = await db
+    .select({
+      id: ventas.id,
+      numero: ventas.numeroComprobante,
+      fecha: ventas.fecha,
+      cajero: usuarios.nombre,
+      clienteNombre: clientes.nombre,
+      clienteTelefono: clientes.telefono,
+      subtotal: ventas.subtotal,
+      descuento: ventas.descuento,
+      total: ventas.total,
+      metodoPago: ventas.metodoPago,
+      estadoPago: ventas.estadoPago,
+      montoRecibido: ventas.montoRecibido,
+      cambio: ventas.cambio,
+      estado: ventas.estado,
+      tokenPublico: ventas.tokenPublico,
+      sucursalNombre: sucursales.nombre,
+      sucursalDireccion: sucursales.direccion,
+      sucursalTelefono: sucursales.telefono,
+      tamanoImpresion: sucursales.tamanoImpresion,
+    })
+    .from(ventas)
+    .innerJoin(usuarios, eq(usuarios.id, ventas.cajeroId))
+    .innerJoin(sucursales, eq(sucursales.id, ventas.sucursalId))
+    .leftJoin(clientes, eq(clientes.id, ventas.clienteId))
+    .where("ventaId" in filtro ? eq(ventas.id, filtro.ventaId) : eq(ventas.tokenPublico, filtro.token));
+  if (!v) return null;
+
+  const [lineas, [conf]] = await Promise.all([
+    db
+      .select({
+        nombre: productos.nombre,
+        marca: productos.marca,
+        sabor: productos.sabor,
+        presentacion: productos.presentacion,
+        cantidad: detalleVenta.cantidad,
+        precioUnitario: detalleVenta.precioUnitario,
+        descuento: detalleVenta.descuento,
+      })
+      .from(detalleVenta)
+      .innerJoin(productos, eq(productos.id, detalleVenta.productoId))
+      .where(eq(detalleVenta.ventaId, v.id))
+      .orderBy(asc(detalleVenta.id)),
+    db.select().from(configuracion).where(eq(configuracion.id, 1)),
+  ]);
+
+  return {
+    negocio: {
+      nombre: conf?.nombreComercial ?? "El Maseta",
+      nit: conf?.nit ?? null,
+      logoUrl: conf?.logoUrl ?? null,
+      mensajeAgradecimiento: conf?.mensajeAgradecimiento ?? "¡Gracias por tu compra!",
+      plantillaWhatsapp: conf?.plantillaWhatsapp ?? "Hola {cliente}, aquí está tu comprobante de {negocio}: {enlace}",
+      codigoPais: conf?.codigoPais ?? "591",
+    },
+    sucursal: {
+      nombre: v.sucursalNombre,
+      direccion: v.sucursalDireccion,
+      telefono: v.sucursalTelefono,
+      tamanoImpresion: v.tamanoImpresion,
+    },
+    venta: {
+      id: v.id,
+      numero: v.numero,
+      fecha: v.fecha.toISOString(),
+      cajero: v.cajero,
+      cliente: v.clienteNombre || v.clienteTelefono ? { nombre: v.clienteNombre, telefono: v.clienteTelefono } : null,
+      lineas: lineas.map((l) => ({
+        nombre: l.nombre,
+        detalle: [l.marca, l.sabor, l.presentacion].filter(Boolean).join(" · ") || null,
+        cantidad: l.cantidad,
+        precioUnitario: l.precioUnitario,
+        descuento: l.descuento,
+        subtotal: deCentavos(aCentavos(l.precioUnitario) * BigInt(l.cantidad) - aCentavos(l.descuento)),
+      })),
+      subtotal: v.subtotal,
+      descuento: v.descuento,
+      total: v.total,
+      metodoPago: v.metodoPago,
+      estadoPago: v.estadoPago,
+      montoRecibido: v.montoRecibido,
+      cambio: v.cambio,
+      anulada: v.estado === "anulada",
+      tokenPublico: v.tokenPublico,
+    },
+  };
+}
+
+/**
+ * Quién puede ver/reimprimir un comprobante desde la app:
+ * el administrador, cualquiera; el cajero, solo sus ventas del día (sección 5 del plan).
+ */
+export async function puedeVerVenta(sesion: Sesion, ventaId: number): Promise<boolean> {
+  if (sesion.rol === "admin") return true;
+  const [v] = await db
+    .select({ id: ventas.id })
+    .from(ventas)
+    .where(
+      and(
+        eq(ventas.id, ventaId),
+        eq(ventas.cajeroId, sesion.uid),
+        sql`(${ventas.fecha} at time zone ${ZONA_HORARIA})::date = ${hoyEnBolivia()}::date`,
+      ),
+    );
+  return !!v;
+}

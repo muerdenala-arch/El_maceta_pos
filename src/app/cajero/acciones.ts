@@ -10,6 +10,8 @@ import { registrarAuditoria } from "@/lib/auditoria";
 import { autorizar } from "@/lib/auth/sesion";
 import { cambio, diferenciaCierre, normalizarTelefono, totalesVenta } from "@/lib/caja/calculos";
 import { cajaAbiertaDe, totalesCaja } from "@/lib/caja/consultas";
+import { obtenerComprobante, puedeVerVenta } from "@/lib/comprobante/consulta";
+import type { DatosComprobante } from "@/lib/comprobante/datos";
 import { aCentavos } from "@/lib/dinero";
 import { formatoBs } from "@/lib/formato";
 import { cambiarStock, ErrorStock } from "@/lib/inventario/stock";
@@ -59,6 +61,8 @@ export type VentaRealizada = {
   montoRecibido: string | null;
   cambio: string | null;
   tokenPublico: string;
+  /** Para imprimir, descargar o enviar el comprobante desde la pantalla "Venta realizada". */
+  comprobante: DatosComprobante | null;
 };
 
 async function ventaExistente(uuid: string, cajeroId: number): Promise<VentaRealizada | null> {
@@ -74,7 +78,7 @@ async function ventaExistente(uuid: string, cajeroId: number): Promise<VentaReal
     })
     .from(ventas)
     .where(and(eq(ventas.uuidDispositivo, uuid), eq(ventas.cajeroId, cajeroId)));
-  return v ?? null;
+  return v ? { ...v, comprobante: await obtenerComprobante({ ventaId: v.ventaId }) } : null;
 }
 
 /**
@@ -182,9 +186,9 @@ export async function registrarVenta(entrada: DatosVenta): Promise<Resultado<Ven
           montoRecibido: nueva.montoRecibido,
           cambio: nueva.cambio,
           tokenPublico: nueva.tokenPublico,
-        } satisfies VentaRealizada;
+        };
       });
-      return exito(venta);
+      return exito({ ...venta, comprobante: await obtenerComprobante({ ventaId: venta.ventaId }) });
     } catch (e) {
       if (e instanceof ErrorStock) return fallo(e.message);
       // Doble envío simultáneo de la misma venta: gana uno y el otro devuelve el mismo resultado.
@@ -194,6 +198,17 @@ export async function registrarVenta(entrada: DatosVenta): Promise<Resultado<Ven
       }
       throw e;
     }
+  });
+}
+
+/** Comprobante para reimprimir/reenviar: el cajero solo sus ventas del día; el admin, cualquiera. */
+export async function verComprobante(ventaId: number): Promise<Resultado<DatosComprobante>> {
+  return conPermiso(async () => {
+    const sesion = await autorizar("cajero", "admin");
+    const id = Number(ventaId);
+    if (!Number.isInteger(id) || id <= 0 || !(await puedeVerVenta(sesion, id))) return fallo("No puedes ver este comprobante");
+    const datos = await obtenerComprobante({ ventaId: id });
+    return datos ? exito(datos) : fallo("La venta no existe");
   });
 }
 

@@ -97,6 +97,18 @@ Credenciales de prueba locales: en `.env.local` (`SEED_*`), nunca en el código 
   caja abierta. El carrito del POS se guarda en localStorage por caja (sobrevive recargas).
 - **Con PGlite, no usar `db` dentro de `db.transaction`** (se bloquea): pasar `tx` (ver `totalesCaja`).
 
+## Comprobantes (Fase 4b)
+
+- `lib/comprobante/consulta.ts` arma `DatosComprobante` (por venta o por token); `puedeVerVenta`: admin
+  todo, cajero solo sus ventas del día. `registrarVenta` ya devuelve el comprobante.
+- `<Comprobante>` (58/80 mm térmica o carta) sirve para pantalla e impresión. `<AccionesComprobante>`:
+  imprimir (portal `.zona-impresion` en `<body>` + `@page` inyectado; CSS en globals), PDF con jsPDF en el
+  dispositivo (`lib/comprobante/pdf.ts`, carga diferida, logo en JPEG, ~11 KB) y WhatsApp.
+- WhatsApp: en celular, Web Share API con el PDF adjunto; si no, `wa.me/<591…>?text=` con la plantilla de
+  Configuración y un **enlace a `/comprobante/[token]`** (página pública, token aleatorio de 144 bits) en vez de
+  subir el PDF a Blob: siempre actualizado y sin almacenamiento extra.
+- Reimpresión: cajero en `/cajero/ventas`; admin en `/admin/reportes` (versión básica, se amplía en F8).
+
 ## Reglas no negociables
 
 - **Permisos en el servidor**: `proxy.ts` protege rutas por rol y *además* cada server action /
@@ -158,7 +170,7 @@ Todo debe funcionar en celular (375 px) y en modo oscuro.
       plugins UI/UX Pro Max y 21st.dev, Sentry.
 - [x] 1. Autenticación y roles (+ panel de inicio con estadísticas reales, adelantado de la Fase 8)
 - [x] 2. Estructura base (sucursales, personal, categorías, catálogo con fotos, configuración) · [ ] 3. Inventario · [ ] 4. Caja y ventas
-- [ ] 4b. Comprobantes · [ ] 5. Promociones · [ ] 6. Offline · [ ] 7. Alertas y auditoría
+- [x] 4b. Comprobantes (impresión 58/80/carta, PDF en el dispositivo, WhatsApp, reimpresión, página pública) · [ ] 5. Promociones · [ ] 6. Offline · [ ] 7. Alertas y auditoría
 - [ ] 8. Reportes · [ ] 9. Pruebas · [ ] 10. Lanzamiento
 
 Entregar cada fase funcional y probada contra los criterios de aceptación (sección 11) antes de seguir.
