@@ -1,0 +1,2 @@
+ALTER TABLE "detalle_venta" ADD COLUMN "promocion_id" integer;--> statement-breakpoint
+ALTER TABLE "detalle_venta" ADD CONSTRAINT "detalle_venta_promocion_id_promociones_id_fk" FOREIGN KEY ("promocion_id") REFERENCES "public"."promociones"("id") ON DELETE no action ON UPDATE no action;

@@ -33,3 +33,18 @@ export function fechaLarga(isoDia: string) {
     year: "numeric",
   });
 }
+
+/**
+ * Inicio del día (00:00) en Bolivia como instante. Bolivia no tiene horario de verano: siempre UTC−4.
+ * `diaSiguiente` sirve para guardar fechas finales exclusivas ("vigente hasta el 30" → < 31 00:00).
+ */
+export function inicioDiaBolivia(isoDia: string, diaSiguiente = false) {
+  const d = new Date(`${isoDia}T00:00:00-04:00`);
+  if (diaSiguiente) d.setUTCDate(d.getUTCDate() + 1);
+  return d;
+}
+
+/** Instante → "AAAA-MM-DD" en Bolivia; con `diaAnterior` deshace una fecha final exclusiva. */
+export function diaBolivia(instante: Date, diaAnterior = false) {
+  return hoyEnBolivia(diaAnterior ? new Date(instante.getTime() - 1) : instante);
+}

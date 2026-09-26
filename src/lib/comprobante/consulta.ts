@@ -1,7 +1,7 @@
 import "server-only";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { clientes, configuracion, detalleVenta, productos, sucursales, usuarios, ventas } from "@/db/schema";
+import { clientes, configuracion, cupones, detalleVenta, productos, promociones, sucursales, usuarios, ventas } from "@/db/schema";
 import type { Sesion } from "@/lib/auth/sesion";
 import { aCentavos, deCentavos } from "@/lib/dinero";
 import { hoyEnBolivia, ZONA_HORARIA } from "@/lib/formato";
@@ -24,6 +24,7 @@ export async function obtenerComprobante(filtro: { ventaId: number } | { token: 
       estadoPago: ventas.estadoPago,
       montoRecibido: ventas.montoRecibido,
       cambio: ventas.cambio,
+      cupon: cupones.codigo,
       estado: ventas.estado,
       tokenPublico: ventas.tokenPublico,
       sucursalNombre: sucursales.nombre,
@@ -35,6 +36,7 @@ export async function obtenerComprobante(filtro: { ventaId: number } | { token: 
     .innerJoin(usuarios, eq(usuarios.id, ventas.cajeroId))
     .innerJoin(sucursales, eq(sucursales.id, ventas.sucursalId))
     .leftJoin(clientes, eq(clientes.id, ventas.clienteId))
+    .leftJoin(cupones, eq(cupones.id, ventas.cuponId))
     .where("ventaId" in filtro ? eq(ventas.id, filtro.ventaId) : eq(ventas.tokenPublico, filtro.token));
   if (!v) return null;
 
@@ -48,9 +50,11 @@ export async function obtenerComprobante(filtro: { ventaId: number } | { token: 
         cantidad: detalleVenta.cantidad,
         precioUnitario: detalleVenta.precioUnitario,
         descuento: detalleVenta.descuento,
+        promocion: promociones.nombre,
       })
       .from(detalleVenta)
       .innerJoin(productos, eq(productos.id, detalleVenta.productoId))
+      .leftJoin(promociones, eq(promociones.id, detalleVenta.promocionId))
       .where(eq(detalleVenta.ventaId, v.id))
       .orderBy(asc(detalleVenta.id)),
     db.select().from(configuracion).where(eq(configuracion.id, 1)),
@@ -83,7 +87,9 @@ export async function obtenerComprobante(filtro: { ventaId: number } | { token: 
         cantidad: l.cantidad,
         precioUnitario: l.precioUnitario,
         descuento: l.descuento,
-        subtotal: deCentavos(aCentavos(l.precioUnitario) * BigInt(l.cantidad) - aCentavos(l.descuento)),
+        // Importe bruto de la línea; el descuento se muestra aparte debajo (subtotal − descuentos = total).
+        subtotal: deCentavos(aCentavos(l.precioUnitario) * BigInt(l.cantidad)),
+        promocion: aCentavos(l.descuento) > 0n ? l.promocion : null,
       })),
       subtotal: v.subtotal,
       descuento: v.descuento,
@@ -92,6 +98,7 @@ export async function obtenerComprobante(filtro: { ventaId: number } | { token: 
       estadoPago: v.estadoPago,
       montoRecibido: v.montoRecibido,
       cambio: v.cambio,
+      cupon: v.cupon,
       anulada: v.estado === "anulada",
       tokenPublico: v.tokenPublico,
     },

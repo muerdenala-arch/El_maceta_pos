@@ -1,7 +1,7 @@
 "use client";
 
 /* eslint-disable @next/next/no-img-element -- fotos propias, ya comprimidas */
-import { Minus, Package, Plus, ReceiptText, Search, ShoppingCart, Trash2, X, ZoomIn } from "lucide-react";
+import { Minus, Package, Plus, ReceiptText, Search, ShoppingCart, Tag, Trash2, X, ZoomIn } from "lucide-react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "motion/react";
 import { useRouter } from "next/navigation";
@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { escribirAlmacen, leerAlmacen } from "@/lib/almacen";
-import { totalesVenta } from "@/lib/caja/calculos";
+import { aplicarPromociones, type LineaCarrito, type Promocion, type ResultadoPromociones } from "@/lib/promociones/motor";
 import type { ProductoPos, QrCobro } from "@/lib/caja/consultas";
 import { formatoBs } from "@/lib/formato";
 import { cn } from "@/lib/utils";
@@ -24,7 +24,18 @@ type Linea = { productoId: number; cantidad: number };
 
 const detalle = (p: ProductoPos) => [p.marca, p.sabor, p.presentacion].filter(Boolean).join(" · ");
 
-export function PuntoDeVenta({ cajaId, productos, qrs }: { cajaId: number; productos: ProductoPos[]; qrs: QrCobro[] }) {
+export function PuntoDeVenta({
+  cajaId,
+  productos,
+  qrs,
+  promociones,
+}: {
+  cajaId: number;
+  productos: ProductoPos[];
+  qrs: QrCobro[];
+  /** Promociones automáticas vigentes en la sucursal (el servidor las recalcula al cobrar). */
+  promociones: Promocion[];
+}) {
   const router = useRouter();
   const claveCarrito = `maseta:carrito:${cajaId}`;
   const [carrito, setCarrito] = useState<Linea[]>([]);
@@ -120,7 +131,13 @@ export function PuntoDeVenta({ cajaId, productos, qrs }: { cajaId: number; produ
   const lineas = carrito
     .map((l) => ({ ...l, producto: porId.get(l.productoId)! }))
     .filter((l) => l.producto);
-  const totales = totalesVenta(lineas.map((l) => ({ precioUnitario: l.producto.precioVenta, cantidad: l.cantidad })));
+  const lineasCarrito: LineaCarrito[] = lineas.map((l) => ({
+    productoId: l.productoId,
+    categoriaId: l.producto.categoriaId,
+    cantidad: l.cantidad,
+    precioUnitario: l.producto.precioVenta,
+  }));
+  const totales = aplicarPromociones(lineasCarrito, promociones);
   const unidades = lineas.reduce((s, l) => s + l.cantidad, 0);
 
   if (realizada) {
@@ -138,7 +155,7 @@ export function PuntoDeVenta({ cajaId, productos, qrs }: { cajaId: number; produ
   const panelCarrito = (
     <PanelCarrito
       lineas={lineas}
-      total={totales.total}
+      resultado={totales}
       unidades={unidades}
       onCantidad={cambiarCantidad}
       onVaciar={() => setCarrito([])}
@@ -327,8 +344,8 @@ export function PuntoDeVenta({ cajaId, productos, qrs }: { cajaId: number; produ
 
       {cobrando && (
         <DialogoCobro
-          total={totales.total}
-          lineas={lineas.map((l) => ({ productoId: l.productoId, cantidad: l.cantidad }))}
+          lineas={lineasCarrito}
+          promociones={promociones}
           qrs={qrs}
           onCerrar={() => setCobrando(false)}
           onError={() => router.refresh()}
@@ -346,14 +363,14 @@ export function PuntoDeVenta({ cajaId, productos, qrs }: { cajaId: number; produ
 
 function PanelCarrito({
   lineas,
-  total,
+  resultado,
   unidades,
   onCantidad,
   onVaciar,
   onCobrar,
 }: {
   lineas: (Linea & { producto: ProductoPos })[];
-  total: string;
+  resultado: ResultadoPromociones;
   unidades: number;
   onCantidad: (productoId: number, cantidad: number) => void;
   onVaciar: () => void;
@@ -375,7 +392,10 @@ function PanelCarrito({
 
       <ul className="flex-1 space-y-2 overflow-y-auto p-3">
         <AnimatePresence initial={false}>
-          {lineas.map((l) => (
+          {lineas.map((l, i) => {
+            const conPromo = resultado.lineas[i];
+            const tieneDescuento = !!conPromo && Number(conPromo.descuento) > 0;
+            return (
             <motion.li
               key={l.productoId}
               layout
@@ -391,6 +411,11 @@ function PanelCarrito({
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-bold">{l.producto.nombre}</p>
                 <p className="cifras text-xs text-muted-foreground">{formatoBs(l.producto.precioVenta)} c/u</p>
+                {conPromo?.promocion && (
+                  <p className="mt-0.5 flex items-center gap-1 truncate text-xs font-bold text-exito">
+                    <Tag className="size-3 shrink-0" /> {conPromo.promocion}
+                  </p>
+                )}
                 <div className="mt-1 flex items-center gap-1">
                   <button type="button" onClick={() => onCantidad(l.productoId, l.cantidad - 1)} aria-label={`Quitar uno de ${l.producto.nombre}`} className="flex size-8 items-center justify-center rounded-lg border bg-background hover:bg-accent">
                     {l.cantidad === 1 ? <Trash2 className="size-3.5" /> : <Minus className="size-3.5" />}
@@ -407,11 +432,15 @@ function PanelCarrito({
                   </button>
                 </div>
               </div>
-              <span className="cifras font-display font-extrabold">
-                {formatoBs(totalesVenta([{ precioUnitario: l.producto.precioVenta, cantidad: l.cantidad }]).total)}
+              <span className="flex flex-col items-end">
+                {tieneDescuento && <span className="cifras text-xs text-muted-foreground line-through">{formatoBs(conPromo.subtotal)}</span>}
+                <span className={cn("cifras font-display font-extrabold", tieneDescuento && "text-exito")}>
+                  {formatoBs(conPromo?.total ?? "0")}
+                </span>
               </span>
             </motion.li>
-          ))}
+            );
+          })}
         </AnimatePresence>
         {lineas.length === 0 && (
           <li className="flex h-full min-h-40 flex-col items-center justify-center gap-2 text-center text-sm text-muted-foreground">
@@ -422,9 +451,19 @@ function PanelCarrito({
       </ul>
 
       <div className="space-y-3 border-t p-4">
+        {Number(resultado.descuento) > 0 && (
+          <div className="space-y-0.5 text-sm">
+            <p className="flex justify-between text-muted-foreground">
+              <span>Subtotal</span> <span className="cifras">{formatoBs(resultado.subtotal)}</span>
+            </p>
+            <p className="flex justify-between font-semibold text-exito">
+              <span>Descuentos</span> <span className="cifras">−{formatoBs(resultado.descuento)}</span>
+            </p>
+          </div>
+        )}
         <div className="flex items-end justify-between">
           <span className="font-semibold text-muted-foreground">Total</span>
-          <span className="cifras font-display text-3xl font-extrabold">{formatoBs(total)}</span>
+          <span className="cifras font-display text-3xl font-extrabold">{formatoBs(resultado.total)}</span>
         </div>
         <Button size="lg" className="h-14 w-full rounded-2xl text-lg font-bold" disabled={lineas.length === 0} onClick={onCobrar}>
           Cobrar

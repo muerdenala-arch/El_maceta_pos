@@ -34,7 +34,10 @@ export type DatosComprobante = {
       cantidad: number;
       precioUnitario: string;
       descuento: string;
+      /** Precio × cantidad, antes del descuento de la línea. */
       subtotal: string;
+      /** Nombre de la promoción aplicada a la línea. */
+      promocion: string | null;
     }[];
     subtotal: string;
     descuento: string;
@@ -43,6 +46,8 @@ export type DatosComprobante = {
     estadoPago: "pagado" | "qr_por_confirmar";
     montoRecibido: string | null;
     cambio: string | null;
+    /** Código del cupón usado, si hubo. */
+    cupon: string | null;
     anulada: boolean;
     tokenPublico: string;
   };

@@ -34,6 +34,7 @@ async function cargarImagen(url: string, grises: boolean): Promise<Imagen | null
 }
 
 const bs = (monto: string) => formatoBs(monto);
+const recortar = (texto: string, max: number) => (texto.length > max ? `${texto.slice(0, max - 1)}…` : texto);
 const menos = (monto: string) => `-${formatoBs(monto)}`;
 const pago = (d: DatosComprobante) =>
   d.venta.metodoPago === "efectivo" ? "Efectivo" : d.venta.estadoPago === "qr_por_confirmar" ? "QR (por confirmar)" : "QR";
@@ -101,7 +102,7 @@ function dibujarTermica(doc: JsPdf, d: DatosComprobante, ancho: number, logo: Im
     izquierda(l.nombre, base, true);
     if (l.detalle) izquierda(l.detalle, base - 1);
     fila(`${l.cantidad} x ${bs(l.precioUnitario)}`, bs(l.subtotal));
-    if (Number(l.descuento) > 0) fila("Descuento", menos(l.descuento));
+    if (Number(l.descuento) > 0) fila(recortar(l.promocion ?? "Descuento", ancho === 58 ? 22 : 30), menos(l.descuento));
     y += 0.8;
   }
   separador();
@@ -109,6 +110,7 @@ function dibujarTermica(doc: JsPdf, d: DatosComprobante, ancho: number, logo: Im
   if (Number(d.venta.descuento) > 0) {
     fila("Subtotal", bs(d.venta.subtotal));
     fila("Descuentos", menos(d.venta.descuento));
+    if (d.venta.cupon) fila("Cupón", d.venta.cupon);
   }
   y += 1.5; // aire antes del total, que va en letra más grande
   fila("TOTAL", bs(d.venta.total), base + 3, true);
@@ -190,7 +192,7 @@ function dibujarCarta(doc: JsPdf, d: DatosComprobante, logo: Imagen | null) {
     doc.setFont("helvetica", "normal").text(String(l.cantidad), col.cant, y, { align: "right" });
     doc.text(bs(l.precioUnitario), col.unit, y, { align: "right" });
     doc.text(bs(l.subtotal), col.sub, y, { align: "right" });
-    if (Number(l.descuento) > 0) doc.setFontSize(8.5).text(`Desc. ${menos(l.descuento)}`, col.sub, y + 4, { align: "right" }).setFontSize(10);
+    if (Number(l.descuento) > 0) doc.setFontSize(8.5).text(`${recortar(l.promocion ?? "Desc.", 28)} ${menos(l.descuento)}`, col.sub, y + 4, { align: "right" }).setFontSize(10);
     if (detalle.length) doc.setFontSize(8.5).setTextColor(100).text(detalle, m, y + nombre.length * 4.5).setTextColor(0);
     y += altoFila;
     doc.setDrawColor(220).line(m, y - 1.5, derecha, y - 1.5);
@@ -200,6 +202,7 @@ function dibujarCarta(doc: JsPdf, d: DatosComprobante, logo: Imagen | null) {
   y += 3;
   const totales: [string, string, boolean?][] = [];
   if (Number(d.venta.descuento) > 0) totales.push(["Subtotal", bs(d.venta.subtotal)], ["Descuentos", menos(d.venta.descuento)]);
+  if (d.venta.cupon) totales.push(["Cupón", d.venta.cupon]);
   totales.push(["TOTAL", bs(d.venta.total), true], ["Pago", pago(d)]);
   if (d.venta.metodoPago === "efectivo" && d.venta.montoRecibido) totales.push(["Recibido", bs(d.venta.montoRecibido)], ["Cambio", bs(d.venta.cambio ?? "0")]);
   for (const [a, b, fuerte] of totales) {

@@ -109,6 +109,21 @@ Credenciales de prueba locales: en `.env.local` (`SEED_*`), nunca en el código 
   subir el PDF a Blob: siempre actualizado y sin almacenamiento extra.
 - Reimpresión: cajero en `/cajero/ventas`; admin en `/admin/reportes` (versión básica, se amplía en F8).
 
+## Promociones (Fase 5)
+
+- Motor puro y probado: `lib/promociones/motor.ts` (`aplicarPromociones`). Lo usan el POS (vista previa) y
+  `registrarVenta` (cobro real, con las promociones vigentes de la BD).
+- Reglas (decididas con el dueño en mente; confirmar si cambian): **no se acumulan** (cada línea recibe la mejor
+  promoción, asignación codiciosa por descuento total); **monto fijo = Bs por unidad**; **combo N×M** regala las
+  unidades más baratas; el **cupón compite** con las automáticas y solo se consume si realmente gana.
+- Vigencia en días de Bolivia: `fechaInicio` = 00:00 del primer día; `fechaFin` **exclusiva** (00:00 del día
+  siguiente al último) → `inicioDiaBolivia` / `diaBolivia` en `lib/formato.ts`.
+- Alcance: todo / producto / categoría + `sucursalId` opcional ("sucursal" en BD = todo en esa sucursal).
+- Cupones: `validarCuponEn(codigo, sucursal, tx, { consumir })` suma el uso con condición atómica (no supera el
+  límite con ventas simultáneas). Crear un cupón marca la promoción como "solo con cupón".
+- `detalle_venta.promocion_id` y `ventas.cupon_id` quedan registrados; el comprobante muestra el importe bruto de
+  cada línea, la promoción y el descuento debajo, y el cupón usado.
+
 ## Reglas no negociables
 
 - **Permisos en el servidor**: `proxy.ts` protege rutas por rol y *además* cada server action /
@@ -170,7 +185,7 @@ Todo debe funcionar en celular (375 px) y en modo oscuro.
       plugins UI/UX Pro Max y 21st.dev, Sentry.
 - [x] 1. Autenticación y roles (+ panel de inicio con estadísticas reales, adelantado de la Fase 8)
 - [x] 2. Estructura base (sucursales, personal, categorías, catálogo con fotos, configuración) · [ ] 3. Inventario · [ ] 4. Caja y ventas
-- [x] 4b. Comprobantes (impresión 58/80/carta, PDF en el dispositivo, WhatsApp, reimpresión, página pública) · [ ] 5. Promociones · [ ] 6. Offline · [ ] 7. Alertas y auditoría
+- [x] 4b. Comprobantes (impresión 58/80/carta, PDF en el dispositivo, WhatsApp, reimpresión, página pública) · [x] 5. Promociones (porcentaje, Bs por unidad, combos NxM, cupones con límite, vigencia, alcance) · [ ] 6. Offline · [ ] 7. Alertas y auditoría
 - [ ] 8. Reportes · [ ] 9. Pruebas · [ ] 10. Lanzamiento
 
 Entregar cada fase funcional y probada contra los criterios de aceptación (sección 11) antes de seguir.

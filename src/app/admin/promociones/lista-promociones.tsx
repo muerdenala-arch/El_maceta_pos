@@ -1,0 +1,413 @@
+"use client";
+
+import { CalendarRange, Pencil, Percent, Plus, Shapes, Store, Tag, TicketPercent, Trash2, Wand2 } from "lucide-react";
+import { useState } from "react";
+import { Campo } from "@/components/formularios/campo";
+import { DialogoFormulario } from "@/components/formularios/dialogo-formulario";
+import { EncabezadoPagina } from "@/components/formularios/encabezado-pagina";
+import { useAccion } from "@/components/formularios/use-accion";
+import { SelectorProducto, type ProductoLigero } from "@/components/inventario/selector-producto";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { describirBeneficio } from "@/lib/promociones/motor";
+import { cn } from "@/lib/utils";
+import type { DatosPromocion } from "@/lib/validaciones/promociones";
+import { crearCupon, eliminarCupon, guardarPromocion } from "./acciones";
+
+type Cupon = { id: number; codigo: string; usosMaximos: number | null; usosActuales: number };
+type Promo = {
+  id: number;
+  nombre: string;
+  tipo: "porcentaje" | "monto_fijo" | "combo";
+  valor: string;
+  comboLleva: number | null;
+  comboPaga: number | null;
+  alcance: "todo" | "producto" | "categoria";
+  productoId: number | null;
+  producto: string | null;
+  categoriaId: number | null;
+  categoria: string | null;
+  sucursalId: number | null;
+  sucursal: string | null;
+  desde: string;
+  hasta: string;
+  requiereCupon: boolean;
+  activo: boolean;
+  cupones: Cupon[];
+};
+type Opcion = { id: number; nombre: string };
+/** Estado del formulario (los campos numéricos con tipo explícito; el servidor los valida igual). */
+type FormPromo = Omit<DatosPromocion, "comboLleva" | "comboPaga" | "productoId" | "categoriaId" | "sucursalId"> & {
+  comboLleva: number | null;
+  comboPaga: number | null;
+  productoId: number | null;
+  categoriaId: number | null;
+  sucursalId: number | null;
+};
+
+const fechaCorta = (dia: string) =>
+  new Date(`${dia}T12:00:00Z`).toLocaleDateString("es-BO", { timeZone: "UTC", day: "numeric", month: "short", year: "numeric" });
+
+function estado(p: Promo, hoy: string) {
+  if (!p.activo) return { texto: "Inactiva", clase: "bg-muted text-muted-foreground" };
+  if (hoy < p.desde) return { texto: "Programada", clase: "bg-ficha-neutra text-ficha-neutra-foreground" };
+  if (hoy > p.hasta) return { texto: "Vencida", clase: "bg-destructive/15 text-destructive" };
+  return { texto: "Vigente", clase: "bg-exito text-exito-foreground" };
+}
+
+const alcanceTexto = (p: Promo) =>
+  p.alcance === "producto" ? `Producto: ${p.producto}` : p.alcance === "categoria" ? `Categoría: ${p.categoria}` : "Todo el catálogo";
+
+export function ListaPromociones({
+  hoy,
+  promociones,
+  productos,
+  categorias,
+  sucursales,
+}: {
+  hoy: string;
+  promociones: Promo[];
+  productos: ProductoLigero[];
+  categorias: Opcion[];
+  sucursales: Opcion[];
+}) {
+  const [editando, setEditando] = useState<Promo | "nueva" | null>(null);
+  const [cuponesDe, setCuponesDe] = useState<Promo | null>(null);
+
+  return (
+    <div className="mx-auto max-w-6xl space-y-6">
+      <EncabezadoPagina
+        icono={TicketPercent}
+        titulo="Promociones y cupones"
+        descripcion="Se aplican solas en el punto de venta (o con cupón). A cada producto se le aplica la mejor, nunca se acumulan."
+      >
+        <Button size="lg" className="rounded-full font-bold" onClick={() => setEditando("nueva")}>
+          <Plus className="size-5" /> Nueva promoción
+        </Button>
+      </EncabezadoPagina>
+
+      {promociones.length === 0 ? (
+        <div className="flex flex-col items-center gap-3 rounded-3xl border border-dashed p-12 text-center text-muted-foreground">
+          <TicketPercent className="size-10" />
+          <p>Crea tu primera promoción: un porcentaje, un monto por unidad o un combo como 2x1.</p>
+        </div>
+      ) : (
+        <ul className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {promociones.map((p) => {
+            const e = estado(p, hoy);
+            return (
+              <li key={p.id} className={cn("flex flex-col rounded-3xl border bg-card p-5 shadow-sm", e.texto !== "Vigente" && "opacity-75")}>
+                <div className="flex items-start gap-3">
+                  <span className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-ficha-rosa text-ficha-rosa-foreground">
+                    {p.tipo === "combo" ? <Shapes className="size-5" /> : p.tipo === "porcentaje" ? <Percent className="size-5" /> : <Tag className="size-5" />}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="font-bold leading-snug">{p.nombre}</p>
+                    <p className="font-display text-lg font-extrabold text-primary">{describirBeneficio(p)}</p>
+                  </div>
+                  <Button variant="ghost" size="icon" aria-label={`Editar ${p.nombre}`} onClick={() => setEditando(p)}>
+                    <Pencil className="size-4" />
+                  </Button>
+                </div>
+                <ul className="mt-3 mb-4 space-y-1.5 text-sm text-muted-foreground">
+                  <li className="flex items-center gap-2"><Tag className="size-4 shrink-0" /> <span className="truncate">{alcanceTexto(p)}</span></li>
+                  <li className="flex items-center gap-2"><Store className="size-4 shrink-0" /> {p.sucursal ?? "Todas las sucursales"}</li>
+                  <li className="flex items-center gap-2"><CalendarRange className="size-4 shrink-0" /> {fechaCorta(p.desde)} – {fechaCorta(p.hasta)}</li>
+                </ul>
+                <div className="mt-auto flex flex-wrap items-center gap-2 border-t pt-3">
+                  <Badge className={e.clase}>{e.texto}</Badge>
+                  <Badge variant="outline">{p.requiereCupon ? "Con cupón" : "Automática"}</Badge>
+                  <Button variant="ghost" size="sm" className="ml-auto" onClick={() => setCuponesDe(p)}>
+                    <TicketPercent className="size-4" /> Cupones ({p.cupones.length})
+                  </Button>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      {editando && (
+        <FormularioPromocion
+          key={editando === "nueva" ? "nueva" : editando.id}
+          promo={editando === "nueva" ? null : editando}
+          hoy={hoy}
+          productos={productos}
+          categorias={categorias}
+          sucursales={sucursales}
+          onCerrar={() => setEditando(null)}
+        />
+      )}
+      {cuponesDe && (
+        <DialogoCupones
+          promo={promociones.find((p) => p.id === cuponesDe.id) ?? cuponesDe}
+          onCerrar={() => setCuponesDe(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+const PRESETS_COMBO = [
+  { lleva: 2, paga: 1 },
+  { lleva: 3, paga: 2 },
+  { lleva: 4, paga: 3 },
+];
+
+function FormularioPromocion({
+  promo,
+  hoy,
+  productos,
+  categorias,
+  sucursales,
+  onCerrar,
+}: {
+  promo: Promo | null;
+  hoy: string;
+  productos: ProductoLigero[];
+  categorias: Opcion[];
+  sucursales: Opcion[];
+  onCerrar: () => void;
+}) {
+  const [d, setD] = useState<FormPromo>(() => ({
+    nombre: promo?.nombre ?? "",
+    tipo: promo?.tipo ?? "porcentaje",
+    valor: promo && promo.tipo !== "combo" ? String(Number(promo.valor)) : "",
+    comboLleva: promo?.comboLleva ?? 2,
+    comboPaga: promo?.comboPaga ?? 1,
+    alcance: promo?.alcance ?? "todo",
+    productoId: promo?.productoId ?? null,
+    categoriaId: promo?.categoriaId ?? null,
+    sucursalId: promo?.sucursalId ?? null,
+    desde: promo?.desde ?? hoy,
+    hasta: promo?.hasta ?? hoy,
+    requiereCupon: promo?.requiereCupon ?? false,
+    activo: promo?.activo ?? true,
+  }));
+  const guardar = useAccion(guardarPromocion, { mensajeExito: promo ? "Promoción actualizada" : "Promoción creada", alExito: onCerrar });
+  const poner = <K extends keyof FormPromo>(k: K, v: FormPromo[K]) => {
+    setD((x) => ({ ...x, [k]: v }));
+    guardar.limpiarCampo(k);
+  };
+
+  return (
+    <DialogoFormulario
+      abierto
+      onAbierto={(v) => !v && onCerrar()}
+      titulo={promo ? "Editar promoción" : "Nueva promoción"}
+      pendiente={guardar.pendiente}
+      onGuardar={() => guardar.ejecutar(promo ? { ...d, id: promo.id } : d)}
+      ancho="sm:max-w-2xl"
+    >
+      <Campo etiqueta="Nombre" error={guardar.campos.nombre} ayuda="Aparece en el carrito y en el comprobante">
+        {(p) => <Input {...p} value={d.nombre} onChange={(e) => poner("nombre", e.target.value)} maxLength={120} placeholder="Ej. 2x1 en Whey Chocolate" autoFocus={!promo} />}
+      </Campo>
+
+      <Campo etiqueta="Tipo de beneficio">
+        {(p) => (
+          <div {...p} role="radiogroup" className="grid grid-cols-3 gap-2">
+            {([
+              { v: "porcentaje", t: "Porcentaje", i: Percent },
+              { v: "monto_fijo", t: "Bs por unidad", i: Tag },
+              { v: "combo", t: "Combo", i: Shapes },
+            ] as const).map(({ v, t, i: Icono }) => (
+              <button
+                key={v}
+                type="button"
+                role="radio"
+                aria-checked={d.tipo === v}
+                onClick={() => poner("tipo", v)}
+                className={cn(
+                  "flex flex-col items-center gap-1 rounded-2xl border-2 py-3 text-sm font-bold transition-colors",
+                  d.tipo === v ? "border-primary bg-nav-activo text-nav-activo-foreground" : "hover:bg-accent",
+                )}
+              >
+                <Icono className="size-5" /> {t}
+              </button>
+            ))}
+          </div>
+        )}
+      </Campo>
+
+      {d.tipo === "combo" ? (
+        <div className="space-y-2 rounded-2xl bg-muted/60 p-4">
+          <div className="flex flex-wrap gap-2">
+            {PRESETS_COMBO.map((c) => (
+              <button
+                key={c.lleva}
+                type="button"
+                onClick={() => setD((x) => ({ ...x, comboLleva: c.lleva, comboPaga: c.paga }))}
+                className={cn(
+                  "rounded-full border px-4 py-1.5 font-display font-extrabold",
+                  d.comboLleva === c.lleva && d.comboPaga === c.paga ? "border-transparent bg-primary text-primary-foreground" : "bg-background hover:bg-accent",
+                )}
+              >
+                {c.lleva}x{c.paga}
+              </button>
+            ))}
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <Campo etiqueta="Lleva" error={guardar.campos.comboLleva}>
+              {(p) => <Input {...p} inputMode="numeric" value={d.comboLleva ?? ""} onChange={(e) => poner("comboLleva", Number(e.target.value.replace(/\D/g, "")) || null)} className="cifras bg-background" />}
+            </Campo>
+            <Campo etiqueta="Paga" error={guardar.campos.comboPaga}>
+              {(p) => <Input {...p} inputMode="numeric" value={d.comboPaga ?? ""} onChange={(e) => poner("comboPaga", Number(e.target.value.replace(/\D/g, "")) || null)} className="cifras bg-background" />}
+            </Campo>
+          </div>
+          <p className="text-xs text-muted-foreground">Si mezclan productos distintos (combo por categoría), sale gratis el más barato.</p>
+        </div>
+      ) : (
+        <Campo etiqueta={d.tipo === "porcentaje" ? "Porcentaje de descuento" : "Descuento por unidad (Bs)"} error={guardar.campos.valor}>
+          {(p) => (
+            <div className="flex max-w-48 items-center rounded-xl border focus-within:ring-3 focus-within:ring-ring/50">
+              {d.tipo === "monto_fijo" && <span className="pl-3 font-bold text-muted-foreground">Bs</span>}
+              <Input
+                {...p}
+                value={d.valor}
+                onChange={(e) => poner("valor", e.target.value.replace(/[^\d.,]/g, "").slice(0, 10))}
+                inputMode="decimal"
+                className="cifras border-0 bg-transparent text-lg font-bold shadow-none focus-visible:ring-0 dark:bg-transparent"
+              />
+              {d.tipo === "porcentaje" && <span className="pr-3 font-bold text-muted-foreground">%</span>}
+            </div>
+          )}
+        </Campo>
+      )}
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Campo etiqueta="Aplica a">
+          {(p) => (
+            <Select value={d.alcance} onValueChange={(v) => poner("alcance", v as FormPromo["alcance"])}>
+              <SelectTrigger {...p} className="w-full"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todo">Todo el catálogo</SelectItem>
+                <SelectItem value="producto">Un producto</SelectItem>
+                <SelectItem value="categoria">Una categoría</SelectItem>
+              </SelectContent>
+            </Select>
+          )}
+        </Campo>
+        <Campo etiqueta="Sucursal" error={guardar.campos.sucursalId}>
+          {(p) => (
+            <Select value={d.sucursalId ? String(d.sucursalId) : "todas"} onValueChange={(v) => poner("sucursalId", v === "todas" ? null : Number(v))}>
+              <SelectTrigger {...p} className="w-full"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="todas">Todas las sucursales</SelectItem>
+                {sucursales.map((s) => <SelectItem key={s.id} value={String(s.id)}>{s.nombre}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          )}
+        </Campo>
+      </div>
+
+      {d.alcance === "producto" && (
+        <Campo etiqueta="Producto" error={guardar.campos.productoId}>
+          {(p) => <SelectorProducto id={p.id} productos={productos} valor={d.productoId ?? null} onCambiar={(id) => poner("productoId", id)} invalido={!!guardar.campos.productoId} />}
+        </Campo>
+      )}
+      {d.alcance === "categoria" && (
+        <Campo etiqueta="Categoría" error={guardar.campos.categoriaId}>
+          {(p) => (
+            <Select value={d.categoriaId ? String(d.categoriaId) : ""} onValueChange={(v) => poner("categoriaId", Number(v))}>
+              <SelectTrigger {...p} className="w-full"><SelectValue placeholder="Elige la categoría" /></SelectTrigger>
+              <SelectContent>
+                {categorias.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.nombre}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          )}
+        </Campo>
+      )}
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Campo etiqueta="Desde" error={guardar.campos.desde}>
+          {(p) => <Input {...p} type="date" value={d.desde} onChange={(e) => poner("desde", e.target.value)} />}
+        </Campo>
+        <Campo etiqueta="Hasta (inclusive)" error={guardar.campos.hasta}>
+          {(p) => <Input {...p} type="date" value={d.hasta} min={d.desde} onChange={(e) => poner("hasta", e.target.value)} />}
+        </Campo>
+      </div>
+
+      <div className="space-y-2">
+        <label className="flex items-center justify-between gap-4 rounded-2xl border p-4">
+          <span>
+            <span className="block font-semibold">Solo con cupón</span>
+            <span className="block text-sm text-muted-foreground">Si está apagado, se aplica sola a todos los clientes</span>
+          </span>
+          <Switch checked={d.requiereCupon} onCheckedChange={(v) => poner("requiereCupon", v)} />
+        </label>
+        <label className="flex items-center justify-between gap-4 rounded-2xl border p-4">
+          <span className="font-semibold">Activa</span>
+          <Switch checked={d.activo} onCheckedChange={(v) => poner("activo", v)} />
+        </label>
+      </div>
+    </DialogoFormulario>
+  );
+}
+
+/** Código aleatorio legible (sin 0/O ni 1/I para evitar confusiones al dictarlo). */
+function codigoAleatorio() {
+  const letras = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  return Array.from(crypto.getRandomValues(new Uint8Array(8)), (b) => letras[b % letras.length]).join("");
+}
+
+function DialogoCupones({ promo, onCerrar }: { promo: Promo; onCerrar: () => void }) {
+  const [codigo, setCodigo] = useState("");
+  const [usos, setUsos] = useState("");
+  const crear = useAccion(crearCupon, { mensajeExito: "Cupón creado", alExito: () => { setCodigo(""); setUsos(""); } });
+  const eliminar = useAccion(eliminarCupon, { mensajeExito: "Cupón eliminado" });
+
+  return (
+    <DialogoFormulario
+      abierto
+      onAbierto={(v) => !v && onCerrar()}
+      titulo={`Cupones · ${promo.nombre}`}
+      descripcion="El cajero escribe el código al cobrar. Crear un cupón hace que la promoción solo se aplique con código."
+      pendiente={crear.pendiente}
+      textoGuardar="Crear cupón"
+      onGuardar={() => crear.ejecutar({ promocionId: promo.id, codigo, usosMaximos: usos ? Number(usos) : null })}
+    >
+      <div className="grid gap-3 sm:grid-cols-[1fr_9rem]">
+        <Campo etiqueta="Código" error={crear.campos.codigo}>
+          {(p) => (
+            <div className="flex gap-2">
+              <Input {...p} value={codigo} onChange={(e) => setCodigo(e.target.value.toUpperCase().replace(/\s/g, ""))} maxLength={40} placeholder="VERANO10" className="font-mono uppercase" />
+              <Button type="button" variant="outline" size="icon" aria-label="Generar código" title="Generar código" onClick={() => setCodigo(codigoAleatorio())}>
+                <Wand2 className="size-4" />
+              </Button>
+            </div>
+          )}
+        </Campo>
+        <Campo etiqueta="Límite de usos" opcional error={crear.campos.usosMaximos}>
+          {(p) => <Input {...p} inputMode="numeric" value={usos} onChange={(e) => setUsos(e.target.value.replace(/\D/g, "").slice(0, 7))} placeholder="Sin límite" className="cifras" />}
+        </Campo>
+      </div>
+
+      <ul className="divide-y rounded-2xl border">
+        {promo.cupones.map((c) => (
+          <li key={c.id} className="flex items-center gap-3 px-4 py-2.5">
+            <span className="font-mono font-bold">{c.codigo}</span>
+            <span className="cifras ml-auto text-sm text-muted-foreground">
+              {c.usosActuales}{c.usosMaximos !== null ? ` / ${c.usosMaximos}` : ""} usos
+            </span>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="text-destructive hover:text-destructive"
+              aria-label={`Eliminar cupón ${c.codigo}`}
+              disabled={c.usosActuales > 0 || eliminar.pendiente}
+              title={c.usosActuales > 0 ? "Ya se usó: no se puede eliminar" : "Eliminar"}
+              onClick={() => eliminar.ejecutar({ id: c.id })}
+            >
+              <Trash2 className="size-4" />
+            </Button>
+          </li>
+        ))}
+        {promo.cupones.length === 0 && <li className="p-6 text-center text-sm text-muted-foreground">Sin cupones.</li>}
+      </ul>
+    </DialogoFormulario>
+  );
+}

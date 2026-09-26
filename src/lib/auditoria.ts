@@ -35,7 +35,12 @@ export type AccionAuditoria =
   | "caja_cerrada"
   | "gasto_anulado"
   | "qr_creado"
-  | "qr_editado";
+  | "qr_editado"
+  // Fase 5
+  | "promocion_creada"
+  | "promocion_editada"
+  | "cupon_creado"
+  | "cupon_eliminado";
 
 export async function registrarAuditoria(
   accion: AccionAuditoria,

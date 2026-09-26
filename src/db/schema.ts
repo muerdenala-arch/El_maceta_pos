@@ -328,6 +328,8 @@ export const detalleVenta = pgTable(
     cantidad: integer("cantidad").notNull(),
     precioUnitario: dinero("precio_unitario").notNull(),
     descuento: dinero("descuento").notNull().default("0"),
+    /** Promoción que generó el descuento de esta línea (para reportes). */
+    promocionId: integer("promocion_id").references(() => promociones.id),
   },
   (t) => [
     index("detalle_venta_venta_idx").on(t.ventaId),
@@ -376,7 +378,12 @@ export const promociones = pgTable("promociones", {
   /** ... paga Y (ej. 2x1 → lleva 2, paga 1). */
   comboPaga: integer("combo_paga"),
   fechaInicio: timestamp("fecha_inicio", { withTimezone: true }).notNull(),
+  /** Exclusiva: inicio del día siguiente al último día de vigencia (hora de Bolivia). */
   fechaFin: timestamp("fecha_fin", { withTimezone: true }).notNull(),
+  /**
+   * A qué productos aplica: todo, un producto o una categoría. `sucursalId` (opcional) limita además
+   * a una sucursal; "sucursal" equivale a "todo" en esa sucursal.
+   */
   alcance: alcancePromocionEnum("alcance").notNull().default("todo"),
   productoId: integer("producto_id").references(() => productos.id),
   categoriaId: integer("categoria_id").references(() => categorias.id),

@@ -70,7 +70,12 @@ export function Comprobante({ datos, tamano }: { datos: DatosComprobante; tamano
                 </span>
                 <span>{formatoBs(l.subtotal)}</span>
               </p>
-              {Number(l.descuento) > 0 && <p className="text-right">Desc. −{formatoBs(l.descuento)}</p>}
+              {Number(l.descuento) > 0 && (
+                <p className="flex justify-between gap-2">
+                  <span className="truncate">{l.promocion ?? "Descuento"}</span>
+                  <span>−{formatoBs(l.descuento)}</span>
+                </p>
+              )}
             </li>
           ))}
         </ul>
@@ -95,7 +100,11 @@ export function Comprobante({ datos, tamano }: { datos: DatosComprobante; tamano
                 <td className="py-1 text-right">{formatoBs(l.precioUnitario)}</td>
                 <td className="py-1 text-right">
                   {formatoBs(l.subtotal)}
-                  {Number(l.descuento) > 0 && <span className="block text-[0.85em] text-neutral-600">Desc. −{formatoBs(l.descuento)}</span>}
+                  {Number(l.descuento) > 0 && (
+                    <span className="block text-[0.85em] text-neutral-600">
+                      {l.promocion ?? "Desc."} −{formatoBs(l.descuento)}
+                    </span>
+                  )}
                 </td>
               </tr>
             ))}
@@ -109,6 +118,7 @@ export function Comprobante({ datos, tamano }: { datos: DatosComprobante; tamano
           <>
             <Fila etiqueta="Subtotal" valor={formatoBs(venta.subtotal)} />
             <Fila etiqueta="Descuentos" valor={`−${formatoBs(venta.descuento)}`} />
+            {venta.cupon && <Fila etiqueta="Cupón" valor={venta.cupon} />}
           </>
         )}
         <Fila etiqueta="TOTAL" valor={formatoBs(venta.total)} fuerte />

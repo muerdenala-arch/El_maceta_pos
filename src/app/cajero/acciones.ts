@@ -8,13 +8,15 @@ import { alertas, cajas, clientes, configuracion, detalleVenta, gastos, producto
 import { conPermiso, esViolacionUnica, exito, fallo, falloValidacion, type Resultado } from "@/lib/acciones/resultado";
 import { registrarAuditoria } from "@/lib/auditoria";
 import { autorizar } from "@/lib/auth/sesion";
-import { cambio, diferenciaCierre, normalizarTelefono, totalesVenta } from "@/lib/caja/calculos";
+import { cambio, diferenciaCierre, normalizarTelefono } from "@/lib/caja/calculos";
 import { cajaAbiertaDe, totalesCaja } from "@/lib/caja/consultas";
 import { obtenerComprobante, puedeVerVenta } from "@/lib/comprobante/consulta";
 import type { DatosComprobante } from "@/lib/comprobante/datos";
 import { aCentavos } from "@/lib/dinero";
 import { formatoBs } from "@/lib/formato";
 import { cambiarStock, ErrorStock } from "@/lib/inventario/stock";
+import { promocionesAutomaticas, validarCuponEn } from "@/lib/promociones/consultas";
+import { aplicarPromociones, type Promocion } from "@/lib/promociones/motor";
 import {
   esquemaApertura,
   esquemaCierre,
@@ -106,15 +108,33 @@ export async function registrarVenta(entrada: DatosVenta): Promise<Resultado<Ven
 
         const ids = d.lineas.map((l) => l.productoId);
         const catalogo = await tx
-          .select({ id: productos.id, nombre: productos.nombre, precioVenta: productos.precioVenta })
+          .select({ id: productos.id, precioVenta: productos.precioVenta, categoriaId: productos.categoriaId })
           .from(productos)
           .where(and(inArray(productos.id, ids), eq(productos.activo, true)));
         if (catalogo.length !== ids.length) throw new ErrorStock("Algún producto del carrito ya no está disponible. Actualiza la pantalla.");
-        const precio = new Map(catalogo.map((p) => [p.id, p.precioVenta]));
-        const lineas = d.lineas.map((l) => ({ ...l, precioUnitario: precio.get(l.productoId)! }));
+        const porId = new Map(catalogo.map((p) => [p.id, p]));
+        const lineasCarrito = d.lineas.map((l) => ({
+          ...l,
+          precioUnitario: porId.get(l.productoId)!.precioVenta,
+          categoriaId: porId.get(l.productoId)!.categoriaId,
+        }));
 
-        // Fase 5: aquí se aplicarán promociones y cupones.
-        const totales = totalesVenta(lineas);
+        // Promociones vigentes de la BD (nunca las del dispositivo) + el cupón, si lo hay.
+        const candidatas = await promocionesAutomaticas(caja.sucursalId, tx);
+        if (d.cuponCodigo) {
+          const cupon = await validarCuponEn(d.cuponCodigo, caja.sucursalId, tx);
+          if (!cupon.ok) throw new ErrorStock(cupon.error);
+          candidatas.push(cupon.promocion);
+        }
+        const promo = aplicarPromociones(lineasCarrito, candidatas);
+        // El cupón solo se gasta si realmente dio el descuento (si otra promoción era mejor, no se usa).
+        const cuponUsado = promo.aplicadas.find((a) => a.cuponId)?.cuponId ?? null;
+        if (cuponUsado && d.cuponCodigo) {
+          const consumo = await validarCuponEn(d.cuponCodigo, caja.sucursalId, tx, { consumir: true });
+          if (!consumo.ok) throw new ErrorStock(consumo.error);
+        }
+        const lineas = promo.lineas;
+        const totales = { subtotal: promo.subtotal, descuento: promo.descuento, total: promo.total };
         let vuelto: string | null = null;
         if (d.metodoPago === "efectivo") {
           vuelto = cambio(totales.total, d.montoRecibido!);
@@ -156,6 +176,7 @@ export async function registrarVenta(entrada: DatosVenta): Promise<Resultado<Ven
             subtotal: totales.subtotal,
             descuento: totales.descuento,
             total: totales.total,
+            cuponId: cuponUsado,
             metodoPago: d.metodoPago,
             montoRecibido: d.metodoPago === "efectivo" ? d.montoRecibido : null,
             cambio: vuelto,
@@ -165,7 +186,14 @@ export async function registrarVenta(entrada: DatosVenta): Promise<Resultado<Ven
           .returning();
 
         await tx.insert(detalleVenta).values(
-          lineas.map((l) => ({ ventaId: nueva.id, productoId: l.productoId, cantidad: l.cantidad, precioUnitario: l.precioUnitario })),
+          lineas.map((l) => ({
+            ventaId: nueva.id,
+            productoId: l.productoId,
+            cantidad: l.cantidad,
+            precioUnitario: l.precioUnitario,
+            descuento: l.descuento,
+            promocionId: l.promocionId,
+          })),
         );
         for (const l of lineas) {
           await cambiarStock(tx, {
@@ -209,6 +237,18 @@ export async function verComprobante(ventaId: number): Promise<Resultado<DatosCo
     if (!Number.isInteger(id) || id <= 0 || !(await puedeVerVenta(sesion, id))) return fallo("No puedes ver este comprobante");
     const datos = await obtenerComprobante({ ventaId: id });
     return datos ? exito(datos) : fallo("La venta no existe");
+  });
+}
+
+/** Valida un cupón para mostrar el descuento antes de cobrar (no lo consume: eso ocurre al registrar la venta). */
+export async function consultarCupon(codigo: string): Promise<Resultado<Promocion>> {
+  return conPermiso(async () => {
+    const sesion = await autorizar("cajero");
+    if (!sesion.sucursalId) return fallo("No tienes una sucursal asignada");
+    const limpio = String(codigo ?? "").trim().toUpperCase();
+    if (!/^[A-Z0-9-]{3,40}$/.test(limpio)) return fallo("Código inválido");
+    const r = await validarCuponEn(limpio, sesion.sucursalId);
+    return r.ok ? exito(r.promocion) : fallo(r.error);
   });
 }
 

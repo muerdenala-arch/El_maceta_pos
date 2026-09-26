@@ -21,6 +21,8 @@ export const esquemaVenta = z
     montoRecibido: monto("Monto recibido inválido").nullable(),
     clienteNombre: textoOpcional(120),
     clienteTelefono: textoOpcional(30).refine((t) => t === null || /^[\d\s+()-]{7,30}$/.test(t), "Teléfono inválido"),
+    /** Código de cupón (opcional); se valida y consume en el servidor. */
+    cuponCodigo: textoOpcional(40).transform((c) => c?.toUpperCase() ?? null),
   })
   .refine((d) => d.metodoPago !== "efectivo" || d.montoRecibido !== null, {
     path: ["montoRecibido"],

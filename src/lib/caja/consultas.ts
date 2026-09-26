@@ -55,6 +55,7 @@ export type ProductoPos = {
   sabor: string | null;
   presentacion: string | null;
   categoria: string | null;
+  categoriaId: number | null;
   codigoBarras: string | null;
   fotoUrl: string | null;
   precioVenta: string;
@@ -71,6 +72,7 @@ export async function productosPos(sucursalId: number): Promise<ProductoPos[]> {
       sabor: productos.sabor,
       presentacion: productos.presentacion,
       categoria: categorias.nombre,
+      categoriaId: productos.categoriaId,
       codigoBarras: productos.codigoBarras,
       fotoUrl: productos.fotoUrl,
       precioVenta: productos.precioVenta,

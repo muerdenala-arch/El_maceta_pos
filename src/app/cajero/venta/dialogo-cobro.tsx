@@ -1,7 +1,7 @@
 "use client";
 
 /* eslint-disable @next/next/no-img-element -- imagen del QR configurado */
-import { Banknote, ChevronDown, QrCode, UserRound } from "lucide-react";
+import { Banknote, ChevronDown, Loader2, QrCode, TicketPercent, UserRound, X } from "lucide-react";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -11,19 +11,20 @@ import { cambio, montosSugeridos } from "@/lib/caja/calculos";
 import type { QrCobro } from "@/lib/caja/consultas";
 import { formatoBs } from "@/lib/formato";
 import { cn } from "@/lib/utils";
+import { aplicarPromociones, type LineaCarrito, type Promocion } from "@/lib/promociones/motor";
 import { nuevoUuid } from "@/lib/uuid";
-import { buscarClientes, registrarVenta, type ClienteEncontrado, type VentaRealizada } from "../acciones";
+import { buscarClientes, consultarCupon, registrarVenta, type ClienteEncontrado, type VentaRealizada } from "../acciones";
 
 type Props = {
-  total: string;
-  lineas: { productoId: number; cantidad: number }[];
+  lineas: LineaCarrito[];
+  promociones: Promocion[];
   qrs: QrCobro[];
   onCerrar: () => void;
   onExito: (venta: VentaRealizada) => void;
   onError: () => void;
 };
 
-export function DialogoCobro({ total, lineas, qrs, onCerrar, onExito, onError }: Props) {
+export function DialogoCobro({ lineas, promociones, qrs, onCerrar, onExito, onError }: Props) {
   // Un UUID por intento de cobro: si se pulsa dos veces o se reintenta, el servidor no duplica la venta.
   const [uuid] = useState(nuevoUuid);
   const [metodo, setMetodo] = useState<"efectivo" | "qr">("efectivo");
@@ -35,6 +36,29 @@ export function DialogoCobro({ total, lineas, qrs, onCerrar, onExito, onError }:
   const [sugerencias, setSugerencias] = useState<ClienteEncontrado[]>([]);
   const [pendiente, iniciar] = useTransition();
   const [errores, setErrores] = useState<Record<string, string>>({});
+  const [conCupon, setConCupon] = useState(false);
+  const [codigo, setCodigo] = useState("");
+  const [cupon, setCupon] = useState<Promocion | null>(null);
+  const [validandoCupon, setValidandoCupon] = useState(false);
+
+  // Mismo motor que el servidor: el total mostrado es el que se cobrará.
+  const resultado = aplicarPromociones(lineas, cupon ? [...promociones, cupon] : promociones);
+  const total = resultado.total;
+  const cuponAplicado = resultado.aplicadas.find((a) => a.cuponId);
+
+  async function aplicarCupon() {
+    if (!codigo.trim()) return;
+    setValidandoCupon(true);
+    try {
+      const r = await consultarCupon(codigo);
+      if (r.ok) setCupon(r.datos);
+      else toast.error(r.error);
+    } catch {
+      toast.error("No se pudo validar el cupón. Revisa la conexión.");
+    } finally {
+      setValidandoCupon(false);
+    }
+  }
 
   const recibidoNormalizado = recibido.replace(",", ".");
   const vuelto = metodo === "efectivo" && /^\d+(\.\d{1,2})?$/.test(recibidoNormalizado) ? cambio(total, recibidoNormalizado) : null;
@@ -60,7 +84,8 @@ export function DialogoCobro({ total, lineas, qrs, onCerrar, onExito, onError }:
       try {
         const r = await registrarVenta({
           uuid,
-          lineas,
+          lineas: lineas.map((l) => ({ productoId: l.productoId, cantidad: l.cantidad })),
+          cuponCodigo: cupon ? codigo : "",
           metodoPago: metodo,
           montoRecibido: metodo === "efectivo" ? recibidoNormalizado : null,
           clienteNombre: conCliente ? clienteNombre : "",
@@ -83,6 +108,9 @@ export function DialogoCobro({ total, lineas, qrs, onCerrar, onExito, onError }:
           <DialogTitle className="font-display text-xl font-extrabold">Cobrar</DialogTitle>
           <DialogDescription>
             Total a cobrar <span className="cifras ml-1 font-display text-2xl font-extrabold text-foreground">{formatoBs(total)}</span>
+            {Number(resultado.descuento) > 0 && (
+              <span className="cifras ml-2 text-sm font-semibold text-exito">(ahorra {formatoBs(resultado.descuento)})</span>
+            )}
           </DialogDescription>
         </DialogHeader>
 
@@ -194,6 +222,58 @@ export function DialogoCobro({ total, lineas, qrs, onCerrar, onExito, onError }:
               </p>
             </div>
           )}
+
+          <div className="rounded-2xl border">
+            <button
+              type="button"
+              onClick={() => setConCupon((v) => !v)}
+              aria-expanded={conCupon}
+              className="flex w-full items-center gap-2 px-4 py-3 text-left font-semibold"
+            >
+              <TicketPercent className="size-5 text-muted-foreground" />
+              Cupón {cupon ? <span className="font-mono text-primary">{codigo}</span> : <span className="font-normal text-muted-foreground">(opcional)</span>}
+              <ChevronDown className={cn("ml-auto size-4 transition-transform", conCupon && "rotate-180")} />
+            </button>
+            {conCupon && (
+              <div className="space-y-2 border-t p-4">
+                {cupon ? (
+                  <div className="flex items-center gap-3 rounded-xl bg-muted p-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate font-bold">{cupon.nombre}</p>
+                      <p className={cn("text-sm", cuponAplicado ? "font-semibold text-exito" : "text-muted-foreground")}>
+                        {cuponAplicado
+                          ? `Descuento: ${formatoBs(cuponAplicado.descuento)}`
+                          : "No mejora las promociones actuales: no se usará"}
+                      </p>
+                    </div>
+                    <Button type="button" variant="ghost" size="icon" aria-label="Quitar cupón" onClick={() => { setCupon(null); setCodigo(""); }}>
+                      <X className="size-4" />
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="flex gap-2">
+                    <Input
+                      value={codigo}
+                      onChange={(e) => setCodigo(e.target.value.toUpperCase().replace(/\s/g, ""))}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          aplicarCupon();
+                        }
+                      }}
+                      placeholder="CÓDIGO"
+                      aria-label="Código de cupón"
+                      maxLength={40}
+                      className="font-mono uppercase"
+                    />
+                    <Button type="button" variant="outline" disabled={!codigo.trim() || validandoCupon} onClick={aplicarCupon}>
+                      {validandoCupon ? <Loader2 className="size-4 animate-spin" /> : "Aplicar"}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
 
           <div className="rounded-2xl border">
             <button

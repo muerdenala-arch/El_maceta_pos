@@ -8,7 +8,7 @@ const datos = (plantilla: string, cliente: string | null): DatosComprobante => (
     id: 1, numero: 42, fecha: "2026-09-26T18:05:00Z", cajero: "María",
     cliente: cliente ? { nombre: cliente, telefono: "71234567" } : null,
     lineas: [], subtotal: "700.00", descuento: "0.00", total: "700.00",
-    metodoPago: "efectivo", estadoPago: "pagado", montoRecibido: "800.00", cambio: "100.00", anulada: false, tokenPublico: "abc",
+    metodoPago: "efectivo", estadoPago: "pagado", montoRecibido: "800.00", cambio: "100.00", cupon: null, anulada: false, tokenPublico: "abc",
   },
 });
 
