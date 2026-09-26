@@ -4,7 +4,7 @@ import { expect, test, type Page } from "@playwright/test";
  * Criterios de aceptación de la sección 11 del plan:
  * - "Con el internet desconectado se pueden realizar ventas; al reconectar aparecen en reportes sin duplicarse."
  * - "Imprimir y generar PDF funcionan sin internet." / "Las fotos de productos se ven también sin internet."
- * Requiere un cajero con caja abierta y un producto con stock en su sucursal.
+ * Requiere un cajero con un producto con stock en su sucursal (si no tiene caja abierta, la prueba la abre).
  */
 const USUARIO = process.env.E2E_CAJERO_USUARIO ?? "";
 const PIN = process.env.E2E_CAJERO_PIN ?? "";
@@ -15,7 +15,16 @@ async function ingresar(page: Page) {
   await page.locator("body").click({ position: { x: 5, y: 5 } });
   await page.keyboard.type(PIN);
   await page.keyboard.press("Enter");
-  await page.waitForURL("**/cajero/venta");
+  const buscador = page.getByPlaceholder(/Buscar por nombre/);
+  const apertura = page.getByRole("heading", { name: "Abrir caja" });
+  await expect(buscador.or(apertura)).toBeVisible({ timeout: 30_000 });
+  // Sin caja abierta, la abre con Bs 100 (así la prueba no depende del estado de la base).
+  if (await apertura.isVisible()) {
+    await page.getByRole("button", { name: "Bs 100,00" }).click();
+    await page.getByRole("button", { name: "Abrir caja", exact: true }).click();
+    await page.waitForURL("**/cajero/venta");
+  }
+  await expect(buscador).toBeVisible();
 }
 
 const pendientes = (page: Page) =>

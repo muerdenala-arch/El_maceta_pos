@@ -123,6 +123,7 @@ async function insertarVenta(tx: Tx, n: NuevaVenta) {
       precioUnitario: l.precioUnitario,
       descuento: l.descuento,
       promocionId: l.promocionId,
+      costoUnitario: sql`(select ${productos.precioCosto} from ${productos} where ${productos.id} = ${l.productoId})`,
     })),
   );
 

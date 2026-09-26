@@ -332,6 +332,8 @@ export const detalleVenta = pgTable(
     descuento: dinero("descuento").notNull().default("0"),
     /** Promoción que generó el descuento de esta línea (para reportes). */
     promocionId: integer("promocion_id").references(() => promociones.id),
+    /** Precio de costo del producto al momento de la venta (ganancia en reportes aunque el costo cambie). */
+    costoUnitario: dinero("costo_unitario"),
   },
   (t) => [
     index("detalle_venta_venta_idx").on(t.ventaId),

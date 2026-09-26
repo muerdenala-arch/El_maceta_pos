@@ -1,6 +1,8 @@
 import "server-only";
-import { sql } from "drizzle-orm";
+import { and, asc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
+import { cajas, sucursales, usuarios } from "@/db/schema";
+import { totalesCaja } from "@/lib/caja/consultas";
 import { ZONA_HORARIA } from "@/lib/formato";
 
 export type ResumenPeriodos = {
@@ -74,4 +76,41 @@ export async function ventasPorSucursal(dia: string): Promise<VentasSucursal[]> 
     order by s.id
   `);
   return resultado.rows as VentasSucursal[];
+}
+
+export type CajaAbierta = {
+  id: number;
+  cajero: string;
+  sucursal: string;
+  apertura: string;
+  cantidadVentas: number;
+  ventasEfectivo: string;
+  ventasQr: string;
+  esperado: string;
+};
+
+/** Cajas abiertas ahora con sus totales en vivo (panel de inicio). */
+export async function cajasAbiertas(sucursalId: number | null): Promise<CajaAbierta[]> {
+  const filas = await db
+    .select({ caja: cajas, cajero: usuarios.nombre, sucursal: sucursales.nombre })
+    .from(cajas)
+    .innerJoin(usuarios, eq(usuarios.id, cajas.cajeroId))
+    .innerJoin(sucursales, eq(sucursales.id, cajas.sucursalId))
+    .where(and(eq(cajas.estado, "abierta"), sucursalId ? eq(cajas.sucursalId, sucursalId) : undefined))
+    .orderBy(asc(cajas.apertura));
+  return Promise.all(
+    filas.map(async ({ caja, cajero, sucursal }) => {
+      const t = await totalesCaja(caja.id, caja.montoInicial);
+      return {
+        id: caja.id,
+        cajero,
+        sucursal,
+        apertura: caja.apertura.toISOString(),
+        cantidadVentas: t.cantidadVentas,
+        ventasEfectivo: t.ventasEfectivo,
+        ventasQr: t.ventasQr,
+        esperado: t.esperado,
+      };
+    }),
+  );
 }

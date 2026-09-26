@@ -17,7 +17,7 @@ este archivo resume lo esencial. **Ante cualquier ambigüedad, preguntar al due�
 - next-themes (clase `.dark`), Drizzle ORM + Neon (`@neondatabase/serverless`, Pool/WebSocket para transacciones),
   Zod, jose (JWT en cookie httpOnly), bcryptjs (PIN), Vitest.
 - También: @vercel/blob (imágenes), jsPDF (comprobantes), Dexie (base local sin conexión), Playwright (e2e).
-  Pendientes: SheetJS (F8), Sentry (cuando exista cuenta/DSN).
+  SheetJS (`xlsx` desde cdn.sheetjs.com: la versión de npm está abandonada). Pendiente: Sentry (cuando exista cuenta/DSN).
 
 ## Comandos
 
@@ -108,7 +108,7 @@ Credenciales de prueba locales: en `.env.local` (`SEED_*`), nunca en el código 
 - WhatsApp: en celular, Web Share API con el PDF adjunto; si no, `wa.me/<591…>?text=` con la plantilla de
   Configuración y un **enlace a `/comprobante/[token]`** (página pública, token aleatorio de 144 bits) en vez de
   subir el PDF a Blob: siempre actualizado y sin almacenamiento extra.
-- Reimpresión: cajero en `/cajero/ventas`; admin en `/admin/reportes` (versión básica, se amplía en F8).
+- Reimpresión: cajero en `/cajero/ventas`; admin en `/admin/reportes` (pestaña Ventas).
 
 ## Promociones (Fase 5)
 
@@ -164,6 +164,23 @@ Credenciales de prueba locales: en `.env.local` (`SEED_*`), nunca en el código 
   (claves en `lib/auditoria-acciones.ts`; no importar constantes de archivos cliente en páginas servidor).
 - `useEffect(() => { el.scrollIntoView() })` **con llaves**: en Chrome devuelve una promesa y React la
   tomaría como función de limpieza.
+
+## Reportes (Fase 8)
+
+- Filtros en la URL, puros y probados: `lib/reportes/filtros.ts` (`leerFiltros`/`aParametros`, rangos rápidos,
+  tope de 366 días, nunca después de hoy). Sin `sucursal` en la URL se usa "Viendo sucursal"; `sucursal=todas` fuerza todas.
+  `<BarraFiltros>` (`components/reportes`) sirve a ventas y gastos, con botones de exportación.
+- Consultas: `lib/reportes/ventas.ts` (resumen, por día, por producto, por cajero, lista, líneas) y `gastos.ts`.
+  Solo cuentan ventas `completada` y gastos no anulados; las anuladas se listan aparte.
+  **Agrupar por día con `ZONA_LITERAL`** (zona como literal): con parámetro, PostgreSQL no empareja SELECT y GROUP BY.
+- Ganancia: `detalle_venta.costo_unitario` guarda el costo al vender (subconsulta en `insertarVenta`); ventas
+  anteriores se completaron con el costo vigente (migración 0004). Sin costo guardado se usa el actual.
+- Exportación: `GET /api/admin/exportar?reporte=ventas|gastos&formato=xlsx|pdf&…` (verifica sesión admin además del
+  proxy). Excel (SheetJS, montos numéricos con formato; hojas Resumen/Ventas/Detalle/Productos/Por día/Por cajero)
+  y PDF (jsPDF en el servidor, tablas con encabezado repetido, máx. 1500 filas). Lógica en `lib/reportes/documentos.ts`.
+- Dashboard: más vendidos, cajas abiertas en vivo (`cajasAbiertas`) y alertas activas (`ESTILO_ALERTA` compartido
+  con la campanita en `components/alertas/estilo.ts`).
+- e2e: `ingresar()` abre la caja si hace falta; la copia `.pglite-prueba` necesita stock en la sucursal del cajero de prueba.
 
 ## Reglas no negociables
 
@@ -225,8 +242,8 @@ Todo debe funcionar en celular (375 px) y en modo oscuro.
 - [x] 0. Preparación (proyecto, BD, diseño base, estructura). Pendiente del dueño: cuentas Neon/Vercel,
       plugins UI/UX Pro Max y 21st.dev, Sentry.
 - [x] 1. Autenticación y roles (+ panel de inicio con estadísticas reales, adelantado de la Fase 8)
-- [x] 2. Estructura base (sucursales, personal, categorías, catálogo con fotos, configuración) · [ ] 3. Inventario · [ ] 4. Caja y ventas
+- [x] 2. Estructura base (sucursales, personal, categorías, catálogo con fotos, configuración) · [x] 3. Inventario · [x] 4. Caja y ventas
 - [x] 4b. Comprobantes (impresión 58/80/carta, PDF en el dispositivo, WhatsApp, reimpresión, página pública) · [x] 5. Promociones (porcentaje, Bs por unidad, combos NxM, cupones con límite, vigencia, alcance) · [x] 6. Offline (PWA instalable, ventas y gastos sin internet, sincronización idempotente, PIN local) · [x] 7. Alertas y auditoría (campanita conciliada, insignias, anular venta, confirmar QR, auditoría de cajas y acciones sensibles)
-- [ ] 8. Reportes · [ ] 9. Pruebas · [ ] 10. Lanzamiento
+- [x] 8. Reportes (filtros por fecha/sucursal/cajero/método/producto, Excel y PDF, ganancia, dashboard ampliado, gastos por rango) · [ ] 9. Pruebas · [ ] 10. Lanzamiento
 
 Entregar cada fase funcional y probada contra los criterios de aceptación (sección 11) antes de seguir.

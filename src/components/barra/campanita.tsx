@@ -1,40 +1,15 @@
 "use client";
 
-import {
-  AlertTriangle,
-  Bell,
-  CalendarClock,
-  Check,
-  CheckCheck,
-  CloudOff,
-  Inbox,
-  Loader2,
-  PackageMinus,
-  PackageX,
-  QrCode,
-  Wallet,
-  type LucideIcon,
-} from "lucide-react";
+import { Bell, Check, CheckCheck, Loader2 } from "lucide-react";
 import { AnimatePresence, motion } from "motion/react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState, useTransition } from "react";
+import { ESTILO_ALERTA } from "@/components/alertas/estilo";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { marcarAlertaLeida, marcarAlertaRevisada, marcarTodasLeidas, obtenerAlertas } from "@/lib/alertas/acciones";
 import type { AlertaCampanita } from "@/lib/alertas/consultas";
-import type { TipoAlerta } from "@/lib/alertas/reglas";
 import { cn } from "@/lib/utils";
-
-const ESTILO: Record<TipoAlerta, { icono: LucideIcon; clase: string; titulo: string }> = {
-  agotado: { icono: PackageX, clase: "bg-destructive/15 text-destructive", titulo: "Agotado" },
-  stock_bajo: { icono: PackageMinus, clase: "bg-aviso/25 text-foreground", titulo: "Stock bajo" },
-  stock_negativo: { icono: AlertTriangle, clase: "bg-destructive/15 text-destructive", titulo: "Stock negativo" },
-  por_vencer: { icono: CalendarClock, clase: "bg-ficha-rosa text-ficha-rosa-foreground", titulo: "Por vencer" },
-  caja_diferencia: { icono: Wallet, clase: "bg-destructive/15 text-destructive", titulo: "Diferencia en caja" },
-  qr_por_confirmar: { icono: QrCode, clase: "bg-ficha-neutra text-ficha-neutra-foreground", titulo: "QR por confirmar" },
-  solicitud_reposicion: { icono: Inbox, clase: "bg-ficha-naranja text-ficha-naranja-foreground", titulo: "Pedido de sucursal" },
-  revision_offline: { icono: CloudOff, clase: "bg-aviso/25 text-foreground", titulo: "Revisar venta" },
-};
 
 function hace(iso: string) {
   const min = Math.round((Date.now() - new Date(iso).getTime()) / 60_000);
@@ -141,7 +116,7 @@ export function Campanita({ noLeidas: inicial = 0 }: { noLeidas?: number }) {
           ) : (
             <ul className="divide-y">
               {lista.map((a) => {
-                const e = ESTILO[a.tipo];
+                const e = ESTILO_ALERTA[a.tipo];
                 return (
                   <li key={a.id} className={cn("group relative flex gap-3 px-4 py-3 transition-colors hover:bg-accent", !a.leida && "bg-primary/8")}>
                     <span className={cn("mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-xl", e.clase)}>
