@@ -198,6 +198,13 @@
   .cifras {
     font-variant-numeric: tabular-nums;
   }
+  /* Filas desplazables horizontalmente (filtros) sin barra visible; siguen funcionando con el dedo/rueda */
+  .sin-barra {
+    scrollbar-width: none;
+  }
+  .sin-barra::-webkit-scrollbar {
+    display: none;
+  }
 }
 
 /* Resaltado de fila al llegar desde una alerta (?resaltar=ID) */

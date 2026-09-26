@@ -17,8 +17,9 @@ export function inicioSegunRol(rol: Rol) {
 const bajo = (ruta: string, prefijo: string) => ruta === prefijo || ruta.startsWith(`${prefijo}/`);
 
 export function decidirAcceso(ruta: string, sesion: { rol: Rol } | null): Decision {
-  // Vista pública del comprobante (enlace de WhatsApp con token aleatorio).
-  if (bajo(ruta, "/comprobante")) return { tipo: "seguir" };
+  // Vista pública del comprobante (enlace de WhatsApp con token aleatorio) e imágenes
+  // subidas en desarrollo (públicas como las de Vercel Blob: el logo aparece en el login).
+  if (bajo(ruta, "/comprobante") || bajo(ruta, "/api/archivos")) return { tipo: "seguir" };
 
   if (ruta === "/login") {
     return sesion ? { tipo: "redirigir", destino: inicioSegunRol(sesion.rol) } : { tipo: "seguir" };

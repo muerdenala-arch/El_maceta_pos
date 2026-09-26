@@ -10,7 +10,20 @@ export type AccionAuditoria =
   | "bloqueo_por_intentos"
   | "logout"
   | "desbloqueo"
-  | "desbloqueo_fallido";
+  | "desbloqueo_fallido"
+  // Fase 2
+  | "sucursal_creada"
+  | "sucursal_editada"
+  | "sucursal_estado"
+  | "usuario_creado"
+  | "usuario_editado"
+  | "usuario_estado"
+  | "pin_restablecido"
+  | "usuario_desbloqueado"
+  | "producto_creado"
+  | "producto_editado"
+  | "cambio_precio"
+  | "configuracion_editada";
 
 export async function registrarAuditoria(
   accion: AccionAuditoria,

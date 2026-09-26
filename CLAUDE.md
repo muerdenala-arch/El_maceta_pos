@@ -50,6 +50,24 @@ Credenciales de prueba locales: en `.env.local` (`SEED_*`), nunca en el código 
 - Auditoría: `registrarAuditoria()` en `lib/auditoria.ts`.
 - Admin elige sucursal con "Viendo sucursal" (cookie; `lib/sucursal-vista.ts`); el cajero siempre la suya.
 
+## Patrón de módulos admin (Fase 2)
+
+- `app/admin/<modulo>/page.tsx` (servidor: `requerirSesion("admin")` + consultas) →
+  componente cliente → `app/admin/<modulo>/acciones.ts` ("use server").
+- Cada acción: `conPermiso(async () => { await autorizar("admin"); safeParse(Zod); ... registrarAuditoria(); refresh(); return exito(); })`.
+  Devuelven `Resultado` (`lib/acciones/resultado.ts`): errores por campo con `falloValidacion`,
+  únicos de PostgreSQL con `esViolacionUnica(e, "nombre_indice")`.
+- **`autorizar()` dentro de cada acción es obligatorio**: en producción Next puede ejecutar una
+  acción desde cualquier página; el proxy no alcanza (verificado: un cajero invocando
+  `cambiarSucursalVista` recibe "Sin permiso").
+- Cliente: `useAccion()` + `Campo` + `DialogoFormulario` + `EncabezadoPagina` (`components/formularios`).
+- Imágenes: `SubirImagen` comprime en el dispositivo (`lib/imagen-cliente.ts`) → `subirImagen`
+  valida firma real y tamaño → Vercel Blob o `.subidas/` local servida por `/api/archivos/...`.
+  En la BD solo URLs validadas por `urlImagen` (`lib/validaciones/comunes.ts`).
+- Reglas: no se borran productos ni usuarios (se desactivan); categorías solo si no tienen productos;
+  siempre queda ≥1 admin activo; nadie se desactiva ni cambia su propio rol; una sucursal con cajeros
+  activos no se desactiva; cambios de precio → auditoría `cambio_precio`.
+
 ## Reglas no negociables
 
 - **Permisos en el servidor**: `proxy.ts` protege rutas por rol y *además* cada server action /
@@ -92,7 +110,8 @@ src/
   components/shell   layout por rol + navegación (navegacion.ts indica la fase de cada módulo)
   db/                schema, index (cliente), seed, migraciones/
   lib/auth           jwt, rutas (reglas por rol), sesion, pin, acciones (login/desbloqueo/logout)
-  lib/               auditoria, configuracion, dinero, formato, sucursal-vista, validaciones/, consultas/
+  lib/               auditoria, almacenamiento, configuracion, dinero, formato, imagen-cliente,
+                     sucursal-vista, acciones/, validaciones/, consultas/
   proxy.ts           protección de rutas por rol (Next 16: antes "middleware")
 docs/sistema-de-diseno.md
 ```
@@ -109,7 +128,7 @@ Todo debe funcionar en celular (375 px) y en modo oscuro.
 - [x] 0. Preparación (proyecto, BD, diseño base, estructura). Pendiente del dueño: cuentas Neon/Vercel,
       plugins UI/UX Pro Max y 21st.dev, Sentry.
 - [x] 1. Autenticación y roles (+ panel de inicio con estadísticas reales, adelantado de la Fase 8)
-- [ ] 2. Estructura base · [ ] 3. Inventario · [ ] 4. Caja y ventas
+- [x] 2. Estructura base (sucursales, personal, categorías, catálogo con fotos, configuración) · [ ] 3. Inventario · [ ] 4. Caja y ventas
 - [ ] 4b. Comprobantes · [ ] 5. Promociones · [ ] 6. Offline · [ ] 7. Alertas y auditoría
 - [ ] 8. Reportes · [ ] 9. Pruebas · [ ] 10. Lanzamiento
 

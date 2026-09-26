@@ -1,0 +1,47 @@
+import "server-only";
+import type { z } from "zod";
+import { ErrorAutorizacion } from "@/lib/auth/sesion";
+
+/** Respuesta estándar de las server actions de formularios. */
+export type Resultado<T = undefined> =
+  | { ok: true; datos: T }
+  | { ok: false; error: string; campos?: Record<string, string> };
+
+export function exito<T = undefined>(datos?: T): { ok: true; datos: T } {
+  return { ok: true, datos: datos as T };
+}
+
+export function fallo(error: string, campos?: Record<string, string>): { ok: false; error: string; campos?: Record<string, string> } {
+  return { ok: false, error, campos };
+}
+
+/** Convierte los errores de Zod en { campo: mensaje } para mostrarlos junto a cada campo. */
+export function falloValidacion(error: z.ZodError) {
+  const campos: Record<string, string> = {};
+  for (const issue of error.issues) {
+    const clave = issue.path.join(".") || "_";
+    campos[clave] ??= issue.message;
+  }
+  return fallo("Revisa los datos marcados", campos);
+}
+
+/** Detecta la violación de un índice único de PostgreSQL (código 23505), directa o envuelta por Drizzle. */
+export function esViolacionUnica(e: unknown, restriccion?: string): boolean {
+  for (let actual: unknown = e; actual; actual = (actual as { cause?: unknown }).cause) {
+    const err = actual as { code?: string; constraint?: string; message?: string };
+    if (err.code === "23505") {
+      return !restriccion || err.constraint === restriccion || !!err.message?.includes(restriccion);
+    }
+  }
+  return false;
+}
+
+/** Envuelve una acción: los errores de permiso se devuelven como resultado en vez de romper la pantalla. */
+export async function conPermiso<T>(fn: () => Promise<Resultado<T>>): Promise<Resultado<T>> {
+  try {
+    return await fn();
+  } catch (e) {
+    if (e instanceof ErrorAutorizacion) return fallo("No tienes permiso para esta acción");
+    throw e;
+  }
+}
