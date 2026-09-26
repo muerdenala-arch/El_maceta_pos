@@ -1,6 +1,7 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useState, useSyncExternalStore } from "react";
+import { sincronizarAhora, usePendientes } from "@/lib/offline/sincronizar";
 import { cn } from "@/lib/utils";
 
 function suscribir(avisar: () => void) {
@@ -13,41 +14,53 @@ function suscribir(avisar: () => void) {
 }
 
 /**
- * Estado de conexión: En línea / Sin conexión.
- * En la Fase 6 se sumará la cantidad de operaciones pendientes de sincronizar.
+ * Estado de conexión: En línea / Sin conexión / N pendientes de sincronizar (sección 8.5 del plan).
+ * Tocarlo con pendientes y conexión fuerza la sincronización.
  */
-export function IndicadorConexion({ pendientes = 0 }: { pendientes?: number }) {
-  const enLinea = useSyncExternalStore(
-    suscribir,
-    () => navigator.onLine,
-    () => true,
-  );
+export function IndicadorConexion() {
+  const enLinea = useSyncExternalStore(suscribir, () => navigator.onLine, () => true);
+  const { pendientes, conError } = usePendientes();
+  const [enviando, setEnviando] = useState(false);
 
-  const texto = !enLinea
-    ? "Sin conexión"
-    : pendientes > 0
-      ? `${pendientes} pendiente${pendientes === 1 ? "" : "s"}`
-      : "En línea";
+  const texto = enviando
+    ? "Sincronizando…"
+    : !enLinea
+      ? pendientes > 0
+        ? `Sin conexión · ${pendientes} pendiente${pendientes === 1 ? "" : "s"}`
+        : "Sin conexión"
+      : pendientes > 0
+        ? `${pendientes} pendiente${pendientes === 1 ? "" : "s"}`
+        : conError > 0
+          ? `${conError} con error`
+          : "En línea";
 
   return (
-    <div
+    <button
+      type="button"
       role="status"
       aria-live="polite"
-      title={texto}
+      title={pendientes > 0 && enLinea ? "Sincronizar ahora" : texto}
+      disabled={!enLinea || pendientes === 0 || enviando}
+      onClick={async () => {
+        setEnviando(true);
+        await sincronizarAhora().catch(() => {});
+        setEnviando(false);
+      }}
       className={cn(
-        "flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold",
+        "flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold disabled:cursor-default",
         !enLinea && "border-destructive/40 bg-destructive/10 text-destructive",
-        enLinea && pendientes > 0 && "border-aviso/50 bg-aviso/15 text-foreground",
-        enLinea && pendientes === 0 && "text-muted-foreground",
+        enLinea && (pendientes > 0 || conError > 0) && "border-aviso/50 bg-aviso/15 text-foreground",
+        enLinea && pendientes === 0 && conError === 0 && "text-muted-foreground",
       )}
     >
       <span
         className={cn(
           "size-2 rounded-full",
-          !enLinea ? "bg-destructive" : pendientes > 0 ? "bg-aviso" : "bg-exito",
+          !enLinea ? "bg-destructive" : pendientes > 0 || conError > 0 ? "bg-aviso" : "bg-exito",
+          enviando && "animate-pulse",
         )}
       />
       {texto}
-    </div>
+    </button>
   );
 }

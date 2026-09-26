@@ -4,6 +4,7 @@ import { Download, Loader2, Printer } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { cargarGeneradorPdf } from "@/lib/comprobante/cargar-pdf";
 import { nombreArchivo, type DatosComprobante } from "@/lib/comprobante/datos";
 
 /** Para el cliente: descargar el PDF (hoja carta) o imprimir la página. */
@@ -13,7 +14,7 @@ export function AccionesPublicas({ datos }: { datos: DatosComprobante }) {
   async function descargar() {
     setGenerando(true);
     try {
-      const { generarPdf } = await import("@/lib/comprobante/pdf");
+      const { generarPdf } = await cargarGeneradorPdf();
       const url = URL.createObjectURL(await generarPdf(datos, "carta"));
       Object.assign(document.createElement("a"), { href: url, download: nombreArchivo(datos) }).click();
       setTimeout(() => URL.revokeObjectURL(url), 5_000);

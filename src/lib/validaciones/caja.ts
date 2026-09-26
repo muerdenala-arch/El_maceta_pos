@@ -55,3 +55,55 @@ export const esquemaQr = z.object({
   activo: z.boolean(),
 });
 export type DatosQr = z.input<typeof esquemaQr>;
+
+// ---------------------------------------------------------------- Operaciones sin conexión (Fase 6)
+
+/** Venta hecha sin conexión: trae lo que se cobró en el dispositivo (precios y descuentos por línea). */
+export const esquemaVentaOffline = z
+  .object({
+    uuid: z.uuid(),
+    cajaId: idPositivo,
+    /** Instante de la venta en el dispositivo (ms). */
+    fecha: z.number().int().positive(),
+    lineas: z
+      .array(
+        z.object({
+          productoId: idPositivo,
+          cantidad,
+          precioUnitario: monto(),
+          descuento: monto(),
+          promocionId: idPositivo.nullable(),
+        }),
+      )
+      .min(1)
+      .max(200),
+    metodoPago: z.enum(["efectivo", "qr"]),
+    montoRecibido: monto().nullable(),
+    clienteNombre: textoOpcional(120),
+    clienteTelefono: textoOpcional(30),
+  })
+  .refine((d) => d.metodoPago !== "efectivo" || d.montoRecibido !== null, { path: ["montoRecibido"], message: "Falta el monto recibido" });
+export type DatosVentaOffline = z.output<typeof esquemaVentaOffline>;
+
+export const esquemaGastoOffline = z.object({
+  uuid: z.uuid(),
+  cajaId: idPositivo,
+  fecha: z.number().int().positive(),
+  categoria: z.enum(CATEGORIAS_GASTO),
+  monto: monto().refine((m) => Number(m) > 0, "El monto debe ser mayor a 0"),
+  descripcion: textoOpcional(300),
+});
+export type DatosGastoOffline = z.output<typeof esquemaGastoOffline>;
+
+export const esquemaLoteSync = z.object({
+  operaciones: z
+    .array(
+      z.object({
+        uuid: z.uuid(),
+        tipo: z.enum(["venta", "gasto"]),
+        datos: z.unknown(),
+      }),
+    )
+    .min(1)
+    .max(50),
+});

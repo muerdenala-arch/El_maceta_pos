@@ -13,18 +13,22 @@ import { formatoBs } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 import { aplicarPromociones, type LineaCarrito, type Promocion } from "@/lib/promociones/motor";
 import { nuevoUuid } from "@/lib/uuid";
+import type { Instantanea } from "@/lib/offline/base";
+import { registrarVentaLocal, type VentaLocalRealizada } from "@/lib/offline/venta-local";
 import { buscarClientes, consultarCupon, registrarVenta, type ClienteEncontrado, type VentaRealizada } from "../acciones";
 
 type Props = {
   lineas: LineaCarrito[];
   promociones: Promocion[];
+  /** Copia local: permite vender sin conexión. */
+  instantanea: Instantanea | null;
   qrs: QrCobro[];
   onCerrar: () => void;
-  onExito: (venta: VentaRealizada) => void;
+  onExito: (venta: VentaRealizada | VentaLocalRealizada) => void;
   onError: () => void;
 };
 
-export function DialogoCobro({ lineas, promociones, qrs, onCerrar, onExito, onError }: Props) {
+export function DialogoCobro({ lineas, promociones, instantanea, qrs, onCerrar, onExito, onError }: Props) {
   // Un UUID por intento de cobro: si se pulsa dos veces o se reintenta, el servidor no duplica la venta.
   const [uuid] = useState(nuevoUuid);
   const [metodo, setMetodo] = useState<"efectivo" | "qr">("efectivo");
@@ -78,9 +82,33 @@ export function DialogoCobro({ lineas, promociones, qrs, onCerrar, onExito, onEr
     return () => clearTimeout(t);
   }, [consulta, conCliente]);
 
+  /** Sin conexión: la venta queda en la cola del dispositivo con el mismo UUID (sin duplicados al sincronizar). */
+  async function cobrarSinConexion() {
+    if (cupon) {
+      toast.error("Los cupones necesitan conexión. Quita el cupón para vender sin internet.");
+      return;
+    }
+    if (!instantanea) {
+      toast.error("No hay datos guardados en este dispositivo para vender sin conexión. Conéctate una vez para descargarlos.");
+      return;
+    }
+    const local = await registrarVentaLocal({
+      uuid,
+      instantanea,
+      promo: resultado,
+      metodoPago: metodo,
+      montoRecibido: metodo === "efectivo" ? recibidoNormalizado : null,
+      cambio: metodo === "efectivo" ? vuelto : null,
+      clienteNombre: conCliente ? clienteNombre.trim() : "",
+      clienteTelefono: conCliente ? clienteTelefono.trim() : "",
+    });
+    onExito(local);
+  }
+
   function cobrar() {
     if (!puedeCobrar || pendiente) return;
     iniciar(async () => {
+      if (!navigator.onLine) return cobrarSinConexion();
       try {
         const r = await registrarVenta({
           uuid,
@@ -96,7 +124,9 @@ export function DialogoCobro({ lineas, promociones, qrs, onCerrar, onExito, onEr
         toast.error(r.error);
         onError();
       } catch {
-        toast.error("No se pudo registrar la venta. Revisa la conexión y vuelve a intentar: no se duplicará.");
+        // Se cortó la red durante el cobro: se guarda en el dispositivo. Si el servidor alcanzó a
+        // registrarla, al sincronizar devolverá la misma venta (mismo UUID) y no habrá duplicado.
+        await cobrarSinConexion();
       }
     });
   }

@@ -7,6 +7,7 @@ import { TecladoPin } from "@/components/seguridad/teclado-pin";
 import { escribirAlmacen, leerAlmacen } from "@/lib/almacen";
 import { iniciarSesion } from "@/lib/auth/acciones";
 import { CLAVE_DESBLOQUEO, CLAVE_ULTIMO_USUARIO } from "@/lib/auth/constantes";
+import { guardarCredencialLocal } from "@/lib/offline/pin-local";
 
 export function FormularioLogin() {
   const router = useRouter();
@@ -29,9 +30,16 @@ export function FormularioLogin() {
       setIntentoError((n) => n + 1);
       return;
     }
+    if (!navigator.onLine) {
+      setError("Sin conexión: ingresar requiere internet. Si tu sesión seguía abierta, vuelve a la app y desbloquéala con tu PIN.");
+      setIntentoError((n) => n + 1);
+      return;
+    }
     iniciar(async () => {
       const r = await iniciarSesion({ usuario, pin });
       if (r.ok) {
+        // Verificador local para desbloquear sin internet (nunca se guarda el PIN).
+        await guardarCredencialLocal(usuario.trim(), r.usuarioId, pin);
         escribirAlmacen("local", CLAVE_ULTIMO_USUARIO, usuario.trim().toLowerCase());
         escribirAlmacen("session", CLAVE_DESBLOQUEO, "1");
         router.replace(r.destino);

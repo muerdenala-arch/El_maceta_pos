@@ -28,5 +28,5 @@ export default async function PaginaVentasDelDia() {
     )
     .orderBy(desc(ventas.fecha));
 
-  return <ListaVentasDia ventas={filas.map((v) => ({ ...v, fecha: v.fecha.toISOString() }))} />;
+  return <ListaVentasDia usuarioId={sesion.uid} ventas={filas.map((v) => ({ ...v, fecha: v.fecha.toISOString() }))} />;
 }

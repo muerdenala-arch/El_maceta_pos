@@ -1,9 +1,10 @@
 /**
  * PDF del comprobante generado en el dispositivo con jsPDF (funciona sin internet).
- * jsPDF se carga recién al usarlo, para no pesar en el punto de venta.
+ * Este módulo entero se carga bajo demanda con `cargarGeneradorPdf()` (lib/comprobante/cargar-pdf.ts);
+ * jsPDF va importado aquí de forma normal para que esa única descarga traiga todo (clave sin internet).
  * Nota: las fuentes estándar del PDF no tienen el signo "−" (U+2212): se usa "-".
  */
-import type { jsPDF as JsPdf } from "jspdf";
+import { jsPDF, type jsPDF as JsPdf } from "jspdf";
 import { formatoBs } from "@/lib/formato";
 import { fechaHoraComprobante, numeroComprobante, type DatosComprobante, type TamanoImpresion } from "./datos";
 
@@ -88,9 +89,10 @@ function dibujarTermica(doc: JsPdf, d: DatosComprobante, ancho: number, logo: Im
   if (d.sucursal.telefono) centro(`Tel. ${d.sucursal.telefono}`);
   y += 1;
   centro("NOTA DE VENTA", base, true);
-  centro(`N.º ${numeroComprobante(d.venta.numero)}`, base, true);
+  centro(d.venta.provisional ? `PROVISIONAL · ${d.venta.codigoLocal}` : `N.º ${numeroComprobante(d.venta.numero)}`, base, true);
   centro(fechaHoraComprobante(d.venta.fecha));
   if (d.venta.anulada) centro("*** VENTA ANULADA ***", base + 1, true);
+  if (d.venta.provisional) centro("Venta sin conexión: se numerará al sincronizar", base - 1);
 
   separador();
   izquierda(`Cajero: ${d.venta.cajero}`);
@@ -146,7 +148,7 @@ function dibujarCarta(doc: JsPdf, d: DatosComprobante, logo: Imagen | null) {
   datosNegocio.forEach((t, i) => doc.text(t, xTexto, y + 13 + i * 4.5));
 
   doc.setFont("helvetica", "bold").setFontSize(13).text("NOTA DE VENTA", derecha, y + 7, { align: "right" });
-  doc.setFontSize(11).text(`N.º ${numeroComprobante(d.venta.numero)}`, derecha, y + 13, { align: "right" });
+  doc.setFontSize(11).text(d.venta.provisional ? `PROVISIONAL · ${d.venta.codigoLocal}` : `N.º ${numeroComprobante(d.venta.numero)}`, derecha, y + 13, { align: "right" });
   doc.setFont("helvetica", "normal").setFontSize(10).text(fechaHoraComprobante(d.venta.fecha), derecha, y + 18.5, { align: "right" });
   y += Math.max(28, 13 + datosNegocio.length * 4.5 + 4);
 
@@ -218,7 +220,6 @@ function dibujarCarta(doc: JsPdf, d: DatosComprobante, logo: Imagen | null) {
 }
 
 export async function generarPdf(d: DatosComprobante, tamano: TamanoImpresion): Promise<Blob> {
-  const { jsPDF } = await import("jspdf");
   const logo = d.negocio.logoUrl ? await cargarImagen(d.negocio.logoUrl, tamano !== "carta") : null;
 
   if (tamano === "carta") {

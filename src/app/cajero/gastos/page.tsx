@@ -8,5 +8,5 @@ export const metadata: Metadata = { title: "Gastos" };
 export default async function PaginaGastos() {
   const sesion = await requerirSesion("cajero");
   const caja = await requerirCajaAbierta(sesion);
-  return <GastosCajero gastos={await gastosDeCaja(caja.id)} />;
+  return <GastosCajero gastos={await gastosDeCaja(caja.id)} cajaId={caja.id} usuarioId={sesion.uid} />;
 }

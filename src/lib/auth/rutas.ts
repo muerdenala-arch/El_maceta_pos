@@ -20,6 +20,8 @@ export function decidirAcceso(ruta: string, sesion: { rol: Rol } | null): Decisi
   // Vista pública del comprobante (enlace de WhatsApp con token aleatorio) e imágenes
   // subidas en desarrollo (públicas como las de Vercel Blob: el logo aparece en el login).
   if (bajo(ruta, "/comprobante") || bajo(ruta, "/api/archivos")) return { tipo: "seguir" };
+  // App instalable: íconos y página de respaldo sin conexión (el manifest y sw.js tienen extensión: no pasan por aquí).
+  if (bajo(ruta, "/icono") || ruta === "/sin-conexion") return { tipo: "seguir" };
 
   if (ruta === "/login") {
     return sesion ? { tipo: "redirigir", destino: inicioSegunRol(sesion.rol) } : { tipo: "seguir" };

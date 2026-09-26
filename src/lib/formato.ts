@@ -48,3 +48,6 @@ export function inicioDiaBolivia(isoDia: string, diaSiguiente = false) {
 export function diaBolivia(instante: Date, diaAnterior = false) {
   return hoyEnBolivia(diaAnterior ? new Date(instante.getTime() - 1) : instante);
 }
+
+/** Instante actual en ms (para marcar cuándo el servidor generó unos datos). */
+export const instanteActual = () => Date.now();

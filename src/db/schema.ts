@@ -66,6 +66,8 @@ export const tipoAlertaEnum = pgEnum("tipo_alerta", [
   "stock_negativo",
   "qr_por_confirmar",
   "solicitud_reposicion",
+  /** Venta hecha sin conexión cuyo precio o descuento no coincide con los de la BD al sincronizar. */
+  "revision_offline",
 ]);
 
 // ---------- Sucursales y usuarios ----------

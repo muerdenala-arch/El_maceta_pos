@@ -50,6 +50,10 @@ export type DatosComprobante = {
     cupon: string | null;
     anulada: boolean;
     tokenPublico: string;
+    /** Venta hecha sin conexión y todavía no sincronizada: aún no tiene número ni enlace. */
+    provisional?: boolean;
+    /** Código corto para identificar la venta provisional (inicio del UUID). */
+    codigoLocal?: string;
   };
 };
 
@@ -94,4 +98,6 @@ export function enlaceWhatsapp(numero: string, mensaje: string) {
 
 /** Nombre del archivo PDF. */
 export const nombreArchivo = (datos: DatosComprobante) =>
-  `comprobante-${datos.negocio.nombre.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${numeroComprobante(datos.venta.numero)}.pdf`;
+  `comprobante-${datos.negocio.nombre.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${
+    datos.venta.provisional ? `provisional-${datos.venta.codigoLocal}` : numeroComprobante(datos.venta.numero)
+  }.pdf`;

@@ -46,3 +46,8 @@ next-env.d.ts
 
 # imágenes subidas en desarrollo local (sin Vercel Blob)
 /.subidas
+
+# pruebas de extremo a extremo (Playwright)
+/test-results
+/playwright-report
+/.pglite-prueba

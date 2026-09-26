@@ -2,7 +2,7 @@
 
 import { AlertTriangle, CheckCircle2, ClipboardCheck, Lock } from "lucide-react";
 import Link from "next/link";
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { EncabezadoPagina } from "@/components/formularios/encabezado-pagina";
 import { useAccion } from "@/components/formularios/use-accion";
 import {
@@ -20,6 +20,8 @@ import { diferenciaCierre, type ResumenCierre } from "@/lib/caja/calculos";
 import { aCentavos } from "@/lib/dinero";
 import { formatoBs } from "@/lib/formato";
 import { cn } from "@/lib/utils";
+import { baseLocal } from "@/lib/offline/base";
+import { etiquetaOperacion, sincronizarAhora, useOperacionesConError, usePendientes } from "@/lib/offline/sincronizar";
 import { cerrarCaja, type CierreRealizado } from "../acciones";
 
 type Venta = { id: number; numero: number; total: string; metodoPago: "efectivo" | "qr"; estado: string; fecha: string };
@@ -39,6 +41,9 @@ export function CierreCaja({
   const [contado, setContado] = useState("");
   const [confirmar, setConfirmar] = useState(false);
   const [cerrada, setCerrada] = useState<CierreRealizado | null>(null);
+  // El cierre requiere haber sincronizado todo (sección 8.7 del plan) y conexión.
+  const { pendientes } = usePendientes();
+  const enLinea = useSyncExternalStore(suscribirConexion, () => navigator.onLine, () => true);
   const cerrar = useAccion(cerrarCaja, { alExito: (r) => setCerrada(r) });
 
   const contadoValido = /^\d+([.,]\d{1,2})?$/.test(contado);
@@ -80,7 +85,13 @@ export function CierreCaja({
           />
         </div>
         {diferencia !== null && <IndicadorDiferencia diferencia={diferencia} />}
-        <Button size="lg" className="h-14 w-full rounded-2xl text-lg font-bold" disabled={!contadoValido || cerrar.pendiente} onClick={() => setConfirmar(true)}>
+        <EstadoSincronizacion />
+        <Button
+          size="lg"
+          className="h-14 w-full rounded-2xl text-lg font-bold"
+          disabled={!contadoValido || cerrar.pendiente || pendientes > 0 || !enLinea}
+          onClick={() => setConfirmar(true)}
+        >
           <Lock className="size-5" /> Cerrar caja
         </Button>
       </section>
@@ -116,6 +127,75 @@ export function CierreCaja({
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+    </div>
+  );
+}
+
+function suscribirConexion(avisar: () => void) {
+  window.addEventListener("online", avisar);
+  window.addEventListener("offline", avisar);
+  return () => {
+    window.removeEventListener("online", avisar);
+    window.removeEventListener("offline", avisar);
+  };
+}
+
+/** Pendientes y rechazos de la cola sin conexión, con opción de sincronizar o descartar. */
+function EstadoSincronizacion() {
+  const { pendientes } = usePendientes();
+  const conError = useOperacionesConError();
+  const [enviando, setEnviando] = useState(false);
+  const enLinea = useSyncExternalStore(suscribirConexion, () => navigator.onLine, () => true);
+  if (pendientes === 0 && conError.length === 0 && enLinea) return null;
+
+  return (
+    <div className="space-y-3 rounded-2xl border border-aviso/50 bg-aviso/10 p-4 text-sm">
+      {!enLinea && <p className="font-semibold">Sin conexión: el cierre de caja necesita internet.</p>}
+      {pendientes > 0 && (
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="flex-1 font-semibold">
+            Hay {pendientes} operación{pendientes === 1 ? "" : "es"} sin sincronizar. Envíalas antes de cerrar.
+          </p>
+          <Button
+            size="sm"
+            disabled={!enLinea || enviando}
+            onClick={async () => {
+              setEnviando(true);
+              await sincronizarAhora().catch(() => {});
+              setEnviando(false);
+            }}
+          >
+            {enviando ? "Enviando…" : "Sincronizar ahora"}
+          </Button>
+        </div>
+      )}
+      {conError.length > 0 && (
+        <div className="space-y-2">
+          <p className="font-semibold text-destructive">Rechazadas por el servidor (avisa al administrador):</p>
+          <ul className="space-y-1.5">
+            {conError.map((o) => (
+              <li key={o.uuid} className="flex items-center gap-2 rounded-xl bg-card p-2">
+                <span className="min-w-0 flex-1">
+                  <span className="block font-semibold">{etiquetaOperacion(o)}</span>
+                  <span className="block text-xs text-muted-foreground">{o.error}</span>
+                </span>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="text-destructive hover:text-destructive"
+                  onClick={() => {
+                    if (confirm("¿Descartar esta operación de este dispositivo? No se registrará en el sistema.")) {
+                      baseLocal().cola.delete(o.uuid).catch(() => {});
+                    }
+                  }}
+                >
+                  Descartar
+                </Button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
     </div>
   );
 }

@@ -6,10 +6,11 @@ import { useEffect, useRef } from "react";
 import { AccionesComprobante } from "@/components/comprobante/acciones-comprobante";
 import { Button } from "@/components/ui/button";
 import { formatoBs } from "@/lib/formato";
-import type { VentaRealizada } from "../acciones";
+import type { VentaMostrada } from "./punto-de-venta";
 
 /** Pantalla "Venta realizada" con las opciones de comprobante: imprimir, PDF y WhatsApp (sección 6). */
-export function VentaExitosa({ venta, onNueva }: { venta: VentaRealizada; onNueva: () => void }) {
+export function VentaExitosa({ venta, onNueva }: { venta: VentaMostrada; onNueva: () => void }) {
+  const offline = "offline" in venta;
   const boton = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     window.scrollTo({ top: 0 });
@@ -27,7 +28,13 @@ export function VentaExitosa({ venta, onNueva }: { venta: VentaRealizada; onNuev
         <Check className="size-12" strokeWidth={3} />
       </motion.span>
       <h1 className="mt-6 text-3xl font-extrabold">Venta realizada</h1>
-      <p className="cifras mt-1 text-muted-foreground">Comprobante N.º {venta.numero}</p>
+      {offline ? (
+        <p className="mt-2 rounded-2xl bg-aviso/20 px-4 py-2 text-sm font-semibold">
+          Guardada sin conexión ({venta.comprobante.venta.codigoLocal}). Se enviará sola al volver internet.
+        </p>
+      ) : (
+        <p className="cifras mt-1 text-muted-foreground">Comprobante N.º {venta.numero}</p>
+      )}
 
       <div className="mt-8 w-full space-y-3 rounded-3xl border bg-card p-6 shadow-sm">
         <Fila etiqueta="Total" valor={formatoBs(venta.total)} grande />

@@ -16,6 +16,11 @@ import { COMPRESION_PRODUCTO } from "@/lib/imagen-cliente";
 import { cn } from "@/lib/utils";
 import { nuevoUuid } from "@/lib/uuid";
 import { CATEGORIAS_GASTO } from "@/lib/validaciones/caja";
+import { useLiveQuery } from "dexie-react-hooks";
+import { toast } from "sonner";
+import { baseLocal } from "@/lib/offline/base";
+import { encolar } from "@/lib/offline/sincronizar";
+import { esquemaGasto } from "@/lib/validaciones/caja";
 import { registrarGasto } from "../acciones";
 
 type Gasto = {
@@ -31,7 +36,22 @@ type Gasto = {
 const hora = (iso: string) =>
   new Date(iso).toLocaleTimeString("es-BO", { timeZone: "America/La_Paz", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 
-export function GastosCajero({ gastos }: { gastos: Gasto[] }) {
+export function GastosCajero({ gastos: gastosServidor, cajaId, usuarioId }: { gastos: Gasto[]; cajaId: number; usuarioId: number }) {
+  // Gastos registrados sin conexión que todavía no se enviaron: se muestran como "pendiente".
+  const enCola = useLiveQuery(
+    () => baseLocal().cola.where("usuarioId").equals(usuarioId).filter((o) => o.tipo === "gasto" && o.datos.cajaId === cajaId).toArray(),
+    [usuarioId, cajaId],
+    [],
+  );
+  const gastos: (Gasto & { pendiente?: boolean })[] = [
+    ...enCola.flatMap((o) =>
+      // Lo sincronizado se borra de la cola, así que nunca aparece dos veces.
+      o.tipo === "gasto"
+        ? [{ id: -o.creado, categoria: o.datos.categoria, monto: o.datos.monto, descripcion: o.datos.descripcion, fotoUrl: null, anulado: false, fecha: new Date(o.creado).toISOString(), pendiente: true }]
+        : [],
+    ),
+    ...gastosServidor,
+  ];
   const [uuid, setUuid] = useState(nuevoUuid);
   const [categoria, setCategoria] = useState<string>("");
   const [monto, setMonto] = useState("");
@@ -48,6 +68,33 @@ export function GastosCajero({ gastos }: { gastos: Gasto[] }) {
     },
   });
   const vigentes = gastos.filter((g) => !g.anulado);
+
+  /** Sin conexión: el gasto queda en la cola del dispositivo (la foto necesita internet). */
+  async function guardarSinConexion() {
+    if (fotoUrl) {
+      toast.error("La foto del comprobante necesita conexión: quítala para guardar el gasto sin internet.");
+      return;
+    }
+    const v = esquemaGasto.safeParse({ uuid, categoria, monto: monto.replace(",", "."), descripcion, fotoUrl: null });
+    if (!v.success) {
+      toast.error(v.error.issues[0].message);
+      return;
+    }
+    await encolar({
+      uuid,
+      tipo: "gasto",
+      usuarioId,
+      creado: Date.now(),
+      estado: "pendiente",
+      intentos: 0,
+      datos: { uuid, cajaId, fecha: Date.now(), categoria: v.data.categoria, monto: v.data.monto, descripcion: v.data.descripcion },
+    });
+    toast.success("Gasto guardado sin conexión: se enviará al volver internet");
+    setUuid(nuevoUuid());
+    setCategoria("");
+    setMonto("");
+    setDescripcion("");
+  }
   const total = vigentes.length ? sumar(...vigentes.map((g) => g.monto)) : "0";
 
   return (
@@ -59,7 +106,8 @@ export function GastosCajero({ gastos }: { gastos: Gasto[] }) {
           noValidate
           onSubmit={(e) => {
             e.preventDefault();
-            guardar.ejecutar({ uuid, categoria: categoria as never, monto: monto.replace(",", "."), descripcion, fotoUrl });
+            if (!navigator.onLine) guardarSinConexion();
+            else guardar.ejecutar({ uuid, categoria: categoria as never, monto: monto.replace(",", "."), descripcion, fotoUrl });
           }}
         >
           <Campo etiqueta="Categoría" error={guardar.campos.categoria}>
@@ -136,6 +184,7 @@ export function GastosCajero({ gastos }: { gastos: Gasto[] }) {
               <div className="min-w-0 flex-1">
                 <p className="flex items-center gap-2 font-semibold">
                   {g.categoria} {g.anulado && <Badge variant="destructive">Anulado</Badge>}
+                  {"pendiente" in g && g.pendiente && <Badge className="bg-aviso text-aviso-foreground">Sin enviar</Badge>}
                 </p>
                 <p className="truncate text-xs text-muted-foreground">
                   {hora(g.fecha)}

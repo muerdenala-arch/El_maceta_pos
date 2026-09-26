@@ -16,6 +16,8 @@ import { aplicarPromociones, type LineaCarrito, type Promocion, type ResultadoPr
 import type { ProductoPos, QrCobro } from "@/lib/caja/consultas";
 import { formatoBs } from "@/lib/formato";
 import { cn } from "@/lib/utils";
+import { descontarStockLocal, type VentaLocalRealizada } from "@/lib/offline/venta-local";
+import { useInstantanea, type ContextoPos } from "@/lib/offline/use-instantanea";
 import type { VentaRealizada } from "../acciones";
 import { DialogoCobro } from "./dialogo-cobro";
 import { VentaExitosa } from "./venta-exitosa";
@@ -24,19 +26,28 @@ type Linea = { productoId: number; cantidad: number };
 
 const detalle = (p: ProductoPos) => [p.marca, p.sabor, p.presentacion].filter(Boolean).join(" · ");
 
+export type VentaMostrada = VentaRealizada | VentaLocalRealizada;
+
 export function PuntoDeVenta({
-  cajaId,
-  productos,
-  qrs,
-  promociones,
+  contexto,
+  productos: productosServidor,
+  qrs: qrsServidor,
+  promociones: promocionesServidor,
 }: {
-  cajaId: number;
+  contexto: ContextoPos;
   productos: ProductoPos[];
   qrs: QrCobro[];
   /** Promociones automáticas vigentes en la sucursal (el servidor las recalcula al cobrar). */
   promociones: Promocion[];
 }) {
   const router = useRouter();
+  const cajaId = contexto.cajaId;
+  // Datos del servidor o, si es más reciente (ventas sin conexión), la copia local del dispositivo.
+  const { instantanea, productos, qrs, promociones } = useInstantanea(contexto, {
+    productos: productosServidor,
+    qrs: qrsServidor,
+    promociones: promocionesServidor,
+  });
   const claveCarrito = `maseta:carrito:${cajaId}`;
   const [carrito, setCarrito] = useState<Linea[]>([]);
   const [busqueda, setBusqueda] = useState("");
@@ -44,7 +55,7 @@ export function PuntoDeVenta({
   const [zoom, setZoom] = useState<ProductoPos | null>(null);
   const [verCarrito, setVerCarrito] = useState(false);
   const [cobrando, setCobrando] = useState(false);
-  const [realizada, setRealizada] = useState<VentaRealizada | null>(null);
+  const [realizada, setRealizada] = useState<VentaMostrada | null>(null);
   const buscador = useRef<HTMLInputElement>(null);
   // Estado (no ref): hasta que se lee el carrito guardado, no se escribe nada encima.
   const [cargado, setCargado] = useState(false);
@@ -346,14 +357,18 @@ export function PuntoDeVenta({
         <DialogoCobro
           lineas={lineasCarrito}
           promociones={promociones}
+          instantanea={instantanea}
           qrs={qrs}
           onCerrar={() => setCobrando(false)}
-          onError={() => router.refresh()}
+          onError={() => navigator.onLine && router.refresh()}
           onExito={(venta) => {
             setCobrando(false);
             setCarrito([]);
             setRealizada(venta);
-            router.refresh(); // stock actualizado
+            if ("offline" in venta) return; // la copia local ya descontó el stock
+            // En línea: se descuenta también de la copia local hasta que llegue el stock del servidor.
+            descontarStockLocal(`pos:${contexto.usuarioId}`, lineasCarrito).catch(() => {});
+            router.refresh();
           }}
         />
       )}

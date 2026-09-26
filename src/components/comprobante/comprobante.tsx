@@ -41,11 +41,20 @@ export function Comprobante({ datos, tamano }: { datos: DatosComprobante; tamano
         </div>
         <div className={cn(termica ? "mt-2" : "text-right")}>
           <p className="font-bold">NOTA DE VENTA</p>
-          <p className="font-bold">N.º {numeroComprobante(venta.numero)}</p>
+          {venta.provisional ? (
+            <p className="font-bold">PROVISIONAL · {venta.codigoLocal}</p>
+          ) : (
+            <p className="font-bold">N.º {numeroComprobante(venta.numero)}</p>
+          )}
           <p>{fechaHoraComprobante(venta.fecha)}</p>
         </div>
       </header>
 
+      {venta.provisional && (
+        <p className="my-2 border border-dashed border-black py-1 text-center text-[0.9em]">
+          Venta sin conexión: se numerará al sincronizar
+        </p>
+      )}
       {venta.anulada && (
         <p className="my-2 border-2 border-black py-1 text-center text-[1.2em] font-bold">*** VENTA ANULADA ***</p>
       )}

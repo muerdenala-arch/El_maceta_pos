@@ -61,6 +61,9 @@ export function Shell(props: PropsShell) {
           <Logo nombre={marca.nombre} url={marca.logoUrl} className="size-9" />
           <span className="truncate font-display text-lg font-bold">{marca.nombre}</span>
           <div className="ml-auto flex items-center gap-1">
+            <span className="hidden sm:block">
+              <IndicadorConexion />
+            </span>
             <BotonRecarga />
             {rol === "admin" && <Campanita />}
             <SelectorTema />

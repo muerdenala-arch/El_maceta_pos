@@ -16,8 +16,8 @@ este archivo resume lo esencial. **Ante cualquier ambigüedad, preguntar al due�
 - Motion (`motion/react`) — animaciones < 250 ms en el POS; `MotionConfig reducedMotion="user"` ya está global.
 - next-themes (clase `.dark`), Drizzle ORM + Neon (`@neondatabase/serverless`, Pool/WebSocket para transacciones),
   Zod, jose (JWT en cookie httpOnly), bcryptjs (PIN), Vitest.
-- Pendientes por fase: Vercel Blob (F2), @react-pdf/renderer (F4b), Serwist + Dexie (F6), SheetJS (F8),
-  Playwright (F9), Sentry (cuando exista cuenta/DSN).
+- También: @vercel/blob (imágenes), jsPDF (comprobantes), Dexie (base local sin conexión), Playwright (e2e).
+  Pendientes: SheetJS (F8), Sentry (cuando exista cuenta/DSN).
 
 ## Comandos
 
@@ -26,7 +26,8 @@ npm run dev          # servidor de desarrollo (http://localhost:3000)
 npm run build        # compilación de producción
 npm run typecheck    # tsc --noEmit
 npm run lint
-npm test             # vitest
+npm test             # vitest (unitarias)
+npm run e2e          # Playwright contra una compilación (ver playwright.config.ts)
 npm run db:generate  # genera migración SQL desde src/db/schema.ts
 npm run db:migrate   # aplica migraciones (Neon: usa DATABASE_URL_DIRECTA; PGlite: la carpeta local)
 npm run db:seed      # bodega, sucursal, admin, (cajero de prueba), configuración, categorías (idempotente)
@@ -124,6 +125,27 @@ Credenciales de prueba locales: en `.env.local` (`SEED_*`), nunca en el código 
 - `detalle_venta.promocion_id` y `ventas.cupon_id` quedan registrados; el comprobante muestra el importe bruto de
   cada línea, la promoción y el descuento debajo, y el cupón usado.
 
+## Modo sin conexión (Fase 6)
+
+- **Service worker propio** (`public/sw.js`, sin Serwist: su integración con Turbopack aún es experimental).
+  Solo se registra en producción (`components/offline/registro-sw.tsx`; en dev: `NEXT_PUBLIC_SW=1`).
+  `/_next/static` y fotos: caché primero. Pantallas `/cajero/*` y `/login`: red primero (4 s) y copia guardada.
+  Peticiones RSC: solo red → sin internet Next hace "navegación de navegador" y el SW sirve la copia.
+  **No activar `experimental.useOffline`** de Next (reintenta y congela la navegación sin internet).
+- Base local Dexie `el-maseta` (`lib/offline/base.ts`): `instantaneas` (copia del POS con stock efectivo),
+  `cola` (ventas/gastos pendientes), `ventasLocales` (comprobantes provisionales), `credenciales` (PBKDF2 del PIN).
+- Venta sin internet: `lib/offline/venta-local.ts`, mismo UUID que el intento en línea (si la red cae a mitad,
+  el servidor devuelve la misma venta al sincronizar). Cupones y fotos de gastos requieren conexión.
+- Sincronización: `lib/offline/sincronizar.ts` → `POST /api/sync` (lotes, orden cronológico, idempotente).
+  Servidor: `lib/caja/registro.ts` (`registrarVentaOffline`: respeta lo cobrado en el dispositivo, stock
+  negativo permitido con alerta `stock_negativo`, QR → `qr_por_confirmar` + alerta, precio/descuento distinto
+  a la BD → alerta `revision_offline`). La venta en línea y la offline comparten `insertarVenta`.
+- `<Sincronizador>` (layout del cajero): sincroniza al iniciar, al volver la conexión y cada 30 s; precarga
+  pantallas, archivos de la app, fotos y el generador de PDF. **Un solo `import()` del PDF**
+  (`cargarGeneradorPdf`): Turbopack crea un fragmento por cada sitio de importación.
+- Cierre de caja bloqueado con pendientes o sin conexión; cerrar sesión avisa y borra las pantallas guardadas.
+- Prueba de extremo a extremo: `e2e/offline.spec.ts` (Playwright, contra `next start`; ver playwright.config.ts).
+
 ## Reglas no negociables
 
 - **Permisos en el servidor**: `proxy.ts` protege rutas por rol y *además* cada server action /
@@ -185,7 +207,7 @@ Todo debe funcionar en celular (375 px) y en modo oscuro.
       plugins UI/UX Pro Max y 21st.dev, Sentry.
 - [x] 1. Autenticación y roles (+ panel de inicio con estadísticas reales, adelantado de la Fase 8)
 - [x] 2. Estructura base (sucursales, personal, categorías, catálogo con fotos, configuración) · [ ] 3. Inventario · [ ] 4. Caja y ventas
-- [x] 4b. Comprobantes (impresión 58/80/carta, PDF en el dispositivo, WhatsApp, reimpresión, página pública) · [x] 5. Promociones (porcentaje, Bs por unidad, combos NxM, cupones con límite, vigencia, alcance) · [ ] 6. Offline · [ ] 7. Alertas y auditoría
+- [x] 4b. Comprobantes (impresión 58/80/carta, PDF en el dispositivo, WhatsApp, reimpresión, página pública) · [x] 5. Promociones (porcentaje, Bs por unidad, combos NxM, cupones con límite, vigencia, alcance) · [x] 6. Offline (PWA instalable, ventas y gastos sin internet, sincronización idempotente, PIN local) · [ ] 7. Alertas y auditoría
 - [ ] 8. Reportes · [ ] 9. Pruebas · [ ] 10. Lanzamiento
 
 Entregar cada fase funcional y probada contra los criterios de aceptación (sección 11) antes de seguir.

@@ -13,7 +13,7 @@ const MENSAJE_INCORRECTO = "Usuario o PIN incorrecto";
 const mensajeBloqueo = (hasta: Date) =>
   `Demasiados intentos fallidos. Intenta de nuevo a las ${horaLocal(hasta)}.`;
 
-export type ResultadoLogin = { ok: true; destino: string } | { ok: false; error: string };
+export type ResultadoLogin = { ok: true; destino: string; usuarioId: number } | { ok: false; error: string };
 
 export async function iniciarSesion(datos: DatosLogin): Promise<ResultadoLogin> {
   const validado = esquemaLogin.safeParse(datos);
@@ -37,7 +37,7 @@ export async function iniciarSesion(datos: DatosLogin): Promise<ResultadoLogin> 
 
   await guardarCookieSesion({ uid: u.id, rol: u.rol, sucursalId: u.sucursalId });
   await registrarAuditoria("login", { usuarioId: u.id });
-  return { ok: true, destino: inicioSegunRol(u.rol) };
+  return { ok: true, destino: inicioSegunRol(u.rol), usuarioId: u.id };
 }
 
 export type ResultadoDesbloqueo = { ok: true } | { ok: false; error: string; sesionCerrada?: boolean };

@@ -105,6 +105,25 @@ export async function obtenerComprobante(filtro: { ventaId: number } | { token: 
   };
 }
 
+/** Negocio y sucursal: base de los comprobantes que el POS arma sin conexión. */
+export async function baseComprobante(sucursalId: number): Promise<Pick<DatosComprobante, "negocio" | "sucursal">> {
+  const [[conf], [s]] = await Promise.all([
+    db.select().from(configuracion).where(eq(configuracion.id, 1)),
+    db.select().from(sucursales).where(eq(sucursales.id, sucursalId)),
+  ]);
+  return {
+    negocio: {
+      nombre: conf?.nombreComercial ?? "El Maseta",
+      nit: conf?.nit ?? null,
+      logoUrl: conf?.logoUrl ?? null,
+      mensajeAgradecimiento: conf?.mensajeAgradecimiento ?? "¡Gracias por tu compra!",
+      plantillaWhatsapp: conf?.plantillaWhatsapp ?? "Hola {cliente}, aquí está tu comprobante de {negocio}: {enlace}",
+      codigoPais: conf?.codigoPais ?? "591",
+    },
+    sucursal: { nombre: s?.nombre ?? "", direccion: s?.direccion ?? null, telefono: s?.telefono ?? null, tamanoImpresion: s?.tamanoImpresion ?? "80mm" },
+  };
+}
+
 /**
  * Quién puede ver/reimprimir un comprobante desde la app:
  * el administrador, cualquiera; el cajero, solo sus ventas del día (sección 5 del plan).

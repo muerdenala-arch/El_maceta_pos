@@ -14,7 +14,7 @@ export default async function LayoutAdmin({ children }: LayoutProps<"/admin">) {
   ]);
 
   return (
-    <GuardiaBloqueo nombre={sesion.nombre} marca={marca}>
+    <GuardiaBloqueo nombre={sesion.nombre} usuario={sesion.usuario} usuarioId={sesion.uid} marca={marca}>
       <Shell
         rol="admin"
         usuario={{ nombre: sesion.nombre }}

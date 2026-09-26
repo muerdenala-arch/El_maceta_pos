@@ -17,6 +17,7 @@ import {
   type DatosComprobante,
   type TamanoImpresion,
 } from "@/lib/comprobante/datos";
+import { cargarGeneradorPdf } from "@/lib/comprobante/cargar-pdf";
 import { cn } from "@/lib/utils";
 import { Comprobante } from "./comprobante";
 
@@ -30,7 +31,7 @@ const ESTILO_PAGINA: Record<TamanoImpresion, string> = {
 };
 
 async function pdf(datos: DatosComprobante, tamano: TamanoImpresion) {
-  const { generarPdf } = await import("@/lib/comprobante/pdf");
+  const { generarPdf } = await cargarGeneradorPdf();
   return generarPdf(datos, tamano);
 }
 
@@ -177,12 +178,20 @@ function DialogoWhatsapp({ datos, tamano, onCerrar }: { datos: DatosComprobante;
               Compartir el PDF
             </Button>
             <p className="text-center text-xs text-muted-foreground">Elige WhatsApp y el contacto en el menú del teléfono. Funciona sin internet para generarlo.</p>
-            <div className="flex items-center gap-3 py-1 text-xs text-muted-foreground">
-              <span className="h-px flex-1 bg-border" /> o envía un enlace <span className="h-px flex-1 bg-border" />
-            </div>
+            {!datos.venta.provisional && (
+              <div className="flex items-center gap-3 py-1 text-xs text-muted-foreground">
+                <span className="h-px flex-1 bg-border" /> o envía un enlace <span className="h-px flex-1 bg-border" />
+              </div>
+            )}
           </div>
         )}
 
+        {datos.venta.provisional ? (
+          <p className="rounded-2xl bg-muted p-4 text-sm text-muted-foreground">
+            Esta venta se hizo sin conexión: el enlace para el cliente estará disponible cuando se sincronice.
+            {puedeCompartirArchivo ? " Mientras tanto puedes compartir el PDF." : " Mientras tanto puedes descargar o imprimir el PDF."}
+          </p>
+        ) : (
         <form
           className="space-y-3"
           onSubmit={(e) => {
@@ -221,6 +230,7 @@ function DialogoWhatsapp({ datos, tamano, onCerrar }: { datos: DatosComprobante;
             El cliente recibe un enlace privado para ver y descargar su comprobante.
           </p>
         </form>
+        )}
       </DialogContent>
     </Dialog>
   );

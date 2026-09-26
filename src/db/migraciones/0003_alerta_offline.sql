@@ -1,0 +1,1 @@
+ALTER TYPE "public"."tipo_alerta" ADD VALUE 'revision_offline';

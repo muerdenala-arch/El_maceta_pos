@@ -21,6 +21,8 @@ describe("decidirAcceso", () => {
   it("el comprobante público y las imágenes no requieren sesión", () => {
     expect(decidirAcceso("/comprobante/abc123", null)).toEqual({ tipo: "seguir" });
     expect(decidirAcceso("/api/archivos/logo/x.webp", null)).toEqual({ tipo: "seguir" });
+    expect(decidirAcceso("/icono/512", null)).toEqual({ tipo: "seguir" });
+    expect(decidirAcceso("/sin-conexion", null)).toEqual({ tipo: "seguir" });
   });
 
   it("un cajero no entra a pantallas ni API de administrador, ni escribiendo la URL", () => {

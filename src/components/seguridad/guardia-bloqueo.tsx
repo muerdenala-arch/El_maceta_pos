@@ -9,6 +9,7 @@ import { Logo } from "@/components/marca/logo";
 import { escribirAlmacen, leerAlmacen } from "@/lib/almacen";
 import { cerrarSesion, desbloquear } from "@/lib/auth/acciones";
 import { CLAVE_DESBLOQUEO, MINUTOS_INACTIVIDAD } from "@/lib/auth/constantes";
+import { guardarCredencialLocal, verificarPinLocal } from "@/lib/offline/pin-local";
 import { TecladoPin } from "./teclado-pin";
 
 const EVENTOS_ACTIVIDAD = ["pointerdown", "keydown", "touchstart", "wheel", "mousemove"] as const;
@@ -16,6 +17,9 @@ const LIMITE_MS = MINUTOS_INACTIVIDAD * 60_000;
 
 type Props = {
   nombre: string;
+  /** Nombre de usuario e id: para validar el PIN sin conexión contra la copia local. */
+  usuario: string;
+  usuarioId: number;
   marca: { nombre: string; logoUrl: string | null };
   children: React.ReactNode;
 };
@@ -26,7 +30,7 @@ type Props = {
  * - al reabrir la app (sessionStorage vacío) también la pide.
  * El contenido sigue montado debajo (con `inert`), así el carrito en curso no se pierde.
  */
-export function GuardiaBloqueo({ nombre, marca, children }: Props) {
+export function GuardiaBloqueo({ nombre, usuario, usuarioId, marca, children }: Props) {
   // null = aún no se leyó sessionStorage (primer render): se tapa la pantalla para no mostrar datos.
   const [bloqueado, setBloqueado] = useState<boolean | null>(null);
   const ultimaActividad = useRef(0);
@@ -72,6 +76,8 @@ export function GuardiaBloqueo({ nombre, marca, children }: Props) {
         {bloqueado && (
           <PantallaBloqueo
             nombre={nombre}
+            usuario={usuario}
+            usuarioId={usuarioId}
             marca={marca}
             onDesbloqueado={() => {
               escribirAlmacen("session", CLAVE_DESBLOQUEO, "1");
@@ -86,10 +92,14 @@ export function GuardiaBloqueo({ nombre, marca, children }: Props) {
 
 function PantallaBloqueo({
   nombre,
+  usuario,
+  usuarioId,
   marca,
   onDesbloqueado,
 }: {
   nombre: string;
+  usuario: string;
+  usuarioId: number;
   marca: Props["marca"];
   onDesbloqueado: () => void;
 }) {
@@ -105,13 +115,35 @@ function PantallaBloqueo({
     router.refresh();
   };
 
+  const fallar = (mensaje: string) => {
+    setPin("");
+    setError(mensaje);
+    setIntentoError((n) => n + 1);
+  };
+
+  /** Sin conexión: contra el verificador guardado en el dispositivo (sección 8 del plan). */
+  const desbloquearSinConexion = async () => {
+    const r = await verificarPinLocal(usuario, pin).catch(() => "sin-credencial" as const);
+    if (r === "ok") return onDesbloqueado();
+    if (r === "incorrecto") return fallar("PIN incorrecto");
+    if (r === "bloqueado") return fallar("Demasiados intentos sin conexión: conéctate a internet para desbloquear.");
+    fallar("Sin conexión y sin PIN guardado en este dispositivo: conéctate para desbloquear.");
+  };
+
   const enviar = () =>
     iniciar(async () => {
-      const r = await desbloquear(pin);
-      if (r.ok) return onDesbloqueado();
-      setPin("");
-      setError(r.error);
-      setIntentoError((n) => n + 1);
+      if (!navigator.onLine) return desbloquearSinConexion();
+      let r;
+      try {
+        r = await desbloquear(pin);
+      } catch {
+        return desbloquearSinConexion(); // la red se cortó en el intento
+      }
+      if (r.ok) {
+        await guardarCredencialLocal(usuario, usuarioId, pin);
+        return onDesbloqueado();
+      }
+      fallar(r.error);
       if (r.sesionCerrada) setTimeout(irAlLogin, 2500);
     });
 
