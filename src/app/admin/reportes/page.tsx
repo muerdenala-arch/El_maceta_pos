@@ -20,7 +20,9 @@ export const metadata: Metadata = { title: "Reporte de ventas" };
 export default async function PaginaReporteVentas(props: PageProps<"/admin/reportes">) {
   const sesion = await requerirSesion("admin");
   const hoy = hoyEnBolivia();
-  const fecha = fechaValida((await props.searchParams).fecha) ?? hoy;
+  const sp = await props.searchParams;
+  const fecha = fechaValida(sp.fecha) ?? hoy;
+  const ventaInicial = Number(sp.venta) || null;
   const sucursalId = await obtenerSucursalVista(sesion);
 
   const filas = await db
@@ -65,7 +67,7 @@ export default async function PaginaReporteVentas(props: PageProps<"/admin/repor
       >
         <SelectorFecha fecha={fecha} hoy={hoy} />
       </EncabezadoPagina>
-      <ListaVentas ventas={filas.map((v) => ({ ...v, fecha: v.fecha.toISOString() }))} />
+      <ListaVentas admin ventaInicial={ventaInicial} ventas={filas.map((v) => ({ ...v, fecha: v.fecha.toISOString() }))} />
     </div>
   );
 }

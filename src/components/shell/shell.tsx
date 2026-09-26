@@ -23,6 +23,8 @@ export type PropsShell = {
   /** Admin: opciones del selector. Cajero: solo su sucursal (fija). */
   sucursales: { id: number; nombre: string }[];
   sucursalActual: number | null;
+  /** Solo admin: contador de la campanita y numeritos por módulo del menú. */
+  alertas?: { noLeidas: number; porModulo: Record<string, number> };
   children: React.ReactNode;
 };
 
@@ -65,7 +67,7 @@ export function Shell(props: PropsShell) {
               <IndicadorConexion />
             </span>
             <BotonRecarga />
-            {rol === "admin" && <Campanita />}
+            {rol === "admin" && <Campanita noLeidas={props.alertas?.noLeidas} />}
             <SelectorTema />
           </div>
         </header>
@@ -109,6 +111,7 @@ function ContenidoLateral({
   marca,
   sucursales,
   sucursalActual,
+  alertas,
   alNavegar,
 }: PropsShell & { alNavegar?: () => void }) {
   const router = useRouter();
@@ -130,7 +133,7 @@ function ContenidoLateral({
 
         <div className="flex items-center gap-1">
           <Logo nombre={marca.nombre} url={marca.logoUrl} className="mr-auto size-11" />
-          {rol === "admin" && <Campanita />}
+          {rol === "admin" && <Campanita noLeidas={alertas?.noLeidas} />}
           <BotonRecarga />
           <SelectorTema className="ml-1" />
         </div>
@@ -165,7 +168,15 @@ function ContenidoLateral({
             )}
           >
             <Icono className="size-5 shrink-0" strokeWidth={1.8} />
-            {titulo}
+            <span className="flex-1">{titulo}</span>
+            {!!alertas?.porModulo[href] && (
+              <span
+                className="cifras flex min-w-6 items-center justify-center rounded-full bg-destructive px-1.5 text-xs leading-6 font-bold text-white"
+                aria-label={`${alertas.porModulo[href]} alertas`}
+              >
+                {alertas.porModulo[href]}
+              </span>
+            )}
           </Link>
         ))}
       </nav>

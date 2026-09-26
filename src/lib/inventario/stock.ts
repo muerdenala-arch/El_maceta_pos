@@ -2,6 +2,7 @@ import "server-only";
 import { and, eq, gt, isNull, sql } from "drizzle-orm";
 import type { Db } from "@/db";
 import { inventario, lotes, movimientosInventario, productos, sucursales, type LoteEnTransito } from "@/db/schema";
+import { conciliarAlertasStock } from "@/lib/alertas/motor";
 import { agruparPorVencimiento, planificarConsumo } from "./lotes";
 
 /** Transacción de Drizzle (todo cambio de stock ocurre dentro de una). */
@@ -99,6 +100,7 @@ export async function cambiarStock(tx: Tx, c: CambioStock): Promise<{ cantidadFi
     referencia: c.referencia ?? null,
   });
 
-  // Fase 7: aquí se generarán/resolverán las alertas de stock bajo y agotado.
+  // Alertas de stock bajo / agotado: se crean o se resuelven solas con cada movimiento.
+  await conciliarAlertasStock(tx, { productoId: c.productoId, sucursalId: c.ubicacionId });
   return { cantidadFinal, lotesSalida };
 }

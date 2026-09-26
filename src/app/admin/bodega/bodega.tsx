@@ -13,7 +13,7 @@ import {
   Warehouse,
   X,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { EncabezadoPagina } from "@/components/formularios/encabezado-pagina";
 import { useAccion } from "@/components/formularios/use-accion";
 import {
@@ -52,6 +52,8 @@ const fechaDia = (dia: string) =>
 
 type Props = {
   vista: "stock" | "transferencias" | "vencimientos";
+  /** ?resaltar=ID desde una alerta de vencimiento. */
+  resaltar: number | null;
   hoy: string;
   ubicaciones: UbicacionLigera[];
   productos: ProductoInventario[];
@@ -61,7 +63,7 @@ type Props = {
   solicitudes: SolicitudReposicion[];
 };
 
-export function Bodega({ vista, hoy, ubicaciones, productos, stock, lotes, transferencias, solicitudes }: Props) {
+export function Bodega({ vista, resaltar, hoy, ubicaciones, productos, stock, lotes, transferencias, solicitudes }: Props) {
   const bodega = ubicaciones.find((u) => u.tipo === "bodega");
   const [ingreso, setIngreso] = useState(false);
   const [transferencia, setTransferencia] = useState<PrecargaTransferencia | "nueva" | null>(null);
@@ -115,7 +117,7 @@ export function Bodega({ vista, hoy, ubicaciones, productos, stock, lotes, trans
 
       {vista === "stock" && <StockBodega productos={productos} cantidad={enBodega} lotes={lotes.filter((l) => l.ubicacionId === bodega?.id)} hoy={hoy} />}
       {vista === "transferencias" && <ListaTransferencias transferencias={transferencias} />}
-      {vista === "vencimientos" && <Vencimientos lotes={lotes} hoy={hoy} ubicaciones={ubicaciones} />}
+      {vista === "vencimientos" && <Vencimientos lotes={lotes} hoy={hoy} ubicaciones={ubicaciones} resaltar={resaltar} />}
 
       {ingreso && <DialogoIngreso productos={productos} ubicaciones={ubicaciones} onCerrar={() => setIngreso(false)} />}
       {transferencia && (
@@ -317,9 +319,25 @@ function ListaTransferencias({ transferencias }: { transferencias: Transferencia
   );
 }
 
-function Vencimientos({ lotes, hoy, ubicaciones }: { lotes: LoteVigente[]; hoy: string; ubicaciones: UbicacionLigera[] }) {
+function Vencimientos({
+  lotes,
+  hoy,
+  ubicaciones,
+  resaltar,
+}: {
+  lotes: LoteVigente[];
+  hoy: string;
+  ubicaciones: UbicacionLigera[];
+  resaltar: number | null;
+}) {
   const [ubicacion, setUbicacion] = useState<number | "todas">("todas");
+  const primero = useRef<HTMLLIElement>(null);
+  useEffect(() => {
+    // Sin llaves devolvería la promesa de scrollIntoView (Chrome) y React la tomaría como limpieza.
+    primero.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, []);
   const visibles = lotes.filter((l) => ubicacion === "todas" || l.ubicacionId === ubicacion);
+  const idPrimeroResaltado = visibles.find((l) => l.productoId === resaltar)?.id;
 
   return (
     <div className="space-y-4">
@@ -349,7 +367,11 @@ function Vencimientos({ lotes, hoy, ubicaciones }: { lotes: LoteVigente[]; hoy: 
           {visibles.map((l) => {
             const dias = diasParaVencer(l.vencimiento, hoy);
             return (
-              <li key={l.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
+              <li
+                key={l.id}
+                ref={l.id === idPrimeroResaltado ? primero : undefined}
+                className={cn("flex flex-wrap items-center gap-3 px-4 py-3", l.productoId === resaltar && "fila-resaltada")}
+              >
                 <span
                   className={cn(
                     "flex size-10 shrink-0 items-center justify-center rounded-xl",

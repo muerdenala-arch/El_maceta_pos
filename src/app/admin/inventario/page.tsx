@@ -58,13 +58,15 @@ export default async function PaginaInventario(props: PageProps<"/admin/inventar
 
   const [productos, stock, enCamino] = await Promise.all([listarProductosInventario(), mapaStock(), mapaEnCamino()]);
   const resaltar = Number(sp.resaltar) || null;
+  // Desde una alerta: se muestra la sucursal de la alerta (y la bodega), sin cambiar "Viendo sucursal".
+  const sucursalFoco = Number(sp.sucursal) || sucursalVista;
 
   return (
     <div className="mx-auto max-w-7xl space-y-6">
       <TablaInventario
         ubicaciones={ubicaciones}
         // Con una sucursal elegida en "Viendo sucursal": esa sucursal y la bodega (de donde se repone).
-        columnas={sucursalVista ? ubicaciones.filter((u) => u.id === sucursalVista || u.tipo === "bodega") : ubicaciones}
+        columnas={sucursalFoco ? ubicaciones.filter((u) => u.id === sucursalFoco || u.tipo === "bodega") : ubicaciones}
         productos={productos}
         stock={stock}
         enCamino={enCamino}

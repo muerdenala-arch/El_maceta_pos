@@ -146,6 +146,25 @@ Credenciales de prueba locales: en `.env.local` (`SEED_*`), nunca en el código 
 - Cierre de caja bloqueado con pendientes o sin conexión; cerrar sesión avisa y borra las pantallas guardadas.
 - Prueba de extremo a extremo: `e2e/offline.spec.ts` (Playwright, contra `next start`; ver playwright.config.ts).
 
+## Alertas y auditoría (Fase 7)
+
+- Reglas puras en `lib/alertas/reglas.ts` (umbral de stock, 30 días de aviso, destino y módulo de cada tipo).
+- `lib/alertas/motor.ts` **concilia** (crea / actualiza mensaje / resuelve): `cambiarStock` llama a
+  `conciliarAlertasStock(tx, {producto, ubicación})` en la misma transacción; el layout admin llama a
+  `conciliarAlertasSiCorresponde()` (inventario completo + vencimientos, máx. cada 5 min por instancia).
+- Automáticas (`stock_bajo`, `agotado`, `por_vencer`, `stock_negativo`) se resuelven solas al corregirse;
+  las demás (`caja_diferencia`, `qr_por_confirmar`, `revision_offline`, `solicitud_reposicion`) se marcan
+  revisadas (✓, auditoría `alerta_revisada`) o se resuelven con su acción (confirmar QR, anular venta).
+- Campanita: `lib/alertas/acciones.ts` (leer al abrir, sondeo 60 s); cada alerta navega a su pantalla
+  (`destinoAlerta`) con el elemento resaltado. El menú muestra insignias por módulo (`resumenAlertas`).
+- Anular venta (`app/admin/reportes/acciones.ts`, solo admin, motivo obligatorio): estado `anulada`,
+  devuelve stock (`cambiarStock` tipo `anulacion`), libera el uso del cupón, auditoría `venta_anulada`.
+  Totales, cierres y panel solo cuentan ventas `completada`.
+- `/admin/auditoria`: pestaña Cajas (esperado vs. contado; abiertas en vivo) y Acciones sensibles
+  (claves en `lib/auditoria-acciones.ts`; no importar constantes de archivos cliente en páginas servidor).
+- `useEffect(() => { el.scrollIntoView() })` **con llaves**: en Chrome devuelve una promesa y React la
+  tomaría como función de limpieza.
+
 ## Reglas no negociables
 
 - **Permisos en el servidor**: `proxy.ts` protege rutas por rol y *además* cada server action /
@@ -207,7 +226,7 @@ Todo debe funcionar en celular (375 px) y en modo oscuro.
       plugins UI/UX Pro Max y 21st.dev, Sentry.
 - [x] 1. Autenticación y roles (+ panel de inicio con estadísticas reales, adelantado de la Fase 8)
 - [x] 2. Estructura base (sucursales, personal, categorías, catálogo con fotos, configuración) · [ ] 3. Inventario · [ ] 4. Caja y ventas
-- [x] 4b. Comprobantes (impresión 58/80/carta, PDF en el dispositivo, WhatsApp, reimpresión, página pública) · [x] 5. Promociones (porcentaje, Bs por unidad, combos NxM, cupones con límite, vigencia, alcance) · [x] 6. Offline (PWA instalable, ventas y gastos sin internet, sincronización idempotente, PIN local) · [ ] 7. Alertas y auditoría
+- [x] 4b. Comprobantes (impresión 58/80/carta, PDF en el dispositivo, WhatsApp, reimpresión, página pública) · [x] 5. Promociones (porcentaje, Bs por unidad, combos NxM, cupones con límite, vigencia, alcance) · [x] 6. Offline (PWA instalable, ventas y gastos sin internet, sincronización idempotente, PIN local) · [x] 7. Alertas y auditoría (campanita conciliada, insignias, anular venta, confirmar QR, auditoría de cajas y acciones sensibles)
 - [ ] 8. Reportes · [ ] 9. Pruebas · [ ] 10. Lanzamiento
 
 Entregar cada fase funcional y probada contra los criterios de aceptación (sección 11) antes de seguir.

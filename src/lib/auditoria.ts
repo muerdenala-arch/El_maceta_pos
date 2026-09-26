@@ -40,7 +40,11 @@ export type AccionAuditoria =
   | "promocion_creada"
   | "promocion_editada"
   | "cupon_creado"
-  | "cupon_eliminado";
+  | "cupon_eliminado"
+  // Fase 7
+  | "alerta_revisada"
+  | "venta_anulada"
+  | "pago_qr_confirmado";
 
 export async function registrarAuditoria(
   accion: AccionAuditoria,

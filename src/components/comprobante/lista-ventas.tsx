@@ -24,8 +24,18 @@ const hora = (iso: string) =>
   new Date(iso).toLocaleTimeString("es-BO", { timeZone: "America/La_Paz", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 
 /** Lista de ventas tocables: abre el comprobante para reimprimir o reenviar. */
-export function ListaVentas({ ventas }: { ventas: VentaResumida[] }) {
-  const [abierta, setAbierta] = useState<number | null>(null);
+export function ListaVentas({
+  ventas,
+  admin,
+  ventaInicial = null,
+}: {
+  ventas: VentaResumida[];
+  /** Permite confirmar pagos QR y anular ventas desde el comprobante. */
+  admin?: boolean;
+  /** ?venta=ID: abre ese comprobante al entrar (desde una alerta), aunque sea de otro día. */
+  ventaInicial?: number | null;
+}) {
+  const [abierta, setAbierta] = useState<number | null>(ventaInicial);
   return (
     <>
       <ul className="space-y-2">
@@ -58,7 +68,7 @@ export function ListaVentas({ ventas }: { ventas: VentaResumida[] }) {
         ))}
         {ventas.length === 0 && <li className="rounded-2xl border border-dashed p-10 text-center text-muted-foreground">No hay ventas.</li>}
       </ul>
-      {abierta !== null && <DialogoComprobante ventaId={abierta} onCerrar={() => setAbierta(null)} />}
+      {abierta !== null && <DialogoComprobante ventaId={abierta} admin={admin} onCerrar={() => setAbierta(null)} />}
     </>
   );
 }

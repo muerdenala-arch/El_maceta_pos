@@ -30,6 +30,7 @@ export default async function PaginaBodega(props: PageProps<"/admin/bodega">) {
   return (
     <Bodega
       vista={vista}
+      resaltar={Number(sp.resaltar) || null}
       hoy={hoyEnBolivia()}
       ubicaciones={ubicaciones}
       productos={productos}
