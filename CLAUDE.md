@@ -83,6 +83,20 @@ Credenciales de prueba locales: en `.env.local` (`SEED_*`), nunca en el código 
 - `/admin/inventario?resaltar=ID` resalta y desplaza hasta el producto (lo usarán las alertas en F7).
 - Migraciones con PGlite: detener el servidor de desarrollo antes de `npm run db:migrate`.
 
+## Caja y ventas (Fase 4)
+
+- Cajero sin caja abierta → `requerirCajaAbierta()` lo lleva a `/cajero/apertura` (venta, gastos, cierre).
+  Índice único parcial: una sola caja abierta por cajero.
+- `registrarVenta` (`app/cajero/acciones.ts`): una transacción que toma **precios de la BD** (nunca del
+  cliente), bloquea la fila de la sucursal para el número correlativo, crea/reutiliza el cliente por
+  teléfono normalizado y descuenta stock con `cambiarStock`. Idempotente por `uuid` del dispositivo
+  (un UUID por intento de cobro; verificado: 3 envíos simultáneos = 1 venta).
+- Cálculos puros y probados en `lib/caja/calculos.ts` (totales, cambio, billetes bolivianos 10–200,
+  cierre: esperado = inicial + efectivo − gastos; el QR no entra en el efectivo).
+- Cierre: inmutable; si hay diferencia crea alerta `caja_diferencia`. Gastos se anulan (admin) solo con la
+  caja abierta. El carrito del POS se guarda en localStorage por caja (sobrevive recargas).
+- **Con PGlite, no usar `db` dentro de `db.transaction`** (se bloquea): pasar `tx` (ver `totalesCaja`).
+
 ## Reglas no negociables
 
 - **Permisos en el servidor**: `proxy.ts` protege rutas por rol y *además* cada server action /

@@ -29,7 +29,13 @@ export type AccionAuditoria =
   | "ajuste_stock"
   | "transferencia_enviada"
   | "transferencia_recibida"
-  | "transferencia_cancelada";
+  | "transferencia_cancelada"
+  // Fase 4
+  | "caja_abierta"
+  | "caja_cerrada"
+  | "gasto_anulado"
+  | "qr_creado"
+  | "qr_editado";
 
 export async function registrarAuditoria(
   accion: AccionAuditoria,

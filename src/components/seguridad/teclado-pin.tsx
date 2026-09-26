@@ -42,7 +42,7 @@ export function TecladoPin({
 
   useEffect(() => {
     function alPresionar(e: KeyboardEvent) {
-      const destino = e.target as HTMLElement | null;
+      const destino = e.target instanceof Element ? e.target : null;
       if (destino?.closest("input, textarea, select, [contenteditable]")) return;
       const { valor, ocupado, completo, onCambiar, onEnviar } = estado.current;
       if (ocupado) return;
