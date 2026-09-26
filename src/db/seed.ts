@@ -1,27 +1,44 @@
 /**
  * Datos iniciales: bodega central, una sucursal, administrador, configuración y categorías.
+ * Opcional (desarrollo): un cajero de prueba si SEED_CAJERO_PIN está definido.
  * Ejecutar con: npm run db:seed  (es idempotente: se puede correr varias veces).
  */
 import { config } from "dotenv";
 config({ path: ".env.local" });
 
-import { Pool } from "@neondatabase/serverless";
 import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
-import { drizzle } from "drizzle-orm/neon-serverless";
+import { crearConexion, type Db } from "./conexion";
 import * as schema from "./schema";
 
+const PIN_VALIDO = /^\d{4,6}$/;
+
+async function crearUsuarioSiNoExiste(
+  db: Db,
+  datos: { nombre: string; usuario: string; pin: string; rol: "admin" | "cajero"; sucursalId?: number },
+) {
+  const usuario = datos.usuario.trim().toLowerCase();
+  const [existe] = await db
+    .select({ id: schema.usuarios.id })
+    .from(schema.usuarios)
+    .where(eq(schema.usuarios.usuario, usuario));
+  if (existe) return;
+  await db.insert(schema.usuarios).values({
+    nombre: datos.nombre,
+    usuario,
+    rol: datos.rol,
+    sucursalId: datos.sucursalId,
+    pinHash: await bcrypt.hash(datos.pin, 10),
+  });
+  console.log(`Usuario "${usuario}" (${datos.rol}) creado.`);
+}
+
 async function main() {
-  const url = process.env.DATABASE_URL;
-  const usuarioAdmin = process.env.SEED_ADMIN_USUARIO || "admin";
   const pinAdmin = process.env.SEED_ADMIN_PIN;
-  if (!url) throw new Error("Falta DATABASE_URL en .env.local");
-  if (!pinAdmin || !/^\d{4,6}$/.test(pinAdmin)) {
+  if (!pinAdmin || !PIN_VALIDO.test(pinAdmin)) {
     throw new Error("SEED_ADMIN_PIN debe tener de 4 a 6 dígitos (en .env.local)");
   }
-
-  const pool = new Pool({ connectionString: url });
-  const db = drizzle({ client: pool, schema });
+  const { db, cerrar } = await crearConexion();
 
   await db.insert(schema.configuracion).values({ id: 1 }).onConflictDoNothing();
 
@@ -29,22 +46,31 @@ async function main() {
   if (!existentes.some((s) => s.tipo === "bodega")) {
     await db.insert(schema.sucursales).values({ nombre: "Bodega central", tipo: "bodega" });
   }
-  if (!existentes.some((s) => s.tipo === "sucursal")) {
-    await db.insert(schema.sucursales).values({ nombre: "Sucursal principal", tipo: "sucursal" });
+  let principal = existentes.find((s) => s.tipo === "sucursal");
+  if (!principal) {
+    [principal] = await db
+      .insert(schema.sucursales)
+      .values({ nombre: "Sucursal principal", tipo: "sucursal" })
+      .returning();
   }
 
-  const [yaExiste] = await db
-    .select({ id: schema.usuarios.id })
-    .from(schema.usuarios)
-    .where(eq(schema.usuarios.usuario, usuarioAdmin));
-  if (!yaExiste) {
-    await db.insert(schema.usuarios).values({
-      nombre: "Administrador",
-      usuario: usuarioAdmin,
-      rol: "admin",
-      pinHash: await bcrypt.hash(pinAdmin, 10),
+  await crearUsuarioSiNoExiste(db, {
+    nombre: "Administrador",
+    usuario: process.env.SEED_ADMIN_USUARIO || "admin",
+    pin: pinAdmin,
+    rol: "admin",
+  });
+
+  const pinCajero = process.env.SEED_CAJERO_PIN;
+  if (pinCajero) {
+    if (!PIN_VALIDO.test(pinCajero)) throw new Error("SEED_CAJERO_PIN debe tener de 4 a 6 dígitos");
+    await crearUsuarioSiNoExiste(db, {
+      nombre: "Cajero de prueba",
+      usuario: process.env.SEED_CAJERO_USUARIO || "cajero",
+      pin: pinCajero,
+      rol: "cajero",
+      sucursalId: principal.id,
     });
-    console.log(`Administrador "${usuarioAdmin}" creado.`);
   }
 
   await db
@@ -57,7 +83,7 @@ async function main() {
     .onConflictDoNothing();
 
   console.log("Seed completado.");
-  await pool.end();
+  await cerrar();
 }
 
 main().catch((e) => {

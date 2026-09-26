@@ -1,6 +1,29 @@
+import { GuardiaBloqueo } from "@/components/seguridad/guardia-bloqueo";
 import { Shell } from "@/components/shell/shell";
+import { requerirSesion } from "@/lib/auth/sesion";
+import { obtenerMarca } from "@/lib/configuracion";
+import { listarSucursalesActivas, obtenerSucursalVista } from "@/lib/sucursal-vista";
 
-// La verificación de rol en el servidor (proxy.ts + cada acción) se agrega en la Fase 1.
-export default function LayoutAdmin({ children }: LayoutProps<"/admin">) {
-  return <Shell rol="admin">{children}</Shell>;
+// Segunda barrera después de proxy.ts: verifica sesión y rol contra la BD.
+export default async function LayoutAdmin({ children }: LayoutProps<"/admin">) {
+  const sesion = await requerirSesion("admin");
+  const [marca, sucursales, sucursalActual] = await Promise.all([
+    obtenerMarca(),
+    listarSucursalesActivas(),
+    obtenerSucursalVista(sesion),
+  ]);
+
+  return (
+    <GuardiaBloqueo nombre={sesion.nombre} marca={marca}>
+      <Shell
+        rol="admin"
+        usuario={{ nombre: sesion.nombre }}
+        marca={marca}
+        sucursales={sucursales}
+        sucursalActual={sucursalActual}
+      >
+        {children}
+      </Shell>
+    </GuardiaBloqueo>
+  );
 }

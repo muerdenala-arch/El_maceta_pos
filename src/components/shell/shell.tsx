@@ -1,96 +1,75 @@
 "use client";
 
-import { Menu } from "lucide-react";
+import { ArrowLeft, Menu, Store } from "lucide-react";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useState } from "react";
 import { BotonRecarga } from "@/components/barra/boton-recarga";
 import { Campanita } from "@/components/barra/campanita";
 import { IndicadorConexion } from "@/components/barra/indicador-conexion";
 import { SelectorTema } from "@/components/barra/selector-tema";
+import { Logo } from "@/components/marca/logo";
+import { BotonCerrarSesion } from "@/components/seguridad/boton-cerrar-sesion";
 import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
-import { iconoCerrarSesion as CerrarSesion, navAdmin, navCajero } from "./navegacion";
+import { navAdmin, navCajero } from "./navegacion";
+import { SelectorSucursal } from "./selector-sucursal";
 
-type Props = { rol: "admin" | "cajero"; children: React.ReactNode };
+export type PropsShell = {
+  rol: "admin" | "cajero";
+  usuario: { nombre: string };
+  marca: { nombre: string; logoUrl: string | null };
+  /** Admin: opciones del selector. Cajero: solo su sucursal (fija). */
+  sucursales: { id: number; nombre: string }[];
+  sucursalActual: number | null;
+  children: React.ReactNode;
+};
 
 /**
  * Estructura común de pantallas:
- * - Admin: barra lateral en PC, menú desplegable en celular.
- * - Cajero: barra lateral en PC, pestañas inferiores en celular (acceso con el pulgar).
+ * - PC (≥ 1024 px): barra lateral fija con controles, sucursal, menú y tarjeta de usuario.
+ * - Celular: barra superior; el menú se abre como panel lateral.
+ *   El cajero además tiene pestañas inferiores (acceso rápido con el pulgar).
  */
-export function Shell({ rol, children }: Props) {
-  const pathname = usePathname();
+export function Shell(props: PropsShell) {
+  const { rol, marca, children } = props;
+  const [menuAbierto, setMenuAbierto] = useState(false);
   const items = rol === "admin" ? navAdmin : navCajero;
+  const pathname = usePathname();
   const activo = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
 
   return (
     <div className="flex min-h-dvh">
-      <aside className="sticky top-0 hidden h-dvh w-60 shrink-0 flex-col bg-sidebar text-sidebar-foreground lg:flex">
-        <div className="px-5 py-5">
-          <Marca />
-        </div>
-        <nav className="flex-1 space-y-0.5 overflow-y-auto px-3">
-          {items.map(({ href, titulo, icono: Icono }) => (
-            <Link
-              key={href}
-              href={href}
-              className={cn(
-                "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                activo(href)
-                  ? "bg-sidebar-primary text-sidebar-primary-foreground"
-                  : "text-sidebar-foreground/75 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-              )}
-            >
-              <Icono className="size-4" />
-              {titulo}
-            </Link>
-          ))}
-        </nav>
-        <div className="border-t border-sidebar-border p-3">
-          <BotonCerrarSesion className="w-full justify-start text-sidebar-foreground/75 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground" />
-        </div>
+      <aside className="sticky top-0 hidden h-dvh w-72 shrink-0 border-r border-sidebar-border bg-sidebar text-sidebar-foreground lg:block">
+        <ContenidoLateral {...props} />
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 flex h-14 items-center gap-2 border-b bg-background/85 px-3 backdrop-blur sm:px-5">
-          {rol === "admin" && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="lg:hidden" aria-label="Abrir menú">
-                  <Menu className="size-5" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="w-60">
-                {items.map(({ href, titulo, icono: Icono }) => (
-                  <DropdownMenuItem key={href} asChild>
-                    <Link href={href} className={cn(activo(href) && "font-semibold")}>
-                      <Icono className="size-4" />
-                      {titulo}
-                    </Link>
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
-          <div className="lg:hidden">
-            <Marca />
-          </div>
+        <header className="sticky top-0 z-30 flex h-16 items-center gap-2 border-b bg-background/85 px-3 backdrop-blur lg:hidden">
+          <Sheet open={menuAbierto} onOpenChange={setMenuAbierto}>
+            <SheetTrigger asChild>
+              <Button variant="ghost" size="icon" className="rounded-full" aria-label="Abrir menú">
+                <Menu className="size-5" />
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="left" className="w-[19rem] max-w-[85vw] gap-0 border-sidebar-border bg-sidebar p-0">
+              <SheetTitle className="sr-only">Menú</SheetTitle>
+              <ContenidoLateral {...props} alNavegar={() => setMenuAbierto(false)} />
+            </SheetContent>
+          </Sheet>
+          <Logo nombre={marca.nombre} url={marca.logoUrl} className="size-9" />
+          <span className="truncate font-display text-lg font-bold">{marca.nombre}</span>
           <div className="ml-auto flex items-center gap-1">
-            <IndicadorConexion />
             <BotonRecarga />
             {rol === "admin" && <Campanita />}
             <SelectorTema />
-            {rol === "cajero" && <BotonCerrarSesion soloIcono className="lg:hidden" />}
           </div>
         </header>
 
-        <main className={cn("flex-1 p-4 sm:p-6", rol === "cajero" && "pb-24 lg:pb-6")}>{children}</main>
+        <main className={cn("flex-1 px-4 py-5 sm:px-8 sm:py-8", rol === "cajero" && "pb-28 lg:pb-8")}>
+          {children}
+        </main>
 
         {rol === "cajero" && (
           <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 border-t bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden">
@@ -99,14 +78,14 @@ export function Shell({ rol, children }: Props) {
                 key={href}
                 href={href}
                 className={cn(
-                  "flex flex-col items-center gap-1 py-2.5 text-[11px] font-medium",
-                  activo(href) ? "text-foreground" : "text-muted-foreground",
+                  "flex flex-col items-center gap-1 py-2.5 text-[11px] font-semibold",
+                  activo(href) ? "text-nav-activo-foreground" : "text-muted-foreground",
                 )}
               >
                 <span
                   className={cn(
-                    "flex h-7 w-12 items-center justify-center rounded-full transition-colors",
-                    activo(href) && "bg-primary text-primary-foreground",
+                    "flex h-8 w-14 items-center justify-center rounded-full transition-colors",
+                    activo(href) && "bg-nav-activo",
                   )}
                 >
                   <Icono className="size-5" />
@@ -121,31 +100,86 @@ export function Shell({ rol, children }: Props) {
   );
 }
 
-function Marca() {
-  return (
-    <Link href="/" className="flex items-center gap-2">
-      <span className="flex size-8 items-center justify-center rounded-lg bg-primary font-display text-lg font-extrabold text-primary-foreground">
-        M
-      </span>
-      <span className="font-display text-lg font-bold tracking-tight">El Maseta</span>
-    </Link>
-  );
-}
+function ContenidoLateral({
+  rol,
+  usuario,
+  marca,
+  sucursales,
+  sucursalActual,
+  alNavegar,
+}: PropsShell & { alNavegar?: () => void }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  const items = rol === "admin" ? navAdmin : navCajero;
+  const activo = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
 
-/** El cierre de sesión real (borrar cookie + advertir pendientes offline) llega en la Fase 1. */
-function BotonCerrarSesion({ soloIcono, className }: { soloIcono?: boolean; className?: string }) {
   return (
-    <Button
-      variant="ghost"
-      size={soloIcono ? "icon" : "default"}
-      className={className}
-      aria-label="Cerrar sesión"
-      asChild
-    >
-      <Link href="/login">
-        <CerrarSesion className="size-4" />
-        {!soloIcono && "Cerrar sesión"}
-      </Link>
-    </Button>
+    <div className="flex h-full flex-col">
+      <div className="space-y-5 px-5 pt-5 pb-4">
+        <button
+          type="button"
+          onClick={() => router.back()}
+          className="flex items-center gap-2 text-[15px] font-semibold text-sidebar-foreground/80 hover:text-sidebar-foreground"
+        >
+          <ArrowLeft className="size-4" />
+          Volver
+        </button>
+
+        <div className="flex items-center gap-1">
+          <Logo nombre={marca.nombre} url={marca.logoUrl} className="mr-auto size-11" />
+          {rol === "admin" && <Campanita />}
+          <BotonRecarga />
+          <SelectorTema className="ml-1" />
+        </div>
+
+        <div>
+          <p className="mb-2 flex items-center gap-1.5 text-[11px] font-bold tracking-[0.12em] text-sidebar-foreground/60 uppercase">
+            <Store className="size-3.5" />
+            {rol === "admin" ? "Viendo sucursal" : "Tu sucursal"}
+          </p>
+          {rol === "admin" ? (
+            <SelectorSucursal opciones={sucursales} actual={sucursalActual} />
+          ) : (
+            <div className="flex h-12 items-center rounded-xl border bg-background/60 px-4 text-[15px] font-semibold">
+              {sucursales[0]?.nombre ?? "Sin sucursal asignada"}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <nav className="flex-1 space-y-1 overflow-y-auto px-3 pb-3">
+        {items.map(({ href, titulo, icono: Icono }) => (
+          <Link
+            key={href}
+            href={href}
+            onClick={alNavegar}
+            aria-current={activo(href) ? "page" : undefined}
+            className={cn(
+              "flex items-center gap-3.5 rounded-xl px-4 py-3 text-[15px] font-semibold transition-colors",
+              activo(href)
+                ? "bg-nav-activo text-nav-activo-foreground shadow-sm"
+                : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+            )}
+          >
+            <Icono className="size-5 shrink-0" strokeWidth={1.8} />
+            {titulo}
+          </Link>
+        ))}
+      </nav>
+
+      <div className="space-y-3 border-t border-sidebar-border p-4">
+        <div className="flex items-center gap-3">
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-ficha-rosa-foreground font-display text-lg font-bold text-white">
+            {usuario.nombre.trim().charAt(0).toUpperCase()}
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="truncate font-bold">{usuario.nombre}</p>
+            <p className="text-sm text-sidebar-foreground/60">{rol === "admin" ? "Administrador" : "Cajero"}</p>
+          </div>
+          <IndicadorConexion />
+        </div>
+        <BotonCerrarSesion />
+      </div>
+    </div>
   );
 }

@@ -1,14 +1,14 @@
 import type { Metadata, Viewport } from "next";
-import { Bricolage_Grotesque, Figtree, JetBrains_Mono } from "next/font/google";
+import { JetBrains_Mono, Nunito, Outfit } from "next/font/google";
 import { Proveedores } from "@/components/proveedores";
 import "./globals.css";
 
-const titulos = Bricolage_Grotesque({
+const titulos = Outfit({
   variable: "--font-titulos",
   subsets: ["latin"],
 });
 
-const cuerpo = Figtree({
+const cuerpo = Nunito({
   variable: "--font-cuerpo",
   subsets: ["latin"],
 });
@@ -26,8 +26,8 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: "(prefers-color-scheme: light)", color: "#fafaf7" },
-    { media: "(prefers-color-scheme: dark)", color: "#16181d" },
+    { media: "(prefers-color-scheme: light)", color: "#f8f5f0" },
+    { media: "(prefers-color-scheme: dark)", color: "#0e0e10" },
   ],
 };
 

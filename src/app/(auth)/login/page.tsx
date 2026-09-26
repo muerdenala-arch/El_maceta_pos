@@ -1,38 +1,37 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { SelectorTema } from "@/components/barra/selector-tema";
-import { Button } from "@/components/ui/button";
+import { FondoAmbiental } from "@/components/marca/fondo-ambiental";
+import { Logo } from "@/components/marca/logo";
+import { obtenerMarca } from "@/lib/configuracion";
+import { FormularioLogin } from "./formulario-login";
 
 export const metadata: Metadata = { title: "Iniciar sesión" };
 
-/**
- * Fase 0: pantalla provisional con accesos directos para revisar el diseño base.
- * En la Fase 1 se reemplaza por usuario + PIN (4-6 dígitos) validado en el servidor.
- */
-export default function Login() {
+export default async function Login() {
+  const marca = await obtenerMarca();
+
   return (
-    <main className="relative flex min-h-dvh items-center justify-center p-4">
-      <div className="absolute top-3 right-3">
+    <main className="relative isolate flex min-h-dvh items-center justify-center px-4 pt-16 pb-6 sm:py-10">
+      <FondoAmbiental />
+      <div className="absolute top-4 right-4">
         <SelectorTema />
       </div>
-      <div className="w-full max-w-sm rounded-2xl border bg-card p-8 shadow-sm">
-        <div className="mb-8 flex flex-col items-center gap-3 text-center">
-          <span className="flex size-14 items-center justify-center rounded-2xl bg-primary font-display text-3xl font-extrabold text-primary-foreground">
-            M
-          </span>
-          <h1 className="text-2xl font-bold">El Maseta</h1>
-          <p className="text-sm text-muted-foreground">Sistema de gestión de suplementos</p>
+
+      <div className="relative w-full max-w-[26rem] overflow-hidden rounded-[2rem] border bg-card/90 px-7 pt-10 pb-8 shadow-2xl backdrop-blur-xl sm:px-8">
+        {/* Halo detrás del logo */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute top-0 left-1/2 size-64 -translate-x-1/2 -translate-y-1/3 rounded-full bg-[var(--brillo-1)] blur-3xl"
+        />
+        <div className="relative flex flex-col items-center text-center">
+          <Logo nombre={marca.nombre} url={marca.logoUrl} className="size-28 p-1 shadow-lg" />
+          <h1 className="mt-6 text-3xl font-extrabold tracking-tight uppercase">{marca.nombre}</h1>
+          <p className="mt-1 text-xs font-semibold tracking-[0.2em] text-muted-foreground uppercase">
+            Sistema POS &amp; gestión
+          </p>
         </div>
-        <p className="mb-4 rounded-lg bg-muted p-3 text-center text-xs text-muted-foreground">
-          Vista previa de la Fase 0. El inicio de sesión con PIN llega en la Fase 1.
-        </p>
-        <div className="grid gap-2">
-          <Button asChild size="lg">
-            <Link href="/admin/dashboard">Entrar como administrador</Link>
-          </Button>
-          <Button asChild size="lg" variant="secondary">
-            <Link href="/cajero/venta">Entrar como cajero</Link>
-          </Button>
+        <div className="relative mt-7">
+          <FormularioLogin />
         </div>
       </div>
     </main>

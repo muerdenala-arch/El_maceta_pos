@@ -4,8 +4,8 @@
 
 /*
  * Sistema de diseño de El Maseta — ver docs/sistema-de-diseno.md
- * "Voltaje": tinta casi negra + verde lima eléctrico como acento de acción.
- * Contraste alto para trabajar rápido y con mucha luz en el mostrador.
+ * Fondo casi negro (o crema en modo claro) con luces difusas, naranja como acento de acción,
+ * menú activo crema, fichas de color pastel. Tipografía redondeada y cifras en negrita.
  */
 
 @custom-variant dark (&:is(.dark *));
@@ -51,6 +51,16 @@
   --color-aviso: var(--aviso);
   --color-aviso-foreground: var(--aviso-foreground);
   --color-resaltado: var(--resaltado);
+  --color-nav-activo: var(--nav-activo);
+  --color-nav-activo-foreground: var(--nav-activo-foreground);
+  --color-ficha-naranja: var(--ficha-naranja);
+  --color-ficha-naranja-foreground: var(--ficha-naranja-foreground);
+  --color-ficha-verde: var(--ficha-verde);
+  --color-ficha-verde-foreground: var(--ficha-verde-foreground);
+  --color-ficha-rosa: var(--ficha-rosa);
+  --color-ficha-rosa-foreground: var(--ficha-rosa-foreground);
+  --color-ficha-neutra: var(--ficha-neutra);
+  --color-ficha-neutra-foreground: var(--ficha-neutra-foreground);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -61,83 +71,112 @@
 }
 
 :root {
-  --radius: 0.75rem;
-  --background: oklch(0.985 0.004 110);
-  --foreground: oklch(0.18 0.015 260);
+  --radius: 0.875rem;
+  --background: oklch(0.975 0.006 75);
+  --foreground: oklch(0.2 0.01 285);
   --card: oklch(1 0 0);
-  --card-foreground: oklch(0.18 0.015 260);
+  --card-foreground: oklch(0.2 0.01 285);
   --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.18 0.015 260);
-  /* Acción principal: lima eléctrico con texto tinta (contraste > 10:1) */
-  --primary: oklch(0.86 0.2 128);
-  --primary-foreground: oklch(0.2 0.03 135);
-  --secondary: oklch(0.94 0.006 260);
-  --secondary-foreground: oklch(0.22 0.015 260);
-  --muted: oklch(0.955 0.005 260);
-  --muted-foreground: oklch(0.47 0.015 260);
-  --accent: oklch(0.95 0.04 128);
-  --accent-foreground: oklch(0.25 0.05 135);
-  --destructive: oklch(0.56 0.22 25);
-  --exito: oklch(0.55 0.15 150);
+  --popover-foreground: oklch(0.2 0.01 285);
+  /* Acción principal: naranja */
+  --primary: oklch(0.66 0.2 43);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.95 0.008 75);
+  --secondary-foreground: oklch(0.25 0.01 285);
+  --muted: oklch(0.955 0.006 75);
+  --muted-foreground: oklch(0.5 0.012 285);
+  --accent: oklch(0.945 0.012 75);
+  --accent-foreground: oklch(0.22 0.01 285);
+  --destructive: oklch(0.58 0.22 25);
+  --exito: oklch(0.6 0.15 155);
   --exito-foreground: oklch(0.99 0 0);
-  --aviso: oklch(0.75 0.16 65);
-  --aviso-foreground: oklch(0.2 0.04 60);
-  --resaltado: oklch(0.86 0.2 128 / 35%);
-  --border: oklch(0.9 0.006 260);
-  --input: oklch(0.88 0.006 260);
-  --ring: oklch(0.62 0.18 132);
-  --chart-1: oklch(0.72 0.19 132);
-  --chart-2: oklch(0.55 0.13 250);
-  --chart-3: oklch(0.72 0.16 60);
-  --chart-4: oklch(0.6 0.17 330);
-  --chart-5: oklch(0.5 0.02 260);
-  --sidebar: oklch(0.2 0.015 260);
-  --sidebar-foreground: oklch(0.96 0.005 260);
-  --sidebar-primary: oklch(0.86 0.2 128);
-  --sidebar-primary-foreground: oklch(0.2 0.03 135);
-  --sidebar-accent: oklch(0.28 0.015 260);
-  --sidebar-accent-foreground: oklch(0.98 0 0);
-  --sidebar-border: oklch(1 0 0 / 8%);
-  --sidebar-ring: oklch(0.62 0.18 132);
+  --aviso: oklch(0.78 0.16 75);
+  --aviso-foreground: oklch(0.22 0.04 60);
+  --resaltado: oklch(0.72 0.18 48 / 25%);
+  /* Menú activo: crema con texto naranja */
+  --nav-activo: oklch(0.95 0.04 70);
+  --nav-activo-foreground: oklch(0.6 0.19 43);
+  /* Fichas de color de las tarjetas de estadísticas */
+  --ficha-naranja: oklch(0.95 0.04 65);
+  --ficha-naranja-foreground: oklch(0.64 0.19 43);
+  --ficha-verde: oklch(0.95 0.05 160);
+  --ficha-verde-foreground: oklch(0.55 0.14 160);
+  --ficha-rosa: oklch(0.95 0.04 350);
+  --ficha-rosa-foreground: oklch(0.6 0.2 355);
+  --ficha-neutra: oklch(0.93 0.005 285);
+  --ficha-neutra-foreground: oklch(0.45 0.01 285);
+  --border: oklch(0.91 0.008 75);
+  --input: oklch(0.89 0.008 75);
+  --ring: oklch(0.7 0.17 48);
+  --chart-1: oklch(0.7 0.19 45);
+  --chart-2: oklch(0.65 0.14 160);
+  --chart-3: oklch(0.65 0.2 355);
+  --chart-4: oklch(0.6 0.13 250);
+  --chart-5: oklch(0.55 0.01 285);
+  --sidebar: oklch(1 0 0);
+  --sidebar-foreground: oklch(0.25 0.01 285);
+  --sidebar-primary: oklch(0.66 0.2 43);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.96 0.008 75);
+  --sidebar-accent-foreground: oklch(0.2 0.01 285);
+  --sidebar-border: oklch(0.92 0.008 75);
+  --sidebar-ring: oklch(0.7 0.17 48);
+  /* Luces difusas del fondo */
+  --brillo-1: oklch(0.8 0.14 55 / 35%);
+  --brillo-2: oklch(0.8 0.12 160 / 25%);
+  --brillo-3: oklch(0.8 0.12 350 / 18%);
 }
 
 .dark {
-  --background: oklch(0.16 0.012 260);
-  --foreground: oklch(0.97 0.004 260);
-  --card: oklch(0.205 0.014 260);
-  --card-foreground: oklch(0.97 0.004 260);
-  --popover: oklch(0.22 0.014 260);
-  --popover-foreground: oklch(0.97 0.004 260);
-  --primary: oklch(0.88 0.21 128);
-  --primary-foreground: oklch(0.18 0.03 135);
-  --secondary: oklch(0.27 0.014 260);
-  --secondary-foreground: oklch(0.97 0.004 260);
-  --muted: oklch(0.25 0.012 260);
-  --muted-foreground: oklch(0.72 0.012 260);
-  --accent: oklch(0.3 0.06 130);
-  --accent-foreground: oklch(0.95 0.08 128);
-  --destructive: oklch(0.68 0.2 25);
-  --exito: oklch(0.72 0.16 150);
-  --exito-foreground: oklch(0.16 0.03 150);
-  --aviso: oklch(0.8 0.15 70);
+  --background: oklch(0.14 0.003 285);
+  --foreground: oklch(0.97 0.003 285);
+  --card: oklch(0.2 0.005 285);
+  --card-foreground: oklch(0.97 0.003 285);
+  --popover: oklch(0.21 0.005 285);
+  --popover-foreground: oklch(0.97 0.003 285);
+  --primary: oklch(0.7 0.19 45);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.25 0.005 285);
+  --secondary-foreground: oklch(0.97 0.003 285);
+  --muted: oklch(0.24 0.005 285);
+  --muted-foreground: oklch(0.7 0.01 285);
+  --accent: oklch(0.26 0.006 285);
+  --accent-foreground: oklch(0.97 0.003 285);
+  --destructive: oklch(0.65 0.21 25);
+  --exito: oklch(0.72 0.16 155);
+  --exito-foreground: oklch(0.16 0.03 155);
+  --aviso: oklch(0.8 0.15 75);
   --aviso-foreground: oklch(0.2 0.04 60);
-  --resaltado: oklch(0.88 0.21 128 / 22%);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.8 0.2 128);
-  --chart-1: oklch(0.85 0.2 128);
-  --chart-2: oklch(0.7 0.13 250);
-  --chart-3: oklch(0.8 0.15 65);
-  --chart-4: oklch(0.72 0.16 330);
-  --chart-5: oklch(0.65 0.02 260);
-  --sidebar: oklch(0.13 0.012 260);
-  --sidebar-foreground: oklch(0.96 0.005 260);
-  --sidebar-primary: oklch(0.88 0.21 128);
-  --sidebar-primary-foreground: oklch(0.18 0.03 135);
-  --sidebar-accent: oklch(0.22 0.014 260);
+  --resaltado: oklch(0.72 0.18 48 / 22%);
+  --nav-activo: oklch(0.97 0.025 75);
+  --nav-activo-foreground: oklch(0.62 0.19 43);
+  --ficha-naranja: oklch(0.96 0.03 70);
+  --ficha-naranja-foreground: oklch(0.64 0.19 43);
+  --ficha-verde: oklch(0.95 0.05 160);
+  --ficha-verde-foreground: oklch(0.52 0.13 160);
+  --ficha-rosa: oklch(0.95 0.04 350);
+  --ficha-rosa-foreground: oklch(0.6 0.21 355);
+  --ficha-neutra: oklch(0.32 0.006 285);
+  --ficha-neutra-foreground: oklch(0.8 0.01 285);
+  --border: oklch(1 0 0 / 9%);
+  --input: oklch(1 0 0 / 13%);
+  --ring: oklch(0.72 0.18 48);
+  --chart-1: oklch(0.72 0.19 45);
+  --chart-2: oklch(0.72 0.14 160);
+  --chart-3: oklch(0.7 0.2 355);
+  --chart-4: oklch(0.7 0.12 250);
+  --chart-5: oklch(0.65 0.01 285);
+  --sidebar: oklch(0.175 0.004 285);
+  --sidebar-foreground: oklch(0.93 0.004 285);
+  --sidebar-primary: oklch(0.7 0.19 45);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.24 0.005 285);
   --sidebar-accent-foreground: oklch(0.98 0 0);
   --sidebar-border: oklch(1 0 0 / 8%);
-  --sidebar-ring: oklch(0.8 0.2 128);
+  --sidebar-ring: oklch(0.72 0.18 48);
+  --brillo-1: oklch(0.55 0.16 45 / 45%);
+  --brillo-2: oklch(0.5 0.13 155 / 35%);
+  --brillo-3: oklch(0.5 0.15 350 / 15%);
 }
 
 @layer base {
@@ -146,7 +185,6 @@
   }
   body {
     @apply bg-background text-foreground;
-    font-feature-settings: "ss01", "cv11";
   }
   h1,
   h2,

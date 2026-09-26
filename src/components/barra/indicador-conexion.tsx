@@ -33,8 +33,9 @@ export function IndicadorConexion({ pendientes = 0 }: { pendientes?: number }) {
     <div
       role="status"
       aria-live="polite"
+      title={texto}
       className={cn(
-        "flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-medium",
+        "flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold",
         !enLinea && "border-destructive/40 bg-destructive/10 text-destructive",
         enLinea && pendientes > 0 && "border-aviso/50 bg-aviso/15 text-foreground",
         enLinea && pendientes === 0 && "text-muted-foreground",
@@ -46,7 +47,7 @@ export function IndicadorConexion({ pendientes = 0 }: { pendientes?: number }) {
           !enLinea ? "bg-destructive" : pendientes > 0 ? "bg-aviso" : "bg-exito",
         )}
       />
-      <span className="hidden sm:inline">{texto}</span>
+      {texto}
     </div>
   );
 }

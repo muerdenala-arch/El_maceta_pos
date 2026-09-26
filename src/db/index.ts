@@ -1,25 +1,12 @@
 import "server-only";
-import { Pool } from "@neondatabase/serverless";
-import { drizzle } from "drizzle-orm/neon-serverless";
-import * as schema from "./schema";
+import { crearConexion, type Conexion } from "./conexion";
 
 /**
- * Cliente de Neon con pooling (WebSocket) — soporta transacciones interactivas,
- * necesarias para que una venta descuente stock y registre el pago de forma atómica.
- * Usar la URL "pooled" de Neon (host con -pooler) en DATABASE_URL.
+ * Una sola conexión por proceso (globalThis), también entre recargas en desarrollo.
+ * Con Neon, usar la URL "pooled" (host con -pooler) en DATABASE_URL.
  */
-const globalParaDb = globalThis as unknown as { pool?: Pool };
+const global = globalThis as unknown as { conexionMaseta?: Promise<Conexion> };
+global.conexionMaseta ??= crearConexion();
 
-function crearPool() {
-  const url = process.env.DATABASE_URL;
-  if (!url) {
-    throw new Error("Falta DATABASE_URL. Copia .env.example a .env.local y completa la URL de Neon.");
-  }
-  return new Pool({ connectionString: url });
-}
-
-const pool = globalParaDb.pool ?? crearPool();
-if (process.env.NODE_ENV !== "production") globalParaDb.pool = pool;
-
-export const db = drizzle({ client: pool, schema });
-export type Db = typeof db;
+export const db = (await global.conexionMaseta).db;
+export type { Db } from "./conexion";

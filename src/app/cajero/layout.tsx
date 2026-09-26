@@ -1,6 +1,35 @@
+import { eq } from "drizzle-orm";
+import { db } from "@/db";
+import { sucursales } from "@/db/schema";
+import { GuardiaBloqueo } from "@/components/seguridad/guardia-bloqueo";
 import { Shell } from "@/components/shell/shell";
+import { requerirSesion } from "@/lib/auth/sesion";
+import { obtenerMarca } from "@/lib/configuracion";
 
-// La verificación de rol en el servidor (proxy.ts + cada acción) se agrega en la Fase 1.
-export default function LayoutCajero({ children }: LayoutProps<"/cajero">) {
-  return <Shell rol="cajero">{children}</Shell>;
+// Segunda barrera después de proxy.ts: verifica sesión y rol contra la BD.
+export default async function LayoutCajero({ children }: LayoutProps<"/cajero">) {
+  const sesion = await requerirSesion("cajero");
+  const [marca, suSucursal] = await Promise.all([
+    obtenerMarca(),
+    sesion.sucursalId
+      ? db
+          .select({ id: sucursales.id, nombre: sucursales.nombre })
+          .from(sucursales)
+          .where(eq(sucursales.id, sesion.sucursalId))
+      : Promise.resolve([]),
+  ]);
+
+  return (
+    <GuardiaBloqueo nombre={sesion.nombre} marca={marca}>
+      <Shell
+        rol="cajero"
+        usuario={{ nombre: sesion.nombre }}
+        marca={marca}
+        sucursales={suSucursal}
+        sucursalActual={sesion.sucursalId}
+      >
+        {children}
+      </Shell>
+    </GuardiaBloqueo>
+  );
 }

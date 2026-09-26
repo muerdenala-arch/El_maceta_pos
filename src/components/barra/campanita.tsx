@@ -15,7 +15,7 @@ export function Campanita({ noLeidas = 0 }: { noLeidas?: number }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="relative" aria-label={`Alertas: ${noLeidas} sin leer`}>
+        <Button variant="ghost" size="icon" className="relative rounded-full" aria-label={`Alertas: ${noLeidas} sin leer`}>
           <Bell className="size-5" />
           {noLeidas > 0 && (
             <span className="cifras absolute -top-0.5 -right-0.5 flex min-w-5 items-center justify-center rounded-full bg-destructive px-1 text-[11px] leading-5 font-semibold text-white">

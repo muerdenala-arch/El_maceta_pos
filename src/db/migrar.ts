@@ -1,0 +1,33 @@
+/**
+ * Aplica las migraciones de src/db/migraciones (Neon o PGlite según DATABASE_URL).
+ * Ejecutar con: npm run db:migrate
+ */
+import { config } from "dotenv";
+config({ path: ".env.local" });
+
+import { crearConexion } from "./conexion";
+
+async function main() {
+  // Para Neon, las migraciones van por la conexión directa (sin -pooler) si existe.
+  const url = process.env.DATABASE_URL?.startsWith("pglite:")
+    ? process.env.DATABASE_URL
+    : (process.env.DATABASE_URL_DIRECTA ?? process.env.DATABASE_URL);
+  const { db, tipo, cerrar } = await crearConexion(url);
+  const carpeta = { migrationsFolder: "./src/db/migraciones" };
+
+  if (tipo === "pglite") {
+    const { migrate } = await import("drizzle-orm/pglite/migrator");
+    await migrate(db as never, carpeta);
+  } else {
+    const { migrate } = await import("drizzle-orm/neon-serverless/migrator");
+    await migrate(db, carpeta);
+  }
+
+  console.log(`Migraciones aplicadas (${tipo}).`);
+  await cerrar();
+}
+
+main().catch((e) => {
+  console.error(e);
+  process.exit(1);
+});

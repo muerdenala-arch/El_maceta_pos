@@ -21,6 +21,7 @@ export function BotonRecarga() {
         <Button
           variant="ghost"
           size="icon"
+          className="rounded-full"
           aria-label="Actualizar datos"
           disabled={cargando}
           onClick={() => iniciar(() => router.refresh())}

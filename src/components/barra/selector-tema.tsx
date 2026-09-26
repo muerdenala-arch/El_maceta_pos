@@ -2,30 +2,42 @@
 
 import { Moon, Sun } from "lucide-react";
 import { useTheme } from "next-themes";
-import { Button } from "@/components/ui/button";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useSyncExternalStore } from "react";
+import { cn } from "@/lib/utils";
 
-/** Cambia entre modo claro y oscuro; next-themes guarda la preferencia en localStorage. */
-export function SelectorTema() {
+const sinSuscripcion = () => () => {};
+
+/**
+ * Interruptor tipo píldora sol/luna; next-themes guarda la preferencia en localStorage.
+ * La posición de la perilla depende solo de la clase `.dark` (CSS), así no hay parpadeo al hidratar.
+ */
+export function SelectorTema({ className }: { className?: string }) {
   const { resolvedTheme, setTheme } = useTheme();
-  const oscuro = resolvedTheme === "dark";
+  // El servidor no conoce el tema: aria-checked se define recién después de hidratar.
+  const montado = useSyncExternalStore(sinSuscripcion, () => true, () => false);
 
   return (
-    <Tooltip>
-      <TooltipTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon"
-          // Etiqueta fija: el servidor no conoce el tema y una etiqueta variable rompe la hidratación
-          aria-label="Cambiar modo claro / oscuro"
-          onClick={() => setTheme(oscuro ? "light" : "dark")}
-        >
-          {/* Ambos íconos se renderizan; el CSS muestra el correcto y evita parpadeo al hidratar */}
-          <Sun className="size-5 scale-100 rotate-0 transition-transform duration-200 dark:scale-0 dark:-rotate-90" />
-          <Moon className="absolute size-5 scale-0 rotate-90 transition-transform duration-200 dark:scale-100 dark:rotate-0" />
-        </Button>
-      </TooltipTrigger>
-      <TooltipContent>Modo claro / oscuro</TooltipContent>
-    </Tooltip>
+    <button
+      type="button"
+      role="switch"
+      aria-checked={montado ? resolvedTheme === "dark" : undefined}
+      aria-label="Modo oscuro"
+      title="Modo claro / oscuro"
+      onClick={() => setTheme(resolvedTheme === "dark" ? "light" : "dark")}
+      className={cn(
+        "relative flex h-9 w-[4.25rem] shrink-0 items-center justify-between rounded-full border bg-muted px-2 transition-colors hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
+        className,
+      )}
+    >
+      <Sun className="size-4 text-aviso" />
+      <Moon className="size-4 text-muted-foreground" />
+      <span
+        aria-hidden
+        className="absolute top-1 left-1 flex size-7 items-center justify-center rounded-full bg-white shadow-md transition-transform duration-200 ease-out dark:translate-x-8"
+      >
+        <Sun className="size-4 text-primary dark:hidden" />
+        <Moon className="hidden size-4 text-indigo-500 dark:block" />
+      </span>
+    </button>
   );
 }
