@@ -8,7 +8,7 @@ Vercel; nunca en el código, en GitHub ni en chats.
 1. En Neon, el proyecto debe estar en la región **AWS São Paulo (sa-east-1)**, la más cercana a Bolivia.
    Si lo creaste en otra región, conviene crear uno nuevo en São Paulo (todavía no tiene datos).
 2. **Connect** → copiar la cadena **Pooled connection** → pegarla en `DATABASE_URL` de `.env.produccion.local`.
-3. Desactivar *Connection pooling* → copiar la cadena directa → pegarla en `DATABASE_URL_DIRECTA`.
+3. `DATABASE_URL_DIRECTA` es opcional: si queda vacía se usa la misma cadena sin `-pooler`.
 4. En el mismo archivo, `SEED_ADMIN_PIN`: el PIN del administrador real (4 a 6 dígitos, que no sea fácil).
 5. Crear las tablas y los datos iniciales (bodega, sucursal principal, administrador, categorías):
 

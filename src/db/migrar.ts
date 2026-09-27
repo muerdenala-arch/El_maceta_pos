@@ -8,10 +8,10 @@ const archivoEntorno = cargarEntornoScript();
 import { crearConexion } from "./conexion";
 
 async function main() {
-  // Para Neon, las migraciones van por la conexión directa (sin -pooler) si existe.
+  // Para Neon, las migraciones van por la conexión directa (sin -pooler): la indicada o la misma sin "-pooler".
   const url = process.env.DATABASE_URL?.startsWith("pglite:")
     ? process.env.DATABASE_URL
-    : (process.env.DATABASE_URL_DIRECTA ?? process.env.DATABASE_URL);
+    : process.env.DATABASE_URL_DIRECTA || process.env.DATABASE_URL?.replace("-pooler.", ".");
   console.log(`Migrando ${destino(url)} (variables de ${archivoEntorno})`);
   const { db, tipo, cerrar } = await crearConexion(url);
   const carpeta = { migrationsFolder: "./src/db/migraciones" };
