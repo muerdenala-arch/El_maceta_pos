@@ -195,6 +195,18 @@ Credenciales de prueba locales: en `.env.local` (`SEED_*`), nunca en el código 
 - No usar `page.clock` con la capa de bloqueo (congela la animación de salida): adelantar `Date.now` en la página.
 - Lo que depende del equipo real (térmica, WhatsApp con adjunto, modo avión, app instalada): `docs/pruebas-manuales.md`.
 
+## Lanzamiento (Fase 10)
+
+- Paso a paso para el dueño: `docs/lanzamiento.md` (Neon São Paulo, Vercel `gru1`, variables, Blob, puesta en marcha);
+  capacitación: `docs/guia-cajero.md`.
+- Scripts contra producción: `npm run db:migrate -- --env .env.produccion.local` (y `db:seed`). `src/db/entorno-script.ts`
+  carga solo ese archivo e imprime el servidor de destino, nunca la clave. El archivo está excluido por `.env*`.
+- Importar catálogo: Catálogo → Importar Excel. Lógica pura y probada en `lib/importacion/productos.ts` (columnas sin
+  importar tildes/mayúsculas, montos "280,50", fechas de Excel, errores por fila, solo productos nuevos);
+  `importarProductos` revisa sin guardar y con `aplicar=1` crea categorías, productos y stock (lote con vencimiento)
+  en una transacción. Plantilla: `GET /api/admin/plantilla-productos` (una columna "Stock <ubicación>" por ubicación).
+- Encabezados de seguridad en `next.config.ts` (X-Frame-Options, nosniff, Referrer-Policy, Permissions-Policy).
+
 ## Reglas no negociables
 
 - **Permisos en el servidor**: `proxy.ts` protege rutas por rol y *además* cada server action /
@@ -257,6 +269,6 @@ Todo debe funcionar en celular (375 px) y en modo oscuro.
 - [x] 1. Autenticación y roles (+ panel de inicio con estadísticas reales, adelantado de la Fase 8)
 - [x] 2. Estructura base (sucursales, personal, categorías, catálogo con fotos, configuración) · [x] 3. Inventario · [x] 4. Caja y ventas
 - [x] 4b. Comprobantes (impresión 58/80/carta, PDF en el dispositivo, WhatsApp, reimpresión, página pública) · [x] 5. Promociones (porcentaje, Bs por unidad, combos NxM, cupones con límite, vigencia, alcance) · [x] 6. Offline (PWA instalable, ventas y gastos sin internet, sincronización idempotente, PIN local) · [x] 7. Alertas y auditoría (campanita conciliada, insignias, anular venta, confirmar QR, auditoría de cajas y acciones sensibles)
-- [x] 8. Reportes (filtros por fecha/sucursal/cajero/método/producto, Excel y PDF, ganancia, dashboard ampliado, gastos por rango) · [x] 9. Pruebas (26 de integración con BD real en memoria, barrido de permisos de las 41 acciones, 10 e2e de criterios de aceptación, checklist manual) · [ ] 10. Lanzamiento
+- [x] 8. Reportes (filtros por fecha/sucursal/cajero/método/producto, Excel y PDF, ganancia, dashboard ampliado, gastos por rango) · [x] 9. Pruebas (26 de integración con BD real en memoria, barrido de permisos de las 41 acciones, 10 e2e de criterios de aceptación, checklist manual) · [ ] 10. Lanzamiento (en curso: importador Excel, guías y scripts listos; falta publicar en Vercel/Neon)
 
 Entregar cada fase funcional y probada contra los criterios de aceptación (sección 11) antes de seguir.

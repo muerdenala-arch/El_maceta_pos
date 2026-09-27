@@ -1,4 +1,5 @@
 import { readFile } from "node:fs/promises";
+import * as XLSX from "xlsx";
 import { expect, test } from "@playwright/test";
 import { ADMIN, agregarProducto, CAJERO, cobrar, desbloquear, ingresarAdmin, ingresarCajero } from "./ayudas";
 
@@ -146,3 +147,35 @@ test("en el celular (375 px) las pantallas principales no se desbordan", async (
     expect(await sinDesborde(), ruta).toBe(true);
   }
 });
+
+test("el admin carga productos desde Excel con la planilla modelo", async ({ page }) => {
+  await ingresarAdmin(page);
+  const modelo = await page.request.get("/api/admin/plantilla-productos");
+  expect(modelo.status()).toBe(200);
+  const libro = XLSX.read(await modelo.body());
+  const [encabezado] = XLSX.utils.sheet_to_json<string[]>(libro.Sheets.Productos, { header: 1 });
+  const fila = (valores: Record<string, string | number>) => encabezado.map((c) => valores[c] ?? null);
+  libro.Sheets.Productos = XLSX.utils.aoa_to_sheet([
+    encabezado,
+    fila({ Nombre: "Glutamina E2E", Categoría: "Aminoácidos", Presentación: "300 g", "Precio venta": 150, "Precio costo": 100, "Stock Bodega central": 12 }),
+    fila({ Nombre: "", "Precio venta": 10 }),
+  ]);
+  const archivo = { name: "catalogo.xlsx", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" };
+
+  await page.goto("/admin/catalogo");
+  await page.getByRole("button", { name: "Importar Excel" }).click();
+  const dialogo = page.getByRole("dialog");
+  await dialogo.locator("input[type=file]").setInputFiles({ ...archivo, buffer: XLSX.write(libro, { type: "buffer", bookType: "xlsx" }) });
+  await expect(dialogo.getByText(/1 fila con errores/)).toBeVisible();
+  await expect(dialogo.getByText(/Fila 3:.*Nombre/)).toBeVisible();
+
+  // Se corrige quitando la fila mala y se vuelve a elegir.
+  libro.Sheets.Productos = XLSX.utils.aoa_to_sheet([encabezado, fila({ Nombre: "Glutamina E2E", Categoría: "Aminoácidos", Presentación: "300 g", "Precio venta": 150, "Precio costo": 100, "Stock Bodega central": 12 })]);
+  await dialogo.locator("input[type=file]").setInputFiles({ ...archivo, buffer: XLSX.write(libro, { type: "buffer", bookType: "xlsx" }) });
+  await expect(dialogo.getByText(/Todo en orden: 1 producto · 12 unidades/)).toBeVisible();
+  await page.screenshot({ path: "test-results/importar-excel.png" });
+  await dialogo.getByRole("button", { name: "Importar 1 producto" }).click();
+  await expect(page.getByText("1 producto importado")).toBeVisible();
+  await expect(page.locator("main").getByText("Glutamina E2E")).toBeVisible();
+});
+

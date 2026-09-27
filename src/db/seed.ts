@@ -3,8 +3,8 @@
  * Opcional (desarrollo): un cajero de prueba si SEED_CAJERO_PIN está definido.
  * Ejecutar con: npm run db:seed  (es idempotente: se puede correr varias veces).
  */
-import { config } from "dotenv";
-config({ path: ".env.local" });
+import { cargarEntornoScript, destino } from "./entorno-script";
+const archivoEntorno = cargarEntornoScript();
 
 import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
@@ -38,6 +38,7 @@ async function main() {
   if (!pinAdmin || !PIN_VALIDO.test(pinAdmin)) {
     throw new Error("SEED_ADMIN_PIN debe tener de 4 a 6 dígitos (en .env.local)");
   }
+  console.log(`Seed en ${destino(process.env.DATABASE_URL)} (variables de ${archivoEntorno})`);
   const { db, cerrar } = await crearConexion();
 
   await db.insert(schema.configuracion).values({ id: 1 }).onConflictDoNothing();

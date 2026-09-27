@@ -44,7 +44,8 @@ export type AccionAuditoria =
   // Fase 7
   | "alerta_revisada"
   | "venta_anulada"
-  | "pago_qr_confirmado";
+  | "pago_qr_confirmado"
+  | "productos_importados";
 
 export async function registrarAuditoria(
   accion: AccionAuditoria,

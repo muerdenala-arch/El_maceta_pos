@@ -23,6 +23,7 @@ type Rol = "admin" | "cajero";
 const PERMITIDOS: Record<string, Rol[] | "publica"> = {
   // Administrador
   guardarProducto: ["admin"],
+  importarProductos: ["admin"],
   guardarCategoria: ["admin"],
   eliminarCategoria: ["admin"],
   guardarConfiguracion: ["admin"],

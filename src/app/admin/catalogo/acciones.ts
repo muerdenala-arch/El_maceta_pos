@@ -17,6 +17,10 @@ import { autorizar } from "@/lib/auth/sesion";
 import { aCentavos } from "@/lib/dinero";
 import { idPositivo } from "@/lib/validaciones/comunes";
 import { esquemaCategoria, esquemaProducto, type DatosProducto } from "@/lib/validaciones/admin";
+import { contextoImportacion } from "@/lib/importacion/contexto";
+import { leerPlanilla, normalizar } from "@/lib/importacion/productos";
+import { cambiarStock } from "@/lib/inventario/stock";
+import * as XLSX from "xlsx";
 
 const ERROR_CODIGO_REPETIDO = { codigoBarras: "Ya hay otro producto con este código de barras" };
 
@@ -111,5 +115,111 @@ export async function eliminarCategoria(entrada: { id: number }): Promise<Result
     await db.delete(categorias).where(eq(categorias.id, id));
     refresh();
     return exito();
+  });
+}
+
+// ---------------------------------------------------------------- Importación desde Excel (Fase 10)
+
+export type ResumenImportacion = {
+  aplicado: boolean;
+  productos: number;
+  unidades: number;
+  categoriasNuevas: string[];
+  errores: { fila: number; mensajes: string[] }[];
+  /** Primeros productos, para revisar antes de confirmar. */
+  muestra: { fila: number; nombre: string; detalle: string; precioVenta: string; stock: number }[];
+};
+
+const TAMANO_MAXIMO_PLANILLA = 5 * 1024 * 1024;
+
+/**
+ * Carga del catálogo desde la planilla modelo. Con `aplicar` = "1" y sin errores, crea las categorías nuevas,
+ * los productos y su stock inicial (ingreso con lote y vencimiento) en una sola transacción: o entra todo o nada.
+ * Sin `aplicar`, solo revisa y devuelve el resumen y los errores por fila.
+ */
+export async function importarProductos(formulario: FormData): Promise<Resultado<ResumenImportacion>> {
+  return conPermiso(async () => {
+    const sesion = await autorizar("admin");
+    const archivo = formulario.get("archivo");
+    const aplicar = formulario.get("aplicar") === "1";
+    if (!(archivo instanceof File) || archivo.size === 0) return fallo("Elige la planilla de Excel");
+    if (archivo.size > TAMANO_MAXIMO_PLANILLA) return fallo("La planilla supera los 5 MB");
+
+    let filas: Record<string, unknown>[];
+    try {
+      const libro = XLSX.read(new Uint8Array(await archivo.arrayBuffer()), { cellDates: true });
+      const hoja = libro.Sheets[libro.SheetNames.find((n) => normalizar(n) === "productos") ?? libro.SheetNames[0]];
+      filas = XLSX.utils.sheet_to_json<Record<string, unknown>>(hoja, { defval: null, raw: true });
+    } catch {
+      return fallo("No se pudo leer el archivo. Usa la planilla modelo en formato .xlsx");
+    }
+    if (filas.length === 0) return fallo("La planilla no tiene productos");
+
+    const ctx = await contextoImportacion();
+    const r = leerPlanilla(filas, ctx);
+    const unidades = r.productos.reduce((s, p) => s + p.stock.reduce((t, x) => t + x.cantidad, 0), 0);
+    const resumen: ResumenImportacion = {
+      aplicado: false,
+      productos: r.productos.length,
+      unidades,
+      categoriasNuevas: r.categoriasNuevas,
+      errores: r.errores,
+      muestra: r.productos.slice(0, 30).map((p) => ({
+        fila: p.fila,
+        nombre: p.nombre,
+        detalle: [p.marca, p.sabor, p.presentacion].filter(Boolean).join(" · "),
+        precioVenta: p.precioVenta,
+        stock: p.stock.reduce((t, x) => t + x.cantidad, 0),
+      })),
+    };
+    if (!aplicar || r.errores.length > 0 || r.productos.length === 0) return exito(resumen);
+
+    try {
+      await db.transaction(async (tx) => {
+        const idsCategoria = new Map(ctx.categorias);
+        for (const nombre of r.categoriasNuevas) {
+          const [c] = await tx.insert(categorias).values({ nombre }).onConflictDoNothing().returning({ id: categorias.id });
+          const id = c?.id ?? (await tx.select({ id: categorias.id }).from(categorias).where(eq(categorias.nombre, nombre)))[0].id;
+          idsCategoria.set(normalizar(nombre), id);
+        }
+        for (const p of r.productos) {
+          const [nuevo] = await tx
+            .insert(productos)
+            .values({
+              nombre: p.nombre,
+              marca: p.marca,
+              categoriaId: p.categoria ? (idsCategoria.get(normalizar(p.categoria)) ?? null) : null,
+              sabor: p.sabor,
+              presentacion: p.presentacion,
+              precioVenta: p.precioVenta,
+              precioCosto: p.precioCosto,
+              codigoBarras: p.codigoBarras,
+              stockMinimo: p.stockMinimo,
+            })
+            .returning({ id: productos.id });
+          for (const s of p.stock) {
+            await cambiarStock(tx, {
+              productoId: nuevo.id,
+              ubicacionId: s.ubicacionId,
+              delta: s.cantidad,
+              tipo: "ingreso",
+              usuarioId: sesion.uid,
+              motivo: "Carga inicial desde Excel",
+              lotesEntrada: [{ vencimiento: p.vencimiento, cantidad: s.cantidad }],
+            });
+          }
+        }
+      });
+    } catch (e) {
+      // Otro usuario creó el mismo código mientras tanto: se vuelve a revisar la planilla.
+      if (esViolacionUnica(e, "productos_codigo_barras_uq")) return fallo("Un código de barras ya existe: vuelve a revisar la planilla");
+      throw e;
+    }
+    await registrarAuditoria("productos_importados", {
+      usuarioId: sesion.uid,
+      detalle: { productos: r.productos.length, unidades, categoriasNuevas: r.categoriasNuevas, archivo: archivo.name.slice(0, 120) },
+    });
+    refresh();
+    return exito({ ...resumen, aplicado: true });
   });
 }

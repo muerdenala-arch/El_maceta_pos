@@ -2,8 +2,8 @@
  * Aplica las migraciones de src/db/migraciones (Neon o PGlite según DATABASE_URL).
  * Ejecutar con: npm run db:migrate
  */
-import { config } from "dotenv";
-config({ path: ".env.local" });
+import { cargarEntornoScript, destino } from "./entorno-script";
+const archivoEntorno = cargarEntornoScript();
 
 import { crearConexion } from "./conexion";
 
@@ -12,6 +12,7 @@ async function main() {
   const url = process.env.DATABASE_URL?.startsWith("pglite:")
     ? process.env.DATABASE_URL
     : (process.env.DATABASE_URL_DIRECTA ?? process.env.DATABASE_URL);
+  console.log(`Migrando ${destino(url)} (variables de ${archivoEntorno})`);
   const { db, tipo, cerrar } = await crearConexion(url);
   const carpeta = { migrationsFolder: "./src/db/migraciones" };
 

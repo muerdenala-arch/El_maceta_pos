@@ -7,6 +7,17 @@ const nextConfig: NextConfig = {
   async headers() {
     return [
       {
+        // Seguridad básica: la app no se incrusta en otros sitios, sin adivinar tipos de archivo,
+        // sin enviar la URL completa a otros sitios y sin acceso a micrófono ni ubicación.
+        source: "/:ruta*",
+        headers: [
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+          { key: "Permissions-Policy", value: "camera=(self), microphone=(), geolocation=()" },
+        ],
+      },
+      {
         source: "/sw.js",
         headers: [
           { key: "Cache-Control", value: "no-cache, no-store, must-revalidate" },

@@ -1,7 +1,7 @@
 "use client";
 
 /* eslint-disable @next/next/no-img-element -- fotos propias (Blob o locales) ya comprimidas */
-import { Barcode, Check, Package, PackagePlus, Pencil, Search, Tags, Trash2, X } from "lucide-react";
+import { Barcode, Check, FileSpreadsheet, Package, PackagePlus, Pencil, Search, Tags, Trash2, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Campo } from "@/components/formularios/campo";
 import { DialogoFormulario } from "@/components/formularios/dialogo-formulario";
@@ -18,6 +18,7 @@ import { aCentavos } from "@/lib/dinero";
 import { formatoBs } from "@/lib/formato";
 import { COMPRESION_PRODUCTO } from "@/lib/imagen-cliente";
 import { cn } from "@/lib/utils";
+import { ImportarProductos } from "./importar-productos";
 import type { DatosProducto } from "@/lib/validaciones/admin";
 import { eliminarCategoria, guardarCategoria, guardarProducto } from "./acciones";
 
@@ -51,6 +52,7 @@ function margen(venta: string, costo: string): number | null {
 export function Catalogo({ productos, categorias }: { productos: Producto[]; categorias: Categoria[] }) {
   const [editando, setEditando] = useState<Producto | "nuevo" | null>(null);
   const [verCategorias, setVerCategorias] = useState(false);
+  const [importando, setImportando] = useState(false);
   const [busqueda, setBusqueda] = useState("");
   const [categoria, setCategoria] = useState<number | "todas" | "sin">("todas");
   const [inactivos, setInactivos] = useState(false);
@@ -78,6 +80,10 @@ export function Catalogo({ productos, categorias }: { productos: Producto[]; cat
         titulo="Catálogo"
         descripcion={`${productos.length - cantidadInactivos} producto${productos.length - cantidadInactivos === 1 ? "" : "s"} activo${productos.length - cantidadInactivos === 1 ? "" : "s"}`}
       >
+        <Button variant="outline" size="lg" className="rounded-full" onClick={() => setImportando(true)}>
+          <FileSpreadsheet className="size-5" />
+          Importar Excel
+        </Button>
         <Button variant="outline" size="lg" className="rounded-full" onClick={() => setVerCategorias(true)}>
           <Tags className="size-5" />
           Categorías
@@ -207,6 +213,7 @@ export function Catalogo({ productos, categorias }: { productos: Producto[]; cat
         />
       )}
       <DialogoCategorias abierto={verCategorias} onAbierto={setVerCategorias} categorias={categorias} />
+      <ImportarProductos abierto={importando} onCerrar={() => setImportando(false)} />
     </div>
   );
 }
