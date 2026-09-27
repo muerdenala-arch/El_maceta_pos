@@ -26,8 +26,8 @@ npm run dev          # servidor de desarrollo (http://localhost:3000)
 npm run build        # compilación de producción
 npm run typecheck    # tsc --noEmit
 npm run lint
-npm test             # vitest (unitarias)
-npm run e2e          # Playwright contra una compilación (ver playwright.config.ts)
+npm test             # vitest: unitarias + integración (server actions contra PGlite en memoria)
+npm run e2e          # compila, crea .pglite-e2e desde cero, levanta next start :3100 y corre Playwright
 npm run db:generate  # genera migración SQL desde src/db/schema.ts
 npm run db:migrate   # aplica migraciones (Neon: usa DATABASE_URL_DIRECTA; PGlite: la carpeta local)
 npm run db:seed      # bodega, sucursal, admin, (cajero de prueba), configuración, categorías (idempotente)
@@ -180,7 +180,20 @@ Credenciales de prueba locales: en `.env.local` (`SEED_*`), nunca en el código 
   y PDF (jsPDF en el servidor, tablas con encabezado repetido, máx. 1500 filas). Lógica en `lib/reportes/documentos.ts`.
 - Dashboard: más vendidos, cajas abiertas en vivo (`cajasAbiertas`) y alertas activas (`ESTILO_ALERTA` compartido
   con la campanita en `components/alertas/estilo.ts`).
-- e2e: `ingresar()` abre la caja si hace falta; la copia `.pglite-prueba` necesita stock en la sucursal del cajero de prueba.
+
+## Pruebas (Fase 9)
+
+- **Integración** (`src/test/*.integracion.test.ts`, proyecto "integracion" de vitest.config.mts): cada archivo crea
+  una base PGlite en memoria con las migraciones reales (`src/test/base.ts`: `prepararBase`, `comoUsuario`, `stock`).
+  `src/test/entorno.ts` simula solo lo de Next por petición (cookies, headers, refresh, redirect, connection);
+  `server-only` apunta a `src/test/vacio.ts`. Se llaman las server actions y rutas reales.
+- `permisos.integracion.test.ts` descubre **todas** las acciones "use server" y las invoca sin sesión y con el rol
+  equivocado: una acción nueva sin declarar en `PERMITIDOS` hace fallar la prueba.
+- **E2E** (`e2e/`): `preparar-base.ts` crea `.pglite-e2e` desde cero (usuarios con SEED_* de .env.local, 2 productos,
+  QR, foto). `criterios.spec.ts` cubre los criterios de la sección 11; `offline.spec.ts`, la venta sin internet.
+  Ayudas comunes en `e2e/ayudas.ts` (`desbloquear` confirma el PIN con Enter).
+- No usar `page.clock` con la capa de bloqueo (congela la animación de salida): adelantar `Date.now` en la página.
+- Lo que depende del equipo real (térmica, WhatsApp con adjunto, modo avión, app instalada): `docs/pruebas-manuales.md`.
 
 ## Reglas no negociables
 
@@ -244,6 +257,6 @@ Todo debe funcionar en celular (375 px) y en modo oscuro.
 - [x] 1. Autenticación y roles (+ panel de inicio con estadísticas reales, adelantado de la Fase 8)
 - [x] 2. Estructura base (sucursales, personal, categorías, catálogo con fotos, configuración) · [x] 3. Inventario · [x] 4. Caja y ventas
 - [x] 4b. Comprobantes (impresión 58/80/carta, PDF en el dispositivo, WhatsApp, reimpresión, página pública) · [x] 5. Promociones (porcentaje, Bs por unidad, combos NxM, cupones con límite, vigencia, alcance) · [x] 6. Offline (PWA instalable, ventas y gastos sin internet, sincronización idempotente, PIN local) · [x] 7. Alertas y auditoría (campanita conciliada, insignias, anular venta, confirmar QR, auditoría de cajas y acciones sensibles)
-- [x] 8. Reportes (filtros por fecha/sucursal/cajero/método/producto, Excel y PDF, ganancia, dashboard ampliado, gastos por rango) · [ ] 9. Pruebas · [ ] 10. Lanzamiento
+- [x] 8. Reportes (filtros por fecha/sucursal/cajero/método/producto, Excel y PDF, ganancia, dashboard ampliado, gastos por rango) · [x] 9. Pruebas (26 de integración con BD real en memoria, barrido de permisos de las 41 acciones, 10 e2e de criterios de aceptación, checklist manual) · [ ] 10. Lanzamiento
 
 Entregar cada fase funcional y probada contra los criterios de aceptación (sección 11) antes de seguir.

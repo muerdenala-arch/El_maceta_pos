@@ -1,31 +1,15 @@
 import { expect, test, type Page } from "@playwright/test";
+import { agregarProducto, CAJERO, cobrar, ingresarCajero } from "./ayudas";
 
 /**
  * Criterios de aceptación de la sección 11 del plan:
  * - "Con el internet desconectado se pueden realizar ventas; al reconectar aparecen en reportes sin duplicarse."
  * - "Imprimir y generar PDF funcionan sin internet." / "Las fotos de productos se ven también sin internet."
- * Requiere un cajero con un producto con stock en su sucursal (si no tiene caja abierta, la prueba la abre).
+ * Corre sobre la base nueva de e2e/preparar-base.ts (si el cajero no tiene caja abierta, la prueba la abre).
  */
-const USUARIO = process.env.E2E_CAJERO_USUARIO ?? "";
-const PIN = process.env.E2E_CAJERO_PIN ?? "";
-
-async function ingresar(page: Page) {
-  await page.goto("/login");
-  await page.getByPlaceholder("Usuario").fill(USUARIO);
-  await page.locator("body").click({ position: { x: 5, y: 5 } });
-  await page.keyboard.type(PIN);
-  await page.keyboard.press("Enter");
-  const buscador = page.getByPlaceholder(/Buscar por nombre/);
-  const apertura = page.getByRole("heading", { name: "Abrir caja" });
-  await expect(buscador.or(apertura)).toBeVisible({ timeout: 30_000 });
-  // Sin caja abierta, la abre con Bs 100 (así la prueba no depende del estado de la base).
-  if (await apertura.isVisible()) {
-    await page.getByRole("button", { name: "Bs 100,00" }).click();
-    await page.getByRole("button", { name: "Abrir caja", exact: true }).click();
-    await page.waitForURL("**/cajero/venta");
-  }
-  await expect(buscador).toBeVisible();
-}
+const USUARIO = CAJERO.usuario;
+const PIN = CAJERO.pin;
+const ingresar = (page: Page) => ingresarCajero(page);
 
 const pendientes = (page: Page) =>
   page.evaluate(
@@ -40,11 +24,8 @@ const pendientes = (page: Page) =>
   );
 
 async function vender(page: Page, metodo: "Efectivo" | "QR") {
-  await page.locator("main li").filter({ hasText: /Bs/ }).first().locator("button").nth(1).click();
-  await page.getByRole("button", { name: "Cobrar", exact: true }).click();
-  await page.getByRole("radio", { name: metodo }).click();
-  if (metodo === "Efectivo") await page.getByRole("button", { name: "Exacto" }).click();
-  await page.getByRole("dialog").locator("form button[type=submit]").click();
+  await agregarProducto(page);
+  await cobrar(page, metodo);
 }
 
 test("vende sin internet y sincroniza al volver, sin duplicados", async ({ page, context }) => {
