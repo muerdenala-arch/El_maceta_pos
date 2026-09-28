@@ -54,4 +54,3 @@ next-env.d.ts
 /.pglite-e2e
 
 .vercel
-.env*
