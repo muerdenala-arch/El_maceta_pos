@@ -15,12 +15,12 @@ export async function desbloquear(page: Page, pin: string) {
   await page.keyboard.press("Enter");
 }
 
-async function login(page: Page, { usuario, pin }: { usuario: string; pin: string }) {
+/** Ingreso solo con el PIN (el sistema reconoce al usuario). */
+async function login(page: Page, { pin }: { pin: string }) {
   await page.goto("/login");
-  await page.getByPlaceholder("Usuario").fill(usuario);
   await page.locator("body").click({ position: { x: 5, y: 5 } });
   await escribirPin(page, pin);
-  await page.keyboard.press("Enter");
+  if (pin.length < 6) await page.keyboard.press("Enter"); // con 6 dígitos entra solo
 }
 
 /** Cajero en el punto de venta; si no tiene caja abierta y `abrirSiHaceFalta`, la abre con Bs 100. */

@@ -29,6 +29,9 @@ const nextConfig: NextConfig = {
   experimental: {
     // Las imágenes llegan comprimidas (máx. 2 MB); margen para el formato multipart.
     serverActions: { bodySizeLimit: "2.5mb" },
+    // Pantallas ya visitadas se muestran al instante desde la memoria del navegador (30 s); el refresco
+    // automático cada 15 s (components/shell/refresco-automatico.tsx) las mantiene al día.
+    staleTimes: { dynamic: 30 },
   },
 };
 

@@ -23,14 +23,14 @@ describe("formato", () => {
 });
 
 describe("validación de login", () => {
-  it("acepta PIN de 4 a 6 dígitos y normaliza el usuario", () => {
-    expect(esquemaLogin.parse({ usuario: "  Admin ", pin: "1234" })).toEqual({ usuario: "admin", pin: "1234" });
-    expect(esquemaLogin.safeParse({ usuario: "a", pin: "123456" }).success).toBe(true);
+  it("se ingresa solo con un PIN de 4 a 6 dígitos", () => {
+    expect(esquemaLogin.parse({ pin: "1234" })).toEqual({ pin: "1234" });
+    expect(esquemaLogin.safeParse({ pin: "123456" }).success).toBe(true);
   });
 
   it("rechaza PIN corto, largo o con letras", () => {
     for (const pin of ["123", "1234567", "12a4", ""]) {
-      expect(esquemaLogin.safeParse({ usuario: "a", pin }).success).toBe(false);
+      expect(esquemaLogin.safeParse({ pin }).success).toBe(false);
     }
   });
 });

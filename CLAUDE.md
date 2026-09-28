@@ -40,12 +40,15 @@ Credenciales de prueba locales: en `.env.local` (`SEED_*`), nunca en el código 
 
 ## Autenticación y permisos (Fase 1)
 
-- Login: usuario + PIN (4–6 dígitos, bcrypt). El usuario se recuerda por dispositivo (localStorage).
+- Login **solo con PIN** (4–6 dígitos, bcrypt; con 6 dígitos entra solo): `buscarUsuarioPorPin` (`lib/auth/pin.ts`) encuentra
+  al dueño por `usuarios.pin_huella` (HMAC con JWT_SECRET/PIN_SECRETO, `lib/auth/huella.ts`, índice único) y lo lleva a su
+  pantalla por rol. Sin huella (o de otra clave) → bcrypt uno por uno y se guarda. **PIN únicos**: `pinEnUso` en crear usuario y
+  restablecer PIN. PIN desconocido → fallo por origen (IP, tabla `intentos_ingreso`): 5 en 15 min → bloqueo 15 min.
 - Sesión: JWT HS256 (`lib/auth/jwt.ts`) en cookie httpOnly `maseta_sesion`, duración `SESION_HORAS`.
 - Tres barreras: `src/proxy.ts` (reglas puras en `lib/auth/rutas.ts`) → layouts con
   `requerirSesion(rol)` → cada server action con `autorizar(rol)`. `obtenerSesion()` revalida
   contra la BD (usuario activo, mismo rol y sucursal).
-- 5 PIN incorrectos → `bloqueado_hasta` +15 min (login y desbloqueo) + auditoría (`lib/auth/pin.ts`).
+- 5 PIN incorrectos en el desbloqueo → `bloqueado_hasta` del usuario +15 min + auditoría (`lib/auth/pin.ts`).
 - Bloqueo por inactividad (15 min) y al reabrir la app: `components/seguridad/guardia-bloqueo.tsx`
   (capa encima con `inert`; el contenido no se desmonta → el carrito se conserva).
 - Auditoría: `registrarAuditoria()` en `lib/auditoria.ts`.
@@ -206,6 +209,9 @@ Credenciales de prueba locales: en `.env.local` (`SEED_*`), nunca en el código 
   `importarProductos` revisa sin guardar y con `aplicar=1` crea categorías, productos y stock (lote con vencimiento)
   en una transacción. Plantilla: `GET /api/admin/plantilla-productos` (una columna "Stock <ubicación>" por ubicación).
 - Encabezados de seguridad en `next.config.ts` (X-Frame-Options, nosniff, Referrer-Policy, Permissions-Policy).
+- Velocidad: funciones de Vercel en `cle1` (vercel.json, junto a Neon us-east-2; al pasar la base a São Paulo cambiar a `gru1`);
+  `loading.tsx` en admin y cajero (respuesta inmediata + precarga de enlaces del menú); `staleTimes.dynamic = 30`;
+  `<RefrescoAutomatico>` hace `router.refresh()` cada 15 s (no con pestaña oculta, sin internet ni con diálogos abiertos).
 - **Publicado** (2026-09-28): https://el-maceta-pos.vercel.app (Vercel equipo `dopac`, proyecto `el-maceta-pos`, se publica
   con cada push a `main`). Base: Neon `el_maseta_DB` en **Ohio (us-east-2), de pruebas** por decisión del dueño; la definitiva
   (São Paulo, clave nueva, PIN de admin nuevo) se crea cuando compre el dominio. Integración Neon→Vercel instalada

@@ -15,6 +15,8 @@ import {
 } from "@/lib/acciones/resultado";
 import { registrarAuditoria } from "@/lib/auditoria";
 import { autorizar } from "@/lib/auth/sesion";
+import { huellaPin } from "@/lib/auth/huella";
+import { pinEnUso } from "@/lib/auth/pin";
 import { esquemaPin } from "@/lib/validaciones/auth";
 import { idPositivo } from "@/lib/validaciones/comunes";
 import {
@@ -44,6 +46,8 @@ async function hayOtroAdminActivo(excluirId: number) {
   return total > 0;
 }
 
+const PIN_REPETIDO = { pin: "Ese PIN ya lo usa otra persona: elige otro (se entra solo con el PIN)" };
+
 export async function crearUsuario(entrada: DatosCrearUsuario): Promise<Resultado> {
   return conPermiso(async () => {
     const sesion = await autorizar("admin");
@@ -54,11 +58,12 @@ export async function crearUsuario(entrada: DatosCrearUsuario): Promise<Resultad
     if (!(await sucursalValidaParaCajero(datos.sucursalId))) {
       return fallo("Revisa los datos marcados", { sucursalId: "Sucursal inválida o inactiva" });
     }
+    if (await pinEnUso(pin)) return fallo("Revisa los datos marcados", PIN_REPETIDO);
 
     try {
       const [nuevo] = await db
         .insert(usuarios)
-        .values({ ...datos, pinHash: await bcrypt.hash(pin, 10) })
+        .values({ ...datos, pinHash: await bcrypt.hash(pin, 10), pinHuella: huellaPin(pin) })
         .returning({ id: usuarios.id });
       // Nunca se registra el PIN, ni siquiera cifrado.
       await registrarAuditoria("usuario_creado", { usuarioId: sesion.uid, detalle: { id: nuevo.id, ...datos } });
@@ -66,6 +71,7 @@ export async function crearUsuario(entrada: DatosCrearUsuario): Promise<Resultad
       if (esViolacionUnica(e, "usuarios_usuario_uq")) {
         return fallo("Revisa los datos marcados", { usuario: "Ese usuario ya existe" });
       }
+      if (esViolacionUnica(e, "usuarios_pin_huella_uq")) return fallo("Revisa los datos marcados", PIN_REPETIDO);
       throw e;
     }
     refresh();
@@ -130,12 +136,19 @@ export async function restablecerPin(entrada: { id: number; pin: string }): Prom
     const id = idPositivo.parse(entrada.id);
     const pin = esquemaPin.safeParse(entrada.pin);
     if (!pin.success) return fallo("Revisa los datos marcados", { pin: pin.error.issues[0].message });
+    if (await pinEnUso(pin.data, id)) return fallo("Revisa los datos marcados", PIN_REPETIDO);
 
-    const [actualizado] = await db
-      .update(usuarios)
-      .set({ pinHash: await bcrypt.hash(pin.data, 10), intentosFallidos: 0, bloqueadoHasta: null })
-      .where(eq(usuarios.id, id))
-      .returning({ id: usuarios.id });
+    let actualizado: { id: number } | undefined;
+    try {
+      [actualizado] = await db
+        .update(usuarios)
+        .set({ pinHash: await bcrypt.hash(pin.data, 10), pinHuella: huellaPin(pin.data), intentosFallidos: 0, bloqueadoHasta: null })
+        .where(eq(usuarios.id, id))
+        .returning({ id: usuarios.id });
+    } catch (e) {
+      if (esViolacionUnica(e, "usuarios_pin_huella_uq")) return fallo("Revisa los datos marcados", PIN_REPETIDO);
+      throw e;
+    }
     if (!actualizado) return fallo("El usuario ya no existe");
     await registrarAuditoria("pin_restablecido", { usuarioId: sesion.uid, detalle: { id } });
     refresh();

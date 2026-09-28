@@ -96,10 +96,29 @@ export const usuarios = pgTable(
     activo: boolean("activo").notNull().default(true),
     intentosFallidos: integer("intentos_fallidos").notNull().default(0),
     bloqueadoHasta: timestamp("bloqueado_hasta", { withTimezone: true }),
+    /**
+     * Huella del PIN (HMAC con clave del servidor, `lib/auth/huella.ts`): permite entrar solo con el PIN
+     * encontrando al usuario de una vez, y que dos personas no tengan el mismo PIN. null = se calcula al ingresar.
+     */
+    pinHuella: varchar("pin_huella", { length: 80 }),
     creadoEn: creadoEn(),
   },
-  (t) => [uniqueIndex("usuarios_usuario_uq").on(t.usuario)],
+  (t) => [
+    uniqueIndex("usuarios_usuario_uq").on(t.usuario),
+    uniqueIndex("usuarios_pin_huella_uq").on(t.pinHuella).where(sql`${t.pinHuella} is not null`),
+  ],
 );
+
+/**
+ * Intentos de ingreso fallidos por dispositivo/red (IP). Al entrar solo con el PIN no se sabe a qué usuario
+ * se estaba probando: tras varios fallos se bloquea el origen por un tiempo (`lib/auth/pin.ts`).
+ */
+export const intentosIngreso = pgTable("intentos_ingreso", {
+  origen: varchar("origen", { length: 64 }).primaryKey(),
+  intentos: integer("intentos").notNull().default(0),
+  bloqueadoHasta: timestamp("bloqueado_hasta", { withTimezone: true }),
+  actualizado: timestamp("actualizado", { withTimezone: true }).notNull().defaultNow(),
+});
 
 // ---------- Catálogo ----------
 

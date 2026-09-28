@@ -5,39 +5,52 @@ import { db } from "@/db";
 import { usuarios } from "@/db/schema";
 import { registrarAuditoria } from "@/lib/auditoria";
 import { esquemaLogin, esquemaPin, type DatosLogin } from "@/lib/validaciones/auth";
-import { compararConRelleno, comprobarPin, horaLocal } from "./pin";
+import { buscarUsuarioPorPin, comprobarPin, horaLocal, limpiarOrigen, origenBloqueado, origenPeticion, registrarFalloOrigen } from "./pin";
 import { inicioSegunRol } from "./rutas";
 import { borrarCookieSesion, guardarCookieSesion, obtenerSesion } from "./sesion";
 
-const MENSAJE_INCORRECTO = "Usuario o PIN incorrecto";
+const MENSAJE_INCORRECTO = "PIN incorrecto";
 const mensajeBloqueo = (hasta: Date) =>
   `Demasiados intentos fallidos. Intenta de nuevo a las ${horaLocal(hasta)}.`;
 
-export type ResultadoLogin = { ok: true; destino: string; usuarioId: number } | { ok: false; error: string };
+export type ResultadoLogin =
+  | { ok: true; destino: string; usuarioId: number; usuario: string; nombre: string }
+  | { ok: false; error: string };
 
+/**
+ * Ingreso solo con el PIN: se busca al dueño del PIN y se lo lleva a su pantalla según su rol.
+ * Los PIN incorrectos se cuentan por dispositivo/red (no se sabe a qué usuario se probaba): 5 fallos → 15 min.
+ */
 export async function iniciarSesion(datos: DatosLogin): Promise<ResultadoLogin> {
   const validado = esquemaLogin.safeParse(datos);
   if (!validado.success) return { ok: false, error: validado.error.issues[0].message };
-  const { usuario, pin } = validado.data;
+  const { pin } = validado.data;
 
-  const [u] = await db.select().from(usuarios).where(eq(usuarios.usuario, usuario));
-  if (!u || !u.activo) {
-    await compararConRelleno(pin);
-    await registrarAuditoria("login_fallido", { detalle: { usuario, motivo: u ? "inactivo" : "no_existe" } });
-    return { ok: false, error: MENSAJE_INCORRECTO };
+  const origen = await origenPeticion();
+  const bloqueadoHasta = await origenBloqueado(origen);
+  if (bloqueadoHasta) return { ok: false, error: mensajeBloqueo(bloqueadoHasta) };
+
+  const busqueda = await buscarUsuarioPorPin(pin);
+  if (busqueda.tipo === "ambiguo") {
+    return { ok: false, error: "Ese PIN lo tienen dos usuarios: pide al administrador que le cambie el PIN a uno." };
+  }
+  if (busqueda.tipo === "ninguno") {
+    const hasta = await registrarFalloOrigen(origen);
+    if (!hasta) await registrarAuditoria("login_fallido", { detalle: { motivo: "pin_desconocido", origen } });
+    return { ok: false, error: hasta ? mensajeBloqueo(hasta) : MENSAJE_INCORRECTO };
   }
 
+  const u = busqueda.usuario;
+  // Bloqueo del usuario por fallos en la pantalla de desbloqueo (sigue vigente).
   const resultado = await comprobarPin(u, pin, "login");
   if (!resultado.ok) {
-    return {
-      ok: false,
-      error: resultado.motivo === "bloqueado" ? mensajeBloqueo(resultado.hasta) : MENSAJE_INCORRECTO,
-    };
+    return { ok: false, error: resultado.motivo === "bloqueado" ? mensajeBloqueo(resultado.hasta) : MENSAJE_INCORRECTO };
   }
 
+  await limpiarOrigen(origen);
   await guardarCookieSesion({ uid: u.id, rol: u.rol, sucursalId: u.sucursalId });
   await registrarAuditoria("login", { usuarioId: u.id });
-  return { ok: true, destino: inicioSegunRol(u.rol), usuarioId: u.id };
+  return { ok: true, destino: inicioSegunRol(u.rol), usuarioId: u.id, usuario: u.usuario, nombre: u.nombre };
 }
 
 export type ResultadoDesbloqueo = { ok: true } | { ok: false; error: string; sesionCerrada?: boolean };

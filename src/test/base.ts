@@ -11,7 +11,8 @@ import { COOKIE_SESION } from "@/lib/auth/constantes";
 import { firmarSesion } from "@/lib/auth/jwt";
 import { cambiarStock } from "@/lib/inventario/stock";
 
-export const PIN_PRUEBA = "4826";
+/** PIN de cada usuario de prueba (distintos: se entra solo con el PIN). Solo existen en esta base en memoria. */
+export const PINES = { admin: "4826", ana: "5937", beto: "604812" } as const;
 
 export type Usuario = { id: number; rol: "admin" | "cajero"; sucursalId: number | null };
 
@@ -25,8 +26,8 @@ export async function prepararBase() {
   const [norte] = await db.insert(s.sucursales).values({ nombre: "Sucursal Norte", tipo: "sucursal" }).returning();
   const [sur] = await db.insert(s.sucursales).values({ nombre: "Sucursal Sur", tipo: "sucursal" }).returning();
 
-  const pinHash = await bcrypt.hash(PIN_PRUEBA, 4);
-  const usuario = async (nombre: string, u: string, rol: "admin" | "cajero", sucursalId: number | null): Promise<Usuario> => {
+  const usuario = async (nombre: string, u: keyof typeof PINES, rol: "admin" | "cajero", sucursalId: number | null): Promise<Usuario> => {
+    const pinHash = await bcrypt.hash(PINES[u], 4);
     const [f] = await db.insert(s.usuarios).values({ nombre, usuario: u, rol, sucursalId, pinHash }).returning();
     return { id: f.id, rol, sucursalId };
   };
