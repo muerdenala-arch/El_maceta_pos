@@ -206,6 +206,10 @@ Credenciales de prueba locales: en `.env.local` (`SEED_*`), nunca en el código 
   `importarProductos` revisa sin guardar y con `aplicar=1` crea categorías, productos y stock (lote con vencimiento)
   en una transacción. Plantilla: `GET /api/admin/plantilla-productos` (una columna "Stock <ubicación>" por ubicación).
 - Encabezados de seguridad en `next.config.ts` (X-Frame-Options, nosniff, Referrer-Policy, Permissions-Policy).
+- **Publicado** (2026-09-28): https://el-maceta-pos.vercel.app (Vercel equipo `dopac`, proyecto `el-maceta-pos`, se publica
+  con cada push a `main`). Base: Neon `el_maseta_DB` en **Ohio (us-east-2), de pruebas** por decisión del dueño; la definitiva
+  (São Paulo, clave nueva, PIN de admin nuevo) se crea cuando compre el dominio. Integración Neon→Vercel instalada
+  (ramas por Preview). Blob `el-maceta-fotos` (iad1) conectado. CLI de Vercel enlazada en `.vercel/` (ignorada).
 
 ## Reglas no negociables
 
@@ -269,6 +273,6 @@ Todo debe funcionar en celular (375 px) y en modo oscuro.
 - [x] 1. Autenticación y roles (+ panel de inicio con estadísticas reales, adelantado de la Fase 8)
 - [x] 2. Estructura base (sucursales, personal, categorías, catálogo con fotos, configuración) · [x] 3. Inventario · [x] 4. Caja y ventas
 - [x] 4b. Comprobantes (impresión 58/80/carta, PDF en el dispositivo, WhatsApp, reimpresión, página pública) · [x] 5. Promociones (porcentaje, Bs por unidad, combos NxM, cupones con límite, vigencia, alcance) · [x] 6. Offline (PWA instalable, ventas y gastos sin internet, sincronización idempotente, PIN local) · [x] 7. Alertas y auditoría (campanita conciliada, insignias, anular venta, confirmar QR, auditoría de cajas y acciones sensibles)
-- [x] 8. Reportes (filtros por fecha/sucursal/cajero/método/producto, Excel y PDF, ganancia, dashboard ampliado, gastos por rango) · [x] 9. Pruebas (26 de integración con BD real en memoria, barrido de permisos de las 41 acciones, 10 e2e de criterios de aceptación, checklist manual) · [ ] 10. Lanzamiento (en curso: importador Excel, guías y scripts listos; falta publicar en Vercel/Neon)
+- [x] 8. Reportes (filtros por fecha/sucursal/cajero/método/producto, Excel y PDF, ganancia, dashboard ampliado, gastos por rango) · [x] 9. Pruebas (26 de integración con BD real en memoria, barrido de permisos de las 41 acciones, 10 e2e de criterios de aceptación, checklist manual) · [ ] 10. Lanzamiento (publicado en Vercel con base de pruebas; falta: base definitiva + dominio, carga de productos reales, capacitación)
 
 Entregar cada fase funcional y probada contra los criterios de aceptación (sección 11) antes de seguir.
