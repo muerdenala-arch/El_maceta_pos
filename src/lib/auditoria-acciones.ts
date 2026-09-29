@@ -14,4 +14,8 @@ export const ACCIONES_SENSIBLES: Record<string, { titulo: string; grave?: boolea
   transferencia_cancelada: { titulo: "Transferencia cancelada" },
   caja_cerrada: { titulo: "Cierre de caja" },
   alerta_revisada: { titulo: "Alerta revisada" },
+  // Módulo Eventos
+  pesaje_corregido: { titulo: "Pesaje corregido (reto)", grave: true },
+  participante_baja: { titulo: "Baja de participante (reto)" },
+  evento_finalizado: { titulo: "Reto finalizado" },
 };

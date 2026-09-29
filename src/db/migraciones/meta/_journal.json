@@ -43,6 +43,13 @@
       "when": 1790634260616,
       "tag": "0005_ingreso_solo_pin",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790674699692,
+      "tag": "0006_modulo_eventos",
+      "breakpoints": true
     }
   ]
 }

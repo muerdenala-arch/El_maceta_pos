@@ -45,7 +45,16 @@ export type AccionAuditoria =
   | "alerta_revisada"
   | "venta_anulada"
   | "pago_qr_confirmado"
-  | "productos_importados";
+  | "productos_importados"
+  // Módulo Eventos
+  | "evento_creado"
+  | "evento_iniciado"
+  | "evento_finalizado"
+  | "participante_inscrito"
+  | "participante_editado"
+  | "participante_baja"
+  | "pesajes_registrados"
+  | "pesaje_corregido";
 
 export async function registrarAuditoria(
   accion: AccionAuditoria,

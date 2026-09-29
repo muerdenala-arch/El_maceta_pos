@@ -25,6 +25,11 @@
   --color-sidebar-foreground: var(--sidebar-foreground);
   --color-sidebar: var(--sidebar);
   --color-chart-5: var(--chart-5);
+  /* Podio del módulo Eventos */
+  --color-medalla-oro: var(--medalla-oro);
+  --color-medalla-plata: var(--medalla-plata);
+  --color-medalla-bronce: var(--medalla-bronce);
+  --color-medalla-foreground: var(--medalla-foreground);
   --color-chart-4: var(--chart-4);
   --color-chart-3: var(--chart-3);
   --color-chart-2: var(--chart-2);
@@ -115,6 +120,10 @@
   --chart-3: oklch(0.65 0.2 355);
   --chart-4: oklch(0.6 0.13 250);
   --chart-5: oklch(0.55 0.01 285);
+  --medalla-oro: oklch(0.83 0.15 85);
+  --medalla-plata: oklch(0.8 0.01 260);
+  --medalla-bronce: oklch(0.7 0.11 55);
+  --medalla-foreground: oklch(0.25 0.03 60);
   --sidebar: oklch(1 0 0);
   --sidebar-foreground: oklch(0.25 0.01 285);
   --sidebar-primary: oklch(0.66 0.2 43);
@@ -168,6 +177,10 @@
   --chart-3: oklch(0.7 0.2 355);
   --chart-4: oklch(0.7 0.12 250);
   --chart-5: oklch(0.65 0.01 285);
+  --medalla-oro: oklch(0.8 0.14 85);
+  --medalla-plata: oklch(0.75 0.01 260);
+  --medalla-bronce: oklch(0.66 0.1 55);
+  --medalla-foreground: oklch(0.18 0.02 60);
   --sidebar: oklch(0.175 0.004 285);
   --sidebar-foreground: oklch(0.93 0.004 285);
   --sidebar-primary: oklch(0.7 0.19 45);

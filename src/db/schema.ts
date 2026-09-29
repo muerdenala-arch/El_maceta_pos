@@ -10,6 +10,7 @@
 import { sql } from "drizzle-orm";
 import {
   boolean,
+  check,
   date,
   index,
   integer,
@@ -28,6 +29,8 @@ import {
 
 const dinero = (nombre: string) => numeric(nombre, { precision: 12, scale: 2 });
 const creadoEn = () => timestamp("creado_en", { withTimezone: true }).notNull().defaultNow();
+/** Peso en kilos con 2 decimales (hasta 999,99 kg). Como el dinero, nunca float. */
+const peso = (nombre: string) => numeric(nombre, { precision: 5, scale: 2 });
 
 // ---------- Enums ----------
 
@@ -68,6 +71,8 @@ export const tipoAlertaEnum = pgEnum("tipo_alerta", [
   "solicitud_reposicion",
   /** Venta hecha sin conexión cuyo precio o descuento no coincide con los de la BD al sincronizar. */
   "revision_offline",
+  /** Módulo Eventos: un reto cumplió su duración y falta registrar los pesajes finales y finalizarlo. */
+  "evento_por_finalizar",
 ]);
 
 // ---------- Sucursales y usuarios ----------
@@ -462,6 +467,7 @@ export const alertas = pgTable(
     cajaId: integer("caja_id").references(() => cajas.id),
     ventaId: integer("venta_id").references(() => ventas.id),
     sucursalId: integer("sucursal_id").references(() => sucursales.id),
+    eventoId: integer("evento_id").references(() => eventos.id),
     mensaje: text("mensaje").notNull(),
     leida: boolean("leida").notNull().default(false),
     resuelta: boolean("resuelta").notNull().default(false),
@@ -481,4 +487,93 @@ export const auditoria = pgTable(
     fecha: timestamp("fecha", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("auditoria_fecha_idx").on(t.fecha), index("auditoria_accion_idx").on(t.accion)],
+);
+
+// ---------- Eventos (módulo de juegos y retos) ----------
+
+/** Tipos de juego. Para agregar uno: valor aquí + entrada en lib/eventos/tipos.ts. */
+export const tipoJuegoEnum = pgEnum("tipo_juego", ["reto_transformacion"]);
+export const criterioGanadorEnum = pgEnum("criterio_ganador", ["porcentaje", "kilos"]);
+export const estadoEventoEnum = pgEnum("estado_evento", ["borrador", "en_curso", "finalizado"]);
+
+export const eventos = pgTable(
+  "eventos",
+  {
+    id: serial("id").primaryKey(),
+    tipoJuego: tipoJuegoEnum("tipo_juego").notNull(),
+    nombre: varchar("nombre", { length: 120 }).notNull(),
+    descripcion: text("descripcion"),
+    fechaInicio: date("fecha_inicio").notNull(),
+    duracionDias: integer("duracion_dias").notNull(),
+    /** Último día del reto (inclusive): inicio + duración − 1. Calculada por PostgreSQL. */
+    fechaFin: date("fecha_fin").generatedAlwaysAs(sql`fecha_inicio + duracion_dias - 1`),
+    criterioGanador: criterioGanadorEnum("criterio_ganador").notNull().default("porcentaje"),
+    estado: estadoEventoEnum("estado").notNull().default("borrador"),
+    sucursalId: integer("sucursal_id").references(() => sucursales.id),
+    premios: text("premios"),
+    /** Enlace público de resultados (WhatsApp): aleatorio, nunca el id. */
+    tokenPublico: varchar("token_publico", { length: 64 }).notNull(),
+    creadoPor: integer("creado_por")
+      .notNull()
+      .references(() => usuarios.id),
+    creadoEn: creadoEn(),
+    actualizadoEn: timestamp("actualizado_en", { withTimezone: true }).notNull().defaultNow(),
+    iniciadoEn: timestamp("iniciado_en", { withTimezone: true }),
+    finalizadoEn: timestamp("finalizado_en", { withTimezone: true }),
+  },
+  (t) => [
+    uniqueIndex("eventos_token_publico_uq").on(t.tokenPublico),
+    index("eventos_tipo_estado_idx").on(t.tipoJuego, t.estado),
+    check("eventos_duracion_ck", sql`${t.duracionDias} between 1 and 365`),
+  ],
+);
+
+export const participantesEvento = pgTable(
+  "participantes_evento",
+  {
+    id: serial("id").primaryKey(),
+    eventoId: integer("evento_id")
+      .notNull()
+      .references(() => eventos.id),
+    nombreCompleto: varchar("nombre_completo", { length: 160 }).notNull(),
+    cedulaIdentidad: varchar("cedula_identidad", { length: 20 }).notNull(),
+    telefono: varchar("telefono", { length: 30 }).notNull(),
+    pesoInicial: peso("peso_inicial").notNull(),
+    fechaInscripcion: timestamp("fecha_inscripcion", { withTimezone: true }).notNull().defaultNow(),
+    aceptaParticipar: boolean("acepta_participar").notNull(),
+    activo: boolean("activo").notNull().default(true),
+    motivoBaja: text("motivo_baja"),
+  },
+  (t) => [
+    // Regla: la cédula no se repite dentro del mismo evento.
+    uniqueIndex("participantes_evento_cedula_uq").on(t.eventoId, t.cedulaIdentidad),
+    index("participantes_evento_evento_idx").on(t.eventoId),
+    check("participantes_peso_ck", sql`${t.pesoInicial} between 30 and 300`),
+    check("participantes_acepta_ck", sql`${t.aceptaParticipar}`),
+  ],
+);
+
+export const pesajes = pgTable(
+  "pesajes",
+  {
+    id: serial("id").primaryKey(),
+    participanteId: integer("participante_id")
+      .notNull()
+      .references(() => participantesEvento.id),
+    /** Día de la jornada de pesaje (hora de Bolivia). */
+    fecha: date("fecha").notNull(),
+    peso: peso("peso").notNull(),
+    esPesajeFinal: boolean("es_pesaje_final").notNull().default(false),
+    registradoPor: integer("registrado_por")
+      .notNull()
+      .references(() => usuarios.id),
+    nota: text("nota"),
+    creadoEn: creadoEn(),
+  },
+  (t) => [
+    index("pesajes_participante_idx").on(t.participanteId, t.fecha),
+    // Un solo pesaje final por participante.
+    uniqueIndex("pesajes_final_uq").on(t.participanteId).where(sql`${t.esPesajeFinal}`),
+    check("pesajes_peso_ck", sql`${t.peso} between 30 and 300`),
+  ],
 );

@@ -5,6 +5,7 @@ import { alertas, inventario, lotes, productos, sucursales } from "@/db/schema";
 import { diasParaVencer } from "@/lib/inventario/lotes";
 import type { Tx } from "@/lib/inventario/stock";
 import { hoyEnBolivia } from "@/lib/formato";
+import { conciliarAlertasEventos } from "@/lib/eventos/alertas";
 import { alertaDeStock, DIAS_AVISO_VENCIMIENTO } from "./reglas";
 
 type Ejecutor = Db | Tx;
@@ -138,4 +139,5 @@ export async function conciliarAlertasSiCorresponde(forzar = false) {
   ultimaConciliacion = Date.now();
   await conciliarAlertasStock(db);
   await conciliarAlertasVencimiento(db);
+  await conciliarAlertasEventos(db);
 }

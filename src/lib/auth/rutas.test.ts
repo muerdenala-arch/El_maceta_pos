@@ -23,6 +23,16 @@ describe("decidirAcceso", () => {
     expect(decidirAcceso("/api/archivos/logo/x.webp", null)).toEqual({ tipo: "seguir" });
     expect(decidirAcceso("/icono/512", null)).toEqual({ tipo: "seguir" });
     expect(decidirAcceso("/sin-conexion", null)).toEqual({ tipo: "seguir" });
+    expect(decidirAcceso("/eventos/tokenAleatorio123456", null)).toEqual({ tipo: "seguir" });
+  });
+
+  it("módulo Eventos: el cajero no entra ni a las pantallas ni al Excel; sin sesión, tampoco", () => {
+    for (const ruta of ["/admin/eventos", "/admin/eventos/reto-transformacion", "/admin/eventos/reto-transformacion/1?vista=pesajes"]) {
+      expect(decidirAcceso(ruta.split("?")[0], cajero)).toEqual({ tipo: "redirigir", destino: "/cajero/venta" });
+      expect(decidirAcceso(ruta.split("?")[0], null)).toEqual({ tipo: "redirigir", destino: "/login" });
+    }
+    expect(decidirAcceso("/api/admin/eventos/1/excel", cajero)).toEqual({ tipo: "prohibido" });
+    expect(decidirAcceso("/api/admin/eventos/1/excel", null)).toEqual({ tipo: "no_autenticado" });
   });
 
   it("un cajero no entra a pantallas ni API de administrador, ni escribiendo la URL", () => {

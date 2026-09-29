@@ -52,6 +52,15 @@ const PERMITIDOS: Record<string, Rol[] | "publica"> = {
   recibirTransferencia: ["admin"],
   cancelarTransferencia: ["admin"],
   resolverSolicitud: ["admin"],
+  // Módulo Eventos (solo administrador)
+  crearReto: ["admin"],
+  iniciarReto: ["admin"],
+  finalizarReto: ["admin"],
+  inscribirParticipante: ["admin"],
+  editarParticipante: ["admin"],
+  darDeBajaParticipante: ["admin"],
+  guardarPesajes: ["admin"],
+  corregirPesaje: ["admin"],
   // Cajero
   abrirCaja: ["cajero"],
   registrarVenta: ["cajero"],

@@ -29,6 +29,7 @@ export async function listarAlertasPendientes(limite = 50): Promise<AlertaCampan
       sucursalId: alertas.sucursalId,
       cajaId: alertas.cajaId,
       ventaId: alertas.ventaId,
+      eventoId: alertas.eventoId,
     })
     .from(alertas)
     .leftJoin(sucursales, eq(sucursales.id, alertas.sucursalId))
