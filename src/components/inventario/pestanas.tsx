@@ -15,6 +15,7 @@ export function Pestanas({
         <Link
           key={o.valor}
           href={o.href}
+          replace
           scroll={false}
           aria-current={actual === o.valor ? "page" : undefined}
           className={cn(

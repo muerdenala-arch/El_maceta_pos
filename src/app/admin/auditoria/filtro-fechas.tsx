@@ -17,7 +17,7 @@ export function FiltroFechas({ desde, hasta, hoy }: { desde: string; hasta: stri
     for (const [k, v] of Object.entries(cambios)) p.set(k, v);
     p.delete("pagina");
     p.delete("caja");
-    iniciar(() => router.push(`${pathname}?${p}`, { scroll: false }));
+    iniciar(() => router.replace(`${pathname}?${p}`, { scroll: false }));
   };
 
   return (

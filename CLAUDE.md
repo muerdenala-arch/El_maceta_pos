@@ -235,6 +235,13 @@ Credenciales de prueba locales: en `.env.local` (`SEED_*`), nunca en el código 
   `TablaPosiciones publica`). WhatsApp reutiliza `telefonoWhatsapp`/`enlaceWhatsapp` de los comprobantes.
 - Colores del podio: tokens `medalla-oro/plata/bronce` en globals.css.
 
+## Botón atrás por niveles
+
+- `lib/navegacion/niveles.ts` (`padreDe`, probado): apartados del menú → inicio del rol; pantallas internas → un nivel arriba.
+  `<NavegacionPorNiveles>` (en el Shell) corrige el `popstate` hacia el padre (ignora el popstate repetido sin cambio de ruta).
+- **Pestañas, filtros, fechas y paginación usan `replace`** (no suman pasos); el menú usa `replace` salvo desde el inicio.
+  Todo control nuevo que solo cambie `?parámetros` debe usar `router.replace` / `<Link replace>`. Prueba: `e2e/navegacion.spec.ts`.
+
 ## Reglas no negociables
 
 - **Permisos en el servidor**: `proxy.ts` protege rutas por rol y *además* cada server action /

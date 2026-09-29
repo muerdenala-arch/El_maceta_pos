@@ -14,7 +14,7 @@ export function SelectorFecha({ fecha, hoy }: { fecha: string; hoy: string }) {
   const esHoy = fecha === hoy;
 
   const ir = (nueva: string) =>
-    iniciar(() => router.push(nueva === hoy ? pathname : `${pathname}?fecha=${nueva}`, { scroll: false }));
+    iniciar(() => router.replace(nueva === hoy ? pathname : `${pathname}?fecha=${nueva}`, { scroll: false }));
 
   return (
     <div className={cn("flex items-center gap-2", cargando && "opacity-70")}>

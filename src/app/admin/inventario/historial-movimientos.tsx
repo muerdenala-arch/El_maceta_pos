@@ -71,7 +71,7 @@ export function HistorialMovimientos({
       const v = siguiente[k];
       if (v !== undefined && v !== "" && !(k === "pagina" && v === 1)) params.set(p, String(v));
     }
-    iniciar(() => router.push(`${pathname}?${params}`, { scroll: false }));
+    iniciar(() => router.replace(`${pathname}?${params}`, { scroll: false }));
   };
   const hayFiltros = filtros.ubicacionId || filtros.tipo || filtros.producto || filtros.desde || filtros.hasta;
 
@@ -102,7 +102,7 @@ export function HistorialMovimientos({
         <Input type="date" aria-label="Desde" value={filtros.desde ?? ""} onChange={(e) => ir({ desde: e.target.value || undefined })} className="h-10" />
         <Input type="date" aria-label="Hasta" value={filtros.hasta ?? ""} onChange={(e) => ir({ hasta: e.target.value || undefined })} className="h-10" />
         {hayFiltros ? (
-          <Button type="button" variant="ghost" className="h-10" onClick={() => { setProducto(""); iniciar(() => router.push(`${pathname}?vista=movimientos`)); }}>
+          <Button type="button" variant="ghost" className="h-10" onClick={() => { setProducto(""); iniciar(() => router.replace(`${pathname}?vista=movimientos`)); }}>
             <X className="size-4" /> Limpiar
           </Button>
         ) : <span />}

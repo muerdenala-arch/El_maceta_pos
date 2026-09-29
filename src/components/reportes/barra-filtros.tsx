@@ -46,7 +46,7 @@ export function BarraFiltros({
       const cajero = opciones.cajeros.find((c) => c.id === nuevos.cajeroId);
       if (nuevos.sucursalId && cajero?.sucursalId !== nuevos.sucursalId) nuevos.cajeroId = null;
     }
-    iniciar(() => router.push(`${pathname}?${aParametros(nuevos, { vista })}`, { scroll: false }));
+    iniciar(() => router.replace(`${pathname}?${aParametros(nuevos, { vista })}`, { scroll: false }));
   };
 
   const activo = rangoActivo(filtros.desde, filtros.hasta, hoy);

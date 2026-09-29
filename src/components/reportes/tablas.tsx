@@ -171,7 +171,7 @@ export function Paginacion({ pagina, hayMas, href }: { pagina: number; hayMas: b
       <span className="text-sm text-muted-foreground">Página {pagina}</span>
       {pagina > 1 ? (
         <Button variant="outline" size="icon" asChild>
-          <Link href={href(pagina - 1)} scroll={false} aria-label="Página anterior">
+          <Link href={href(pagina - 1)} replace scroll={false} aria-label="Página anterior">
             <ChevronLeft className="size-4" />
           </Link>
         </Button>
@@ -182,7 +182,7 @@ export function Paginacion({ pagina, hayMas, href }: { pagina: number; hayMas: b
       )}
       {hayMas ? (
         <Button variant="outline" size="icon" asChild>
-          <Link href={href(pagina + 1)} scroll={false} aria-label="Página siguiente">
+          <Link href={href(pagina + 1)} replace scroll={false} aria-label="Página siguiente">
             <ChevronRight className="size-4" />
           </Link>
         </Button>

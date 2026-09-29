@@ -99,7 +99,7 @@ export function AccionesSensibles({
       if (v === null) p.delete(k);
       else p.set(k, v);
     }
-    iniciar(() => router.push(`${pathname}?${p}`, { scroll: false }));
+    iniciar(() => router.replace(`${pathname}?${p}`, { scroll: false }));
   };
 
   return (

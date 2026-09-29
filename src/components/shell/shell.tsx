@@ -3,6 +3,8 @@
 import { ArrowLeft, Menu, Store } from "lucide-react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { esInicio } from "@/lib/navegacion/niveles";
+import { NavegacionPorNiveles } from "./navegacion-por-niveles";
 import { useState } from "react";
 import { BotonRecarga } from "@/components/barra/boton-recarga";
 import { Campanita } from "@/components/barra/campanita";
@@ -72,6 +74,7 @@ export function Shell(props: PropsShell) {
           </div>
         </header>
 
+        <NavegacionPorNiveles />
         <main className={cn("flex-1 px-4 py-5 sm:px-8 sm:py-8", rol === "cajero" && "pb-28 lg:pb-8")}>
           {children}
         </main>
@@ -82,6 +85,7 @@ export function Shell(props: PropsShell) {
               <Link
                 key={href}
                 href={href}
+                replace={!esInicio(pathname)}
                 className={cn(
                   "flex flex-col items-center gap-1 py-2.5 text-[11px] font-semibold",
                   activo(href) ? "text-nav-activo-foreground" : "text-muted-foreground",
@@ -158,6 +162,8 @@ function ContenidoLateral({
           <Link
             key={href}
             href={href}
+            // Saltar entre apartados del menú no apila pasos: atrás vuelve al inicio (navegación por niveles).
+            replace={!esInicio(pathname)}
             onClick={alNavegar}
             aria-current={activo(href) ? "page" : undefined}
             className={cn(
