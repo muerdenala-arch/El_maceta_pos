@@ -19,10 +19,12 @@ export function PestanaCombates(props: TorneoProps) {
   const { evento, torneo, llaves, participantes } = props;
   const [mesa, setMesa] = useState<Combate | null>(null);
   const [corrigiendo, setCorrigiendo] = useState<Combate | null>(null);
+  // Recién guardados: salen de "Por jugar" al instante, sin esperar a que llegue la pantalla actualizada.
+  const [guardados, setGuardados] = useState<ReadonlySet<string>>(new Set());
   const nombres = useMemo(() => nombresDe(participantes), [participantes]);
   const rondas = Math.max(0, ...llaves.filter((c) => c.fase === "ganadores").map((c) => c.ronda));
   const ronda = (c: Combate) => nombreRonda(c, rondas, torneo.formato);
-  const listos = porJugar(llaves);
+  const listos = porJugar(llaves).filter((c) => !guardados.has(c.clave));
   const jugados = llaves.filter((c) => c.terminado && !c.paseLibre).reverse();
   const esperando = llaves.filter((c) => !c.terminado && (c.a === null || c.b === null)).length;
   const enCurso = evento.estado === "en_curso";
@@ -110,7 +112,18 @@ export function PestanaCombates(props: TorneoProps) {
         </ul>
       </div>
 
-      {mesa && <Mesa key={mesa.clave} id={props.ids[mesa.clave]} titulo={ronda(mesa)} nombreA={nombres.get(mesa.a!)!} nombreB={nombres.get(mesa.b!)!} mejorDe={torneo.mejorDe} onCerrar={() => setMesa(null)} />}
+      {mesa && (
+        <Mesa
+          key={mesa.clave}
+          id={props.ids[mesa.clave]}
+          titulo={ronda(mesa)}
+          nombreA={nombres.get(mesa.a!)!}
+          nombreB={nombres.get(mesa.b!)!}
+          mejorDe={torneo.mejorDe}
+          onCerrar={() => setMesa(null)}
+          onGuardado={() => setGuardados((g) => new Set(g).add(mesa.clave))}
+        />
+      )}
       {corrigiendo && (
         <DialogoCorregir combate={corrigiendo} id={props.ids[corrigiendo.clave]} nombreA={nombres.get(corrigiendo.a!)!} nombreB={nombres.get(corrigiendo.b!)!} onCerrar={() => setCorrigiendo(null)} />
       )}
@@ -144,14 +157,20 @@ function marcador(toques: Toque[]) {
 }
 
 /** "Mesa" del juez: pensada para el celular, botones grandes y un toque por acción. */
-function Mesa({ id, titulo, nombreA, nombreB, mejorDe, onCerrar }: { id: number; titulo: string; nombreA: string; nombreB: string; mejorDe: number; onCerrar: () => void }) {
+type PropsMesa = { id: number; titulo: string; nombreA: string; nombreB: string; mejorDe: number; onCerrar: () => void; onGuardado: () => void };
+
+function Mesa({ id, titulo, nombreA, nombreB, mejorDe, onCerrar, onGuardado }: PropsMesa) {
   const [toques, setToques] = useState<Toque[]>([]);
   const [ausencia, setAusencia] = useState(false);
   const ganar = asaltosParaGanar(mejorDe);
   const m = marcador(toques);
   const ganador = m.asaltosA >= ganar ? "a" : m.asaltosB >= ganar ? "b" : null;
-  const guardar = useAccion(registrarCombate, { mensajeExito: "Resultado guardado", alExito: onCerrar });
-  const wo = useAccion(registrarAusencia, { mensajeExito: "W.O. registrado", alExito: onCerrar });
+  const listo = () => {
+    onGuardado();
+    onCerrar();
+  };
+  const guardar = useAccion(registrarCombate, { mensajeExito: "Resultado guardado", alExito: listo });
+  const wo = useAccion(registrarAusencia, { mensajeExito: "W.O. registrado", alExito: listo });
   const tocar = (t: Toque) => !ganador && setToques((x) => [...x, t]);
 
   const lado = (l: "a" | "b") => {
