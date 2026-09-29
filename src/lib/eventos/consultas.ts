@@ -1,7 +1,7 @@
 import "server-only";
 import { and, asc, count, desc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { eventos, participantesEvento, pesajes, sucursales } from "@/db/schema";
+import { combates, eventos, participantesEvento, pesajes, sucursales, torneos } from "@/db/schema";
 import type { TipoJuego } from "./tipos";
 
 export type EventoListado = {
@@ -146,4 +146,55 @@ export async function eventoPublico(token: string) {
     pesajesDe(e.id),
   ]);
   return { evento: { ...e, fechaFin: e.fechaFin! }, participantes, pesajes: lista };
+}
+
+export type TorneoListado = {
+  id: number;
+  nombre: string;
+  estado: "borrador" | "en_curso" | "finalizado";
+  fechaInicio: string;
+  formato: "eliminacion_directa" | "doble_eliminacion" | "todos_contra_todos";
+  mejorDe: number;
+  sucursal: string | null;
+  competidores: number;
+};
+
+export async function listarTorneos(): Promise<TorneoListado[]> {
+  const activos = db
+    .select({ eventoId: participantesEvento.eventoId, n: count().as("n") })
+    .from(participantesEvento)
+    .where(eq(participantesEvento.activo, true))
+    .groupBy(participantesEvento.eventoId)
+    .as("activos");
+  return db
+    .select({
+      id: eventos.id,
+      nombre: eventos.nombre,
+      estado: eventos.estado,
+      fechaInicio: eventos.fechaInicio,
+      formato: torneos.formato,
+      mejorDe: torneos.mejorDe,
+      sucursal: sucursales.nombre,
+      competidores: sql<number>`coalesce(${activos.n}, 0)::int`,
+    })
+    .from(eventos)
+    .innerJoin(torneos, eq(torneos.eventoId, eventos.id))
+    .leftJoin(sucursales, eq(sucursales.id, eventos.sucursalId))
+    .leftJoin(activos, eq(activos.eventoId, eventos.id))
+    .where(eq(eventos.tipoJuego, "torneo_pulseada"))
+    .orderBy(sql`${eventos.estado} = 'finalizado'`, desc(eventos.fechaInicio), desc(eventos.id));
+}
+
+/** Id de cada combate por clave (las acciones de la mesa trabajan con el id de la fila). */
+export async function idsCombates(eventoId: number): Promise<Record<string, number>> {
+  const filas = await db.select({ id: combates.id, clave: combates.clave }).from(combates).where(eq(combates.eventoId, eventoId));
+  return Object.fromEntries(filas.map((f) => [f.clave, f.id]));
+}
+
+/** Nombres de los competidores de un torneo para la vista pública (sin cédula ni teléfono; incluye a los retirados). */
+export function competidoresPublicos(eventoId: number) {
+  return db
+    .select({ id: participantesEvento.id, nombre: participantesEvento.nombreCompleto, activo: participantesEvento.activo })
+    .from(participantesEvento)
+    .where(eq(participantesEvento.eventoId, eventoId));
 }

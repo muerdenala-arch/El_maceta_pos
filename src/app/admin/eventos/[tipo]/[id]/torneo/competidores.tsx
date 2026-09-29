@@ -12,30 +12,30 @@ import { Textarea } from "@/components/ui/textarea";
 import { aCentikg, textoKilos } from "@/lib/eventos/calculos";
 import type { ParticipanteListado } from "@/lib/eventos/consultas";
 import { cn } from "@/lib/utils";
-import { darDeBajaParticipante, editarParticipante, inscribirParticipante } from "../../acciones";
-import type { DetalleRetoProps } from "./tipos";
+import { darDeBajaCompetidor, editarCompetidor, inscribirCompetidor } from "../../../torneo-acciones";
+import type { TorneoProps } from "./tipos";
 
-const kg = (p: string | null) => textoKilos(aCentikg(p));
-
-export function PestanaParticipantes({ evento, participantes }: Pick<DetalleRetoProps, "evento" | "participantes">) {
+export function PestanaCompetidores({ evento, torneo, participantes }: TorneoProps) {
   const [editando, setEditando] = useState<ParticipanteListado | "nuevo" | null>(null);
   const [baja, setBaja] = useState<ParticipanteListado | null>(null);
-  const abierto = evento.estado !== "finalizado";
+  const inscripcionAbierta = evento.estado === "borrador" && !torneo.sorteado;
   const activos = participantes.filter((p) => p.activo).length;
 
   return (
     <section className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-          <Users className="size-4" /> {activos} activo{activos === 1 ? "" : "s"}
+          <Users className="size-4" /> {activos} competidor{activos === 1 ? "" : "es"}
           {participantes.length > activos && ` · ${participantes.length - activos} de baja`}
         </p>
-        {abierto ? (
+        {inscripcionAbierta ? (
           <Button className="rounded-full font-bold" onClick={() => setEditando("nuevo")}>
-            <UserPlus className="size-4" /> Inscribir participante
+            <UserPlus className="size-4" /> Inscribir competidor
           </Button>
         ) : (
-          <p className="text-sm text-muted-foreground">El reto terminó: ya no se inscriben participantes.</p>
+          <p className="text-sm text-muted-foreground">
+            {evento.estado === "finalizado" ? "El torneo terminó." : "Las llaves ya se sortearon: no se inscriben más competidores."}
+          </p>
         )}
       </div>
 
@@ -48,11 +48,12 @@ export function PestanaParticipantes({ evento, participantes }: Pick<DetalleReto
                 {!p.activo && <Badge variant="destructive">De baja</Badge>}
               </p>
               <p className="cifras text-sm text-muted-foreground">
-                CI {p.cedulaIdentidad} · {p.telefono} · inicial {kg(p.pesoInicial)}
+                CI {p.cedulaIdentidad} · {p.telefono}
+                {p.pesoInicial !== null && ` · ${textoKilos(aCentikg(p.pesoInicial))}`}
               </p>
               {!p.activo && p.motivoBaja && <p className="text-sm text-destructive">Motivo: {p.motivoBaja}</p>}
             </div>
-            {abierto && p.activo && (
+            {evento.estado !== "finalizado" && p.activo && (
               <div className="flex gap-1">
                 <Button variant="ghost" size="sm" onClick={() => setEditando(p)}>
                   <Pencil className="size-4" /> Editar
@@ -65,28 +66,28 @@ export function PestanaParticipantes({ evento, participantes }: Pick<DetalleReto
           </li>
         ))}
         {participantes.length === 0 && (
-          <li className="rounded-3xl border border-dashed p-10 text-center text-muted-foreground">Todavía no hay participantes inscritos.</li>
+          <li className="rounded-3xl border border-dashed p-10 text-center text-muted-foreground">Todavía no hay competidores. Se necesitan al menos 2 para sortear.</li>
         )}
       </ul>
 
-      {editando && <DialogoParticipante eventoId={evento.id} participante={editando === "nuevo" ? null : editando} onCerrar={() => setEditando(null)} />}
-      {baja && <DialogoBaja participante={baja} onCerrar={() => setBaja(null)} />}
+      {editando && <DialogoCompetidor eventoId={evento.id} competidor={editando === "nuevo" ? null : editando} onCerrar={() => setEditando(null)} />}
+      {baja && <DialogoBaja competidor={baja} sorteado={torneo.sorteado} onCerrar={() => setBaja(null)} />}
     </section>
   );
 }
 
-function DialogoParticipante({ eventoId, participante, onCerrar }: { eventoId: number; participante: ParticipanteListado | null; onCerrar: () => void }) {
+function DialogoCompetidor({ eventoId, competidor, onCerrar }: { eventoId: number; competidor: ParticipanteListado | null; onCerrar: () => void }) {
   const [d, setD] = useState({
-    nombreCompleto: participante?.nombreCompleto ?? "",
-    cedulaIdentidad: participante?.cedulaIdentidad ?? "",
-    telefono: participante?.telefono ?? "",
-    pesoInicial: participante ? String(Number(participante.pesoInicial)) : "",
+    nombreCompleto: competidor?.nombreCompleto ?? "",
+    cedulaIdentidad: competidor?.cedulaIdentidad ?? "",
+    telefono: competidor?.telefono ?? "",
+    pesoInicial: competidor?.pesoInicial ? String(Number(competidor.pesoInicial)) : "",
   });
   const [acepta, setAcepta] = useState(false);
-  const opciones = { mensajeExito: participante ? "Datos actualizados" : "Participante inscrito", alExito: onCerrar };
-  const inscribir = useAccion(inscribirParticipante, opciones);
-  const editar = useAccion(editarParticipante, opciones);
-  const accion = participante ? editar : inscribir;
+  const opciones = { mensajeExito: competidor ? "Datos actualizados" : "Competidor inscrito", alExito: onCerrar };
+  const inscribir = useAccion(inscribirCompetidor, opciones);
+  const editar = useAccion(editarCompetidor, opciones);
+  const accion = competidor ? editar : inscribir;
   const poner = (k: keyof typeof d, v: string) => {
     setD((x) => ({ ...x, [k]: v }));
     accion.limpiarCampo(k);
@@ -96,14 +97,10 @@ function DialogoParticipante({ eventoId, participante, onCerrar }: { eventoId: n
     <DialogoFormulario
       abierto
       onAbierto={(v) => !v && onCerrar()}
-      titulo={participante ? "Editar participante" : "Inscribir participante"}
+      titulo={competidor ? "Editar competidor" : "Inscribir competidor"}
       pendiente={accion.pendiente}
-      textoGuardar={participante ? "Guardar" : "Inscribir"}
-      onGuardar={() =>
-        participante
-          ? editar.ejecutar({ id: participante.id, ...d })
-          : inscribir.ejecutar({ eventoId, ...d, aceptaParticipar: acepta as true })
-      }
+      textoGuardar={competidor ? "Guardar" : "Inscribir"}
+      onGuardar={() => (competidor ? editar.ejecutar({ id: competidor.id, ...d }) : inscribir.ejecutar({ eventoId, ...d, aceptaParticipar: acepta as true }))}
     >
       <Campo etiqueta="Nombre completo" error={accion.campos.nombreCompleto}>
         {(p) => <Input {...p} value={d.nombreCompleto} onChange={(e) => poner("nombreCompleto", e.target.value)} maxLength={160} autoFocus autoComplete="off" />}
@@ -116,12 +113,10 @@ function DialogoParticipante({ eventoId, participante, onCerrar }: { eventoId: n
           {(p) => <Input {...p} value={d.telefono} onChange={(e) => poner("telefono", e.target.value)} type="tel" inputMode="tel" maxLength={20} placeholder="71234567" />}
         </Campo>
       </div>
-      <Campo etiqueta="Peso inicial (kg)" error={accion.campos.pesoInicial} ayuda="Entre 30 y 300 kg, con hasta 2 decimales.">
-        {(p) => (
-          <Input {...p} value={d.pesoInicial} onChange={(e) => poner("pesoInicial", e.target.value.replace(/[^\d.,]/g, ""))} inputMode="decimal" placeholder="85,5" className="cifras text-lg font-bold" />
-        )}
+      <Campo etiqueta="Peso (kg)" opcional error={accion.campos.pesoInicial} ayuda="Solo como dato: la categoría es libre.">
+        {(p) => <Input {...p} value={d.pesoInicial} onChange={(e) => poner("pesoInicial", e.target.value.replace(/[^\d.,]/g, ""))} inputMode="decimal" placeholder="Ej. 82,5" className="cifras w-40" />}
       </Campo>
-      {!participante && (
+      {!competidor && (
         <label className={cn("flex cursor-pointer items-start gap-3 rounded-2xl border p-3", accion.campos.aceptaParticipar && "border-destructive")}>
           <input
             type="checkbox"
@@ -133,7 +128,7 @@ function DialogoParticipante({ eventoId, participante, onCerrar }: { eventoId: n
             }}
           />
           <span className="text-sm">
-            <strong>El participante acepta participar y que se registre su peso.</strong>
+            <strong>El competidor acepta participar en el torneo.</strong>
             {accion.campos.aceptaParticipar && <span className="mt-1 block text-destructive">{accion.campos.aceptaParticipar}</span>}
           </span>
         </label>
@@ -142,21 +137,25 @@ function DialogoParticipante({ eventoId, participante, onCerrar }: { eventoId: n
   );
 }
 
-function DialogoBaja({ participante, onCerrar }: { participante: ParticipanteListado; onCerrar: () => void }) {
+function DialogoBaja({ competidor, sorteado, onCerrar }: { competidor: ParticipanteListado; sorteado: boolean; onCerrar: () => void }) {
   const [motivo, setMotivo] = useState("");
-  const baja = useAccion(darDeBajaParticipante, { mensajeExito: "Participante dado de baja", alExito: onCerrar });
+  const baja = useAccion(darDeBajaCompetidor, { mensajeExito: "Competidor dado de baja", alExito: onCerrar });
   return (
     <DialogoFormulario
       abierto
       onAbierto={(v) => !v && onCerrar()}
       titulo="Dar de baja"
-      descripcion={`${participante.nombreCompleto} sale de la tabla de posiciones. No se borra: queda en el historial.`}
+      descripcion={
+        sorteado
+          ? `${competidor.nombreCompleto} pierde por W.O. todos los combates que le queden; lo ya jugado se respeta. No se borra.`
+          : `${competidor.nombreCompleto} no entrará al sorteo. No se borra: queda en el historial.`
+      }
       pendiente={baja.pendiente}
       textoGuardar="Dar de baja"
-      onGuardar={() => baja.ejecutar({ id: participante.id, motivo })}
+      onGuardar={() => baja.ejecutar({ id: competidor.id, motivo })}
     >
       <Campo etiqueta="Motivo" error={baja.campos.motivo}>
-        {(p) => <Textarea {...p} value={motivo} onChange={(e) => setMotivo(e.target.value)} rows={3} maxLength={300} autoFocus placeholder="Ej. dejó de asistir por viaje" />}
+        {(p) => <Textarea {...p} value={motivo} onChange={(e) => setMotivo(e.target.value)} rows={3} maxLength={300} autoFocus placeholder="Ej. se lesionó el brazo" />}
       </Campo>
     </DialogoFormulario>
   );

@@ -29,9 +29,13 @@ import {
 const CEDULA_REPETIDA = { cedulaIdentidad: "Ya hay un participante con esta cédula en este reto" };
 type Tx = Parameters<Parameters<typeof db.transaction>[0]>[0];
 
-/** Evento bloqueado para la transacción (FOR UPDATE): dos cambios simultáneos no se pisan. */
+/**
+ * Reto bloqueado para la transacción (FOR UPDATE): dos cambios simultáneos no se pisan.
+ * Solo retos: los torneos tienen sus propias acciones (torneo-acciones.ts).
+ */
 async function eventoBloqueado(tx: Tx, id: number) {
   const [e] = await tx.select().from(eventos).where(eq(eventos.id, id)).for("update");
+  if (e && e.tipoJuego !== "reto_transformacion") throw new ErrorEvento("Esta acción es solo para el Reto Transformación");
   return e ?? null;
 }
 

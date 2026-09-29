@@ -1,4 +1,4 @@
-import { ChevronRight, Scale, Trophy } from "lucide-react";
+import { BicepsFlexed, ChevronRight, Scale, Trophy } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { EncabezadoPagina } from "@/components/formularios/encabezado-pagina";
@@ -8,7 +8,7 @@ import { TIPOS_JUEGO } from "@/lib/eventos/tipos";
 
 export const metadata: Metadata = { title: "Eventos" };
 
-const ICONOS = { Scale, Trophy };
+const ICONOS = { Scale, Trophy, BicepsFlexed };
 
 /** Catálogo de tipos de juego del módulo Eventos (lib/eventos/tipos.ts). */
 export default async function PaginaEventos() {
@@ -45,7 +45,6 @@ export default async function PaginaEventos() {
           );
         })}
       </ul>
-      <p className="text-sm text-muted-foreground">Pronto habrá más tipos de juego.</p>
     </div>
   );
 }

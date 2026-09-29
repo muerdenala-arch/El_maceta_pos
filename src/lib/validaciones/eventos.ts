@@ -90,3 +90,51 @@ export const esquemaCorreccionPesaje = z.object({
   motivo: textoRequerido(300, "Escribe por qué se corrige").min(4, "Describe el motivo (mínimo 4 caracteres)"),
 });
 export type DatosCorreccionPesaje = z.input<typeof esquemaCorreccionPesaje>;
+
+// ---------------------------------------------------------------- Torneo de Pulseada
+
+export const esquemaTorneo = z.object({
+  nombre: textoRequerido(120, "Ponle un nombre al torneo").min(3, "Mínimo 3 caracteres"),
+  descripcion: textoOpcional(1000),
+  fechaInicio: fecha,
+  formato: z.enum(["eliminacion_directa", "doble_eliminacion", "todos_contra_todos"], { message: "Elige el formato" }),
+  mejorDe: z.union([z.literal(1), z.literal(3), z.literal(5)]),
+  puntosVictoria: z.coerce.number().int().min(1).max(10),
+  sucursalId: idPositivo.nullable(),
+  premios: textoOpcional(1000),
+});
+export type DatosTorneo = z.input<typeof esquemaTorneo>;
+
+/** Competidor: como el participante del reto, pero el peso es opcional (categoría libre). */
+export const esquemaCompetidor = z.object({
+  eventoId: idPositivo,
+  nombreCompleto: textoRequerido(160, "Escribe el nombre completo").min(3, "Mínimo 3 caracteres"),
+  cedulaIdentidad,
+  telefono: celular,
+  pesoInicial: z.union([z.literal("").transform(() => null), pesoKg]).nullable().default(null),
+  aceptaParticipar: z.literal(true, { message: "El competidor debe aceptar participar" }),
+});
+export type DatosCompetidor = z.input<typeof esquemaCompetidor>;
+
+export const esquemaEditarCompetidor = esquemaCompetidor.omit({ eventoId: true, aceptaParticipar: true }).extend({ id: idPositivo });
+export type DatosEditarCompetidor = z.input<typeof esquemaEditarCompetidor>;
+
+const conteo = (max: number) => z.coerce.number().int().min(0).max(max);
+
+/** Resultado de un combate: asaltos ganados y faltas de cada lado (el motor valida el marcador según el "mejor de"). */
+export const esquemaCombate = z.object({
+  id: idPositivo,
+  asaltosA: conteo(5),
+  asaltosB: conteo(5),
+  faltasA: conteo(30),
+  faltasB: conteo(30),
+});
+export type DatosCombate = z.input<typeof esquemaCombate>;
+
+export const esquemaAusencia = z.object({ id: idPositivo, ausente: z.enum(["a", "b"]) });
+export type DatosAusencia = z.input<typeof esquemaAusencia>;
+
+export const esquemaCorreccionCombate = esquemaCombate.extend({
+  motivo: textoRequerido(300, "Escribe por qué se corrige").min(4, "Describe el motivo (mínimo 4 caracteres)"),
+});
+export type DatosCorreccionCombate = z.input<typeof esquemaCorreccionCombate>;

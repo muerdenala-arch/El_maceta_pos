@@ -1,7 +1,7 @@
 "use client";
 
-import { ArrowDown, ArrowUp, Medal, Minus, Sparkles } from "lucide-react";
-import { motion } from "motion/react";
+import { ArrowDown, ArrowUp, Minus, Sparkles } from "lucide-react";
+import { PodioMedallas } from "./podio";
 import { textoKilos, textoPorcentaje, type FilaPosicion } from "@/lib/eventos/calculos";
 import { cn } from "@/lib/utils";
 
@@ -10,44 +10,19 @@ import { cn } from "@/lib/utils";
  * nunca llegan a este componente (se usa también en la página pública de resultados).
  */
 
-const MEDALLA = {
-  // En celular: 1.º, 2.º, 3.º hacia abajo. En pantallas anchas: 2.º – 1.º – 3.º (el primero al centro y más alto).
-  1: { clase: "bg-medalla-oro", texto: "1.er lugar", lugar: "sm:order-2 sm:pb-8" },
-  2: { clase: "bg-medalla-plata", texto: "2.º lugar", lugar: "sm:order-1 sm:pb-4" },
-  3: { clase: "bg-medalla-bronce", texto: "3.er lugar", lugar: "sm:order-3" },
-} as const;
-
 export function Podio({ filas, criterio }: { filas: FilaPosicion[]; criterio: "porcentaje" | "kilos" }) {
-  const podio = filas.filter((f) => f.posicion !== null && f.posicion <= 3);
-  if (podio.length === 0) return null;
   return (
-    <ol className="grid gap-3 sm:grid-cols-3 sm:items-end" aria-label="Podio">
-      {podio.map((f) => {
-        const m = MEDALLA[f.posicion as 1 | 2 | 3];
-        return (
-          <motion.li
-            key={f.participanteId}
-            initial={{ opacity: 0, y: 18, scale: 0.96 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            transition={{ duration: 0.22, delay: (f.posicion! - 1) * 0.08, ease: "easeOut" }}
-            className={m.lugar}
-          >
-            <div className={cn("rounded-3xl p-5 text-medalla-foreground shadow-sm", m.clase, f.posicion === 1 && "sm:py-8")}>
-              <p className="flex items-center gap-2 text-sm font-extrabold tracking-wide uppercase">
-                <Medal className="size-5" /> {m.texto}
-              </p>
-              <p className="mt-3 truncate font-display text-xl font-extrabold">{f.nombre}</p>
-              <p className="cifras mt-1 font-display text-3xl font-extrabold">
-                {criterio === "porcentaje" ? textoPorcentaje(f.porcentaje!) : textoKilos(f.kilos!)}
-              </p>
-              <p className="cifras text-sm font-semibold opacity-80">
-                {criterio === "porcentaje" ? textoKilos(f.kilos!) : textoPorcentaje(f.porcentaje!)} perdido{criterio === "porcentaje" ? "s" : ""}
-              </p>
-            </div>
-          </motion.li>
-        );
-      })}
-    </ol>
+    <PodioMedallas
+      lugares={filas
+        .filter((f) => f.posicion !== null && f.posicion <= 3)
+        .map((f) => ({
+          id: f.participanteId,
+          posicion: f.posicion!,
+          nombre: f.nombre,
+          valor: criterio === "porcentaje" ? textoPorcentaje(f.porcentaje!) : textoKilos(f.kilos!),
+          detalle: `${criterio === "porcentaje" ? textoKilos(f.kilos!) : textoPorcentaje(f.porcentaje!)} perdido${criterio === "porcentaje" ? "s" : ""}`,
+        }))}
+    />
   );
 }
 

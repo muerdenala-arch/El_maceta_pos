@@ -14,34 +14,33 @@ import { EncabezadoReto } from "./encabezado-reto";
 import { PestanaParticipantes } from "./participantes";
 import { PestanaPesajes } from "./pesajes";
 import { PestanaPosiciones } from "./posiciones";
+import { PaginaTorneo } from "./torneo/pagina-torneo";
 
-export const metadata: Metadata = { title: "Reto Transformación" };
+export const metadata: Metadata = { title: "Eventos" };
 
 const VISTAS = ["participantes", "pesajes", "posiciones"] as const;
 
-/** Detalle del reto: cabecera y pestañas Participantes, Pesajes y Tabla de posiciones. */
+/** Detalle de un evento: Reto Transformación (aquí) o Torneo de Pulseada (./torneo/pagina-torneo.tsx). */
 export default async function PaginaReto(props: PageProps<"/admin/eventos/[tipo]/[id]">) {
   await requerirSesion("admin");
   const { tipo, id } = await props.params;
   const juego = juegoPorSlug(tipo);
   const eventoId = Number(id);
   if (!juego || !Number.isInteger(eventoId) || eventoId <= 0) notFound();
+  const sp = await props.searchParams;
+  const [datosNegocio] = await db
+    .select({ nombre: configuracion.nombreComercial, logoUrl: configuracion.logoUrl, nit: configuracion.nit, codigoPais: configuracion.codigoPais })
+    .from(configuracion)
+    .where(eq(configuracion.id, 1));
+  const negocio = datosNegocio ?? { nombre: "El Maseta", logoUrl: null, nit: null, codigoPais: "591" };
+  if (juego.tipo === "torneo_pulseada") return <PaginaTorneo juego={juego} eventoId={eventoId} vista={sp.vista} negocio={negocio} />;
 
-  const [evento, participantes, pesajes, [negocio]] = await Promise.all([
-    obtenerEvento(eventoId, juego.tipo),
-    participantesDe(eventoId),
-    pesajesDe(eventoId),
-    db
-      .select({ nombre: configuracion.nombreComercial, logoUrl: configuracion.logoUrl, nit: configuracion.nit, codigoPais: configuracion.codigoPais })
-      .from(configuracion)
-      .where(eq(configuracion.id, 1)),
-  ]);
+  const [evento, participantes, pesajes] = await Promise.all([obtenerEvento(eventoId, juego.tipo), participantesDe(eventoId), pesajesDe(eventoId)]);
   if (!evento) notFound();
 
-  const sp = await props.searchParams;
   const vista = VISTAS.find((v) => v === sp.vista) ?? (evento.estado === "finalizado" ? "posiciones" : "participantes");
   const base = `/admin/eventos/${juego.slug}/${evento.id}`;
-  const datos = { evento, participantes, pesajes, hoy: hoyEnBolivia(), negocio: negocio ?? { nombre: "El Maseta", logoUrl: null, nit: null, codigoPais: "591" } };
+  const datos = { evento, participantes, pesajes, hoy: hoyEnBolivia(), negocio };
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">

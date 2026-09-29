@@ -54,7 +54,10 @@ export type AccionAuditoria =
   | "participante_editado"
   | "participante_baja"
   | "pesajes_registrados"
-  | "pesaje_corregido";
+  | "pesaje_corregido"
+  | "torneo_sorteado"
+  | "combate_registrado"
+  | "combate_corregido";
 
 export async function registrarAuditoria(
   accion: AccionAuditoria,

@@ -492,7 +492,7 @@ export const auditoria = pgTable(
 // ---------- Eventos (módulo de juegos y retos) ----------
 
 /** Tipos de juego. Para agregar uno: valor aquí + entrada en lib/eventos/tipos.ts. */
-export const tipoJuegoEnum = pgEnum("tipo_juego", ["reto_transformacion"]);
+export const tipoJuegoEnum = pgEnum("tipo_juego", ["reto_transformacion", "torneo_pulseada"]);
 export const criterioGanadorEnum = pgEnum("criterio_ganador", ["porcentaje", "kilos"]);
 export const estadoEventoEnum = pgEnum("estado_evento", ["borrador", "en_curso", "finalizado"]);
 
@@ -538,17 +538,20 @@ export const participantesEvento = pgTable(
     nombreCompleto: varchar("nombre_completo", { length: 160 }).notNull(),
     cedulaIdentidad: varchar("cedula_identidad", { length: 20 }).notNull(),
     telefono: varchar("telefono", { length: 30 }).notNull(),
-    pesoInicial: peso("peso_inicial").notNull(),
+    /** Obligatorio en el Reto Transformación (lo exige su validación); en la pulseada es solo un dato opcional. */
+    pesoInicial: peso("peso_inicial"),
     fechaInscripcion: timestamp("fecha_inscripcion", { withTimezone: true }).notNull().defaultNow(),
     aceptaParticipar: boolean("acepta_participar").notNull(),
     activo: boolean("activo").notNull().default(true),
     motivoBaja: text("motivo_baja"),
+    /** Cuándo se dio de baja (en torneos, desde ahí pierde por W.O. lo que le quede por jugar). */
+    dadoDeBajaEn: timestamp("dado_de_baja_en", { withTimezone: true }),
   },
   (t) => [
     // Regla: la cédula no se repite dentro del mismo evento.
     uniqueIndex("participantes_evento_cedula_uq").on(t.eventoId, t.cedulaIdentidad),
     index("participantes_evento_evento_idx").on(t.eventoId),
-    check("participantes_peso_ck", sql`${t.pesoInicial} between 30 and 300`),
+    check("participantes_peso_ck", sql`${t.pesoInicial} is null or ${t.pesoInicial} between 30 and 300`),
     check("participantes_acepta_ck", sql`${t.aceptaParticipar}`),
   ],
 );
@@ -576,4 +579,57 @@ export const pesajes = pgTable(
     uniqueIndex("pesajes_final_uq").on(t.participanteId).where(sql`${t.esPesajeFinal}`),
     check("pesajes_peso_ck", sql`${t.peso} between 30 and 300`),
   ],
+);
+
+// ---------- Torneo de Pulseada ----------
+
+export const formatoTorneoEnum = pgEnum("formato_torneo", ["eliminacion_directa", "doble_eliminacion", "todos_contra_todos"]);
+export const faseCombateEnum = pgEnum("fase_combate", ["ganadores", "perdedores", "gran_final", "desempate", "tercer_lugar", "liga"]);
+
+/** Datos propios de un torneo (1 a 1 con `eventos`). El estado de las llaves se reconstruye del sorteo + resultados. */
+export const torneos = pgTable(
+  "torneos",
+  {
+    eventoId: integer("evento_id")
+      .primaryKey()
+      .references(() => eventos.id),
+    formato: formatoTorneoEnum("formato").notNull(),
+    mejorDe: integer("mejor_de").notNull().default(3),
+    puntosVictoria: integer("puntos_victoria").notNull().default(1),
+    /** Orden del sorteo (ids de participantes: cabezas de serie 1, 2, 3…). null = todavía sin sortear. */
+    sorteo: jsonb("sorteo").$type<number[]>(),
+    sorteadoEn: timestamp("sorteado_en", { withTimezone: true }),
+  },
+  (t) => [check("torneos_mejor_de_ck", sql`${t.mejorDe} in (1, 3, 5)`)],
+);
+
+export const combates = pgTable(
+  "combates",
+  {
+    id: serial("id").primaryKey(),
+    eventoId: integer("evento_id")
+      .notNull()
+      .references(() => eventos.id),
+    /** Identificador dentro de las llaves: "G2-1" (ganadores), "P3-1" (perdedores), "GF", "GF2", "T3", "L4-2" (liga). */
+    clave: varchar("clave", { length: 12 }).notNull(),
+    fase: faseCombateEnum("fase").notNull(),
+    ronda: integer("ronda").notNull(),
+    orden: integer("orden").notNull(),
+    competidorA: integer("competidor_a").references(() => participantesEvento.id),
+    competidorB: integer("competidor_b").references(() => participantesEvento.id),
+    aVacio: boolean("a_vacio").notNull().default(false),
+    bVacio: boolean("b_vacio").notNull().default(false),
+    asaltosA: integer("asaltos_a").notNull().default(0),
+    asaltosB: integer("asaltos_b").notNull().default(0),
+    faltasA: integer("faltas_a").notNull().default(0),
+    faltasB: integer("faltas_b").notNull().default(0),
+    ganadorId: integer("ganador_id").references(() => participantesEvento.id),
+    terminado: boolean("terminado").notNull().default(false),
+    paseLibre: boolean("pase_libre").notNull().default(false),
+    walkover: boolean("walkover").notNull().default(false),
+    /** Quién cargó el resultado; null = se resolvió solo (pase libre o W.O. por retiro). */
+    registradoPor: integer("registrado_por").references(() => usuarios.id),
+    terminadoEn: timestamp("terminado_en", { withTimezone: true }),
+  },
+  (t) => [uniqueIndex("combates_evento_clave_uq").on(t.eventoId, t.clave), index("combates_evento_idx").on(t.eventoId)],
 );

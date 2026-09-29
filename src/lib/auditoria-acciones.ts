@@ -17,5 +17,6 @@ export const ACCIONES_SENSIBLES: Record<string, { titulo: string; grave?: boolea
   // Módulo Eventos
   pesaje_corregido: { titulo: "Pesaje corregido (reto)", grave: true },
   participante_baja: { titulo: "Baja de participante (reto)" },
-  evento_finalizado: { titulo: "Reto finalizado" },
+  evento_finalizado: { titulo: "Reto o torneo finalizado" },
+  combate_corregido: { titulo: "Combate corregido (pulseada)", grave: true },
 };

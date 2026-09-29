@@ -5,9 +5,9 @@
 
 export type Criterio = "porcentaje" | "kilos";
 
-/** "85,5" / "85.50" / 85.5 → 8550 (centésimas de kg). */
-export function aCentikg(peso: string | number): number {
-  return Math.round(Number(String(peso).replace(",", ".")) * 100);
+/** "85,5" / "85.50" / 85.5 → 8550 (centésimas de kg). En el reto el peso inicial siempre existe (lo exige la validación). */
+export function aCentikg(peso: string | number | null): number {
+  return peso === null ? 0 : Math.round(Number(String(peso).replace(",", ".")) * 100);
 }
 
 /** 8550 → "85.50" */
@@ -50,7 +50,7 @@ export const plazoCumplido = (fechaFin: string, hoy: string) => diasRestantes(fe
 
 // ---------------------------------------------------------------- Tabla de posiciones
 
-export type ParticipanteCalculo = { id: number; nombre: string; pesoInicial: string };
+export type ParticipanteCalculo = { id: number; nombre: string; pesoInicial: string | null };
 export type PesajeCalculo = { id: number; participanteId: number; fecha: string; peso: string; esPesajeFinal: boolean };
 
 export type EstadoFila = "clasificado" | "sin_pesaje" | "no_completo";

@@ -219,7 +219,7 @@ Credenciales de prueba locales: en `.env.local` (`SEED_*`), nunca en el código 
 
 ## Módulo Eventos (post-lanzamiento)
 
-- Menú "Eventos" (solo admin). Tipos de juego en `lib/eventos/tipos.ts` (hoy `reto_transformacion`); rutas genéricas
+- Menú "Eventos" (solo admin). Tipos de juego en `lib/eventos/tipos.ts` (`reto_transformacion`, `torneo_pulseada`); rutas genéricas
   `/admin/eventos/[tipo]` (lista) y `/admin/eventos/[tipo]/[id]` (detalle con pestañas ?vista=participantes|pesajes|posiciones).
   Agregar un tipo: valor en `tipoJuegoEnum` + migración + entrada en `TIPOS_JUEGO` + su pantalla de detalle.
 - Tablas `eventos` (fecha_fin generada = inicio + duración − 1, token_publico), `participantes_evento` (cédula única por
@@ -233,7 +233,26 @@ Credenciales de prueba locales: en `.env.local` (`SEED_*`), nunca en el código 
 - Resultados: PDF en el dispositivo (`lib/eventos/pdf.ts`, un solo import dinámico), Excel admin
   `/api/admin/eventos/[id]/excel` (con cédula y teléfono), página pública `/eventos/[token]` (solo nombre, kilos y %;
   `TablaPosiciones publica`). WhatsApp reutiliza `telefonoWhatsapp`/`enlaceWhatsapp` de los comprobantes.
-- Colores del podio: tokens `medalla-oro/plata/bronce` en globals.css.
+- Colores del podio: tokens `medalla-oro/plata/bronce` en globals.css. `PodioMedallas` y `CompartirResultados`
+  (`components/eventos`) son comunes a reto y torneo; el PDF se carga solo con `cargarPdfEventos` (`lib/eventos/cargar-pdf.ts`).
+
+## Torneo de Pulseada (1 contra 1)
+
+- Formatos por torneo: eliminación directa (+3.er lugar), doble eliminación (llave de perdedores, gran final y final de
+  desempate si gana el de perdedores) y todos contra todos (puntos por victoria configurables). Categoría libre, peso opcional.
+  Combates al mejor de 1/3/5 (por defecto 3); **2 faltas en un asalto = asalto al rival** (lo calcula la mesa del juez).
+- Motor puro y probado: `lib/eventos/pulseada.ts`. **El estado se reconstruye siempre** desde `torneos.sorteo` (ids = siembra)
+  + la historia en orden (resultados del juez en `combates` con `registrado_por`, por `terminado_en`, y bajas con
+  `participantes_evento.dado_de_baja_en`). Pases libres se resuelven solos; el retirado pierde por W.O. lo que le queda.
+  `reconstruir` lanza `ErrorTorneo` si un resultado ya no encaja → una corrección se bloquea si el combate siguiente se jugó.
+- Claves de combate: `G{ronda}-{i}`, `P{ronda}-{i}`, `GF`, `GF2`, `T3`, `L{fecha}-{k}`. `guardarLlaves` hace upsert por clave.
+- Desempates (todos contra todos): resultado entre empatados → diferencia de asaltos → asaltos a favor → menos faltas → mismo puesto.
+- Acciones en `app/admin/eventos/torneo-acciones.ts`; datos del servidor en `lib/eventos/torneo-datos.ts`. Sorteo al azar
+  (crypto), se puede volver a sortear mientras no haya resultados; sin inscripciones después del sorteo. Las acciones del
+  reto rechazan torneos. Auditoría: torneo_sorteado, combate_registrado, combate_corregido (grave).
+- Pantalla `[id]/torneo/*`: Competidores, Combates (mesa del juez), Llaves/Fechas, Clasificación/Resultados.
+  `Llaves` y `ClasificacionTorneo` (`components/eventos`) sirven también a la página pública (solo nombres y marcadores).
+  Excel: hojas Clasificación, Combates y Competidores. Prueba e2e: `e2e/pulseada.spec.ts`.
 
 ## Botón atrás por niveles
 

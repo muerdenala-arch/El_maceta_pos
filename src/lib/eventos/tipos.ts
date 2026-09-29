@@ -3,7 +3,7 @@
  * 1) su valor en `tipoJuegoEnum` (db/schema.ts) + migración, 2) una entrada aquí,
  * 3) su pantalla de detalle en app/admin/eventos/[tipo]/[id] (el listado y la ruta ya son genéricos).
  */
-export type TipoJuego = "reto_transformacion";
+export type TipoJuego = "reto_transformacion" | "torneo_pulseada";
 
 export type DefinicionJuego = {
   tipo: TipoJuego;
@@ -12,7 +12,7 @@ export type DefinicionJuego = {
   titulo: string;
   descripcion: string;
   /** Nombre del ícono de lucide-react (se resuelve en la interfaz). */
-  icono: "Scale" | "Trophy";
+  icono: "Scale" | "Trophy" | "BicepsFlexed";
   /** Nombre de cada evento de este tipo en singular/plural ("reto", "retos"). */
   singular: string;
   plural: string;
@@ -27,6 +27,15 @@ export const TIPOS_JUEGO: DefinicionJuego[] = [
     icono: "Scale",
     singular: "reto",
     plural: "retos",
+  },
+  {
+    tipo: "torneo_pulseada",
+    slug: "torneo-pulseada",
+    titulo: "Torneo de Pulseada",
+    descripcion: "Competencia 1 contra 1 al mejor de 3: eliminación directa, doble eliminación o todos contra todos.",
+    icono: "BicepsFlexed",
+    singular: "torneo",
+    plural: "torneos",
   },
 ];
 

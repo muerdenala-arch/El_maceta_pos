@@ -50,6 +50,13 @@
       "when": 1790674699692,
       "tag": "0006_modulo_eventos",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1790681936300,
+      "tag": "0007_torneo_pulseada",
+      "breakpoints": true
     }
   ]
 }
