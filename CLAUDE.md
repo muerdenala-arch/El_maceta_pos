@@ -217,6 +217,24 @@ Credenciales de prueba locales: en `.env.local` (`SEED_*`), nunca en el código 
   (São Paulo, clave nueva, PIN de admin nuevo) se crea cuando compre el dominio. Integración Neon→Vercel instalada
   (ramas por Preview). Blob `el-maceta-fotos` (iad1) conectado. CLI de Vercel enlazada en `.vercel/` (ignorada).
 
+## Módulo Eventos (post-lanzamiento)
+
+- Menú "Eventos" (solo admin). Tipos de juego en `lib/eventos/tipos.ts` (hoy `reto_transformacion`); rutas genéricas
+  `/admin/eventos/[tipo]` (lista) y `/admin/eventos/[tipo]/[id]` (detalle con pestañas ?vista=participantes|pesajes|posiciones).
+  Agregar un tipo: valor en `tipoJuegoEnum` + migración + entrada en `TIPOS_JUEGO` + su pantalla de detalle.
+- Tablas `eventos` (fecha_fin generada = inicio + duración − 1, token_publico), `participantes_evento` (cédula única por
+  evento, acepta_participar obligatorio) y `pesajes` (NUMERIC(5,2) 30–300 kg, un solo final por participante).
+- Cálculos puros y probados en `lib/eventos/calculos.ts` (centésimas de kg, % con 2 decimales, ranking de competición:
+  criterio → desempate por la otra medida → mismo puesto; movimiento vs jornada anterior; finalizado = solo pesaje final).
+- Acciones en `app/admin/eventos/acciones.ts` (todas `autorizar("admin")`, evento bloqueado FOR UPDATE, `ErrorEvento` →
+  resultado). Estados: borrador → en_curso → finalizado; finalizado bloquea pesajes, inscripciones, bajas y correcciones.
+  Cambios > 10 % requieren `confirmarCambios`. Auditoría: evento_*, participante_*, pesajes_registrados, pesaje_corregido.
+- Alerta `evento_por_finalizar` (automática) en `lib/eventos/alertas.ts`, conciliada con el resto de alertas.
+- Resultados: PDF en el dispositivo (`lib/eventos/pdf.ts`, un solo import dinámico), Excel admin
+  `/api/admin/eventos/[id]/excel` (con cédula y teléfono), página pública `/eventos/[token]` (solo nombre, kilos y %;
+  `TablaPosiciones publica`). WhatsApp reutiliza `telefonoWhatsapp`/`enlaceWhatsapp` de los comprobantes.
+- Colores del podio: tokens `medalla-oro/plata/bronce` en globals.css.
+
 ## Reglas no negociables
 
 - **Permisos en el servidor**: `proxy.ts` protege rutas por rol y *además* cada server action /
