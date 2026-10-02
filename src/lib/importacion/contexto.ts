@@ -35,7 +35,7 @@ export async function plantillaProductos(): Promise<Buffer> {
     db.select({ nombre: categorias.nombre }).from(categorias).orderBy(asc(categorias.nombre)),
   ]);
   const encabezado = [...COLUMNAS, ...ubicaciones.map(columnaStock)];
-  const ejemplo = ["Whey Gold Standard", "Optimum Nutrition", cats[0]?.nombre ?? "Proteínas", "Chocolate", "2 lb", 350, 280.5, "748927028669", 3, "2027-03-31", ...ubicaciones.map((_, i) => (i === 0 ? 20 : 5))];
+  const ejemplo = ["Whey Gold Standard", "Optimum Nutrition", cats[0]?.nombre ?? "Proteínas", "Chocolate", "2 lb", "Proteína de suero, 24 g por porción", 350, 280.5, "748927028669", 3, "2027-03-31", ...ubicaciones.map((_, i) => (i === 0 ? 20 : 5))];
   const productosHoja = XLSX.utils.aoa_to_sheet([encabezado, ejemplo]);
   productosHoja["!cols"] = encabezado.map((c) => ({ wch: Math.max(12, c.length + 2) }));
 
@@ -46,6 +46,7 @@ export async function plantillaProductos(): Promise<Buffer> {
       ["• Una fila por producto (cada sabor y presentación es un producto distinto). Borra la fila de ejemplo."],
       ["• Obligatorios: Nombre, Precio venta y Precio costo (en Bs, por ejemplo 350 o 280,50)."],
       ["• Categoría: si no existe, se crea al importar. Categorías actuales: " + (cats.map((c) => c.nombre).join(", ") || "ninguna")],
+      ["• Descripción: opcional (hasta 2000 caracteres): para qué sirve, cómo se toma, notas."],
       ["• Código de barras: opcional; si lo tiene, escríbelo como texto para que Excel no lo redondee."],
       ["• Stock mínimo: cantidad desde la que avisa 'stock bajo' (0 si no quieres aviso)."],
       ["• Vencimiento: opcional, AAAA-MM-DD o DD/MM/AAAA; se aplica a todo el stock inicial de esa fila."],

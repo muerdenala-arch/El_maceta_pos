@@ -31,6 +31,7 @@ npm run e2e          # compila, crea .pglite-e2e desde cero, levanta next start 
 npm run db:generate  # genera migración SQL desde src/db/schema.ts
 npm run db:migrate   # aplica migraciones (Neon: usa DATABASE_URL_DIRECTA; PGlite: la carpeta local)
 npm run db:seed      # bodega, sucursal, admin, (cajero de prueba), configuración, categorías (idempotente)
+npm run db:importar -- planilla.xlsx [--aplicar] [--env archivo]   # catálogo por comando (sin --aplicar solo revisa)
 npm run db:studio
 ```
 
@@ -208,6 +209,10 @@ Credenciales de prueba locales: en `.env.local` (`SEED_*`), nunca en el código 
   importar tildes/mayúsculas, montos "280,50", fechas de Excel, errores por fila, solo productos nuevos);
   `importarProductos` revisa sin guardar y con `aplicar=1` crea categorías, productos y stock (lote con vencimiento)
   en una transacción. Plantilla: `GET /api/admin/plantilla-productos` (una columna "Stock <ubicación>" por ubicación).
+  El guardado está en `lib/importacion/aplicar.ts` (lo comparten la pantalla y `npm run db:importar`). El comando corre con
+  `src/db/ejecutar.mjs` (carga los módulos de la app con Vite: `@/…`, `server-only`, conexión con await), se detiene si una
+  columna "Stock …" no coincide con una ubicación y audita a nombre del primer admin activo. `productos.descripcion`
+  (texto opcional, 2000) se edita en Catálogo y se importa con la columna "Descripción".
 - Encabezados de seguridad en `next.config.ts` (X-Frame-Options, nosniff, Referrer-Policy, Permissions-Policy).
 - Velocidad: funciones de Vercel en `cle1` (vercel.json, junto a Neon us-east-2; al pasar la base a São Paulo cambiar a `gru1`);
   `loading.tsx` en admin y cajero (respuesta inmediata + precarga de enlaces del menú); `staleTimes.dynamic = 30`;

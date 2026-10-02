@@ -53,6 +53,7 @@ export const esquemaProducto = z.object({
   categoriaId: idPositivo.nullable(),
   sabor: textoOpcional(80),
   presentacion: textoOpcional(80),
+  descripcion: textoOpcional(2000),
   precioVenta: monto("Precio de venta inválido"),
   precioCosto: monto("Precio de costo inválido"),
   codigoBarras: textoOpcional(64).refine(

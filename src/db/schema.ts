@@ -141,6 +141,7 @@ export const productos = pgTable(
     categoriaId: integer("categoria_id").references(() => categorias.id),
     sabor: varchar("sabor", { length: 80 }),
     presentacion: varchar("presentacion", { length: 80 }),
+    descripcion: text("descripcion"),
     precioVenta: dinero("precio_venta").notNull(),
     precioCosto: dinero("precio_costo").notNull(),
     codigoBarras: varchar("codigo_barras", { length: 64 }),

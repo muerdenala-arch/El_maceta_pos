@@ -19,6 +19,7 @@ import { formatoBs } from "@/lib/formato";
 import { COMPRESION_PRODUCTO } from "@/lib/imagen-cliente";
 import { cn } from "@/lib/utils";
 import { ImportarProductos } from "./importar-productos";
+import { Textarea } from "@/components/ui/textarea";
 import type { DatosProducto } from "@/lib/validaciones/admin";
 import { eliminarCategoria, guardarCategoria, guardarProducto } from "./acciones";
 
@@ -29,6 +30,7 @@ type Producto = {
   categoriaId: number | null;
   sabor: string | null;
   presentacion: string | null;
+  descripcion: string | null;
   precioVenta: string;
   precioCosto: string;
   codigoBarras: string | null;
@@ -233,6 +235,7 @@ function FormularioProducto({
     categoriaId: producto?.categoriaId ?? null,
     sabor: producto?.sabor ?? "",
     presentacion: producto?.presentacion ?? "",
+    descripcion: producto?.descripcion ?? "",
     precioVenta: producto?.precioVenta ?? "",
     precioCosto: producto?.precioCosto ?? "",
     codigoBarras: producto?.codigoBarras ?? "",
@@ -306,6 +309,12 @@ function FormularioProducto({
           {(p) => <Input {...p} {...texto("presentacion")} maxLength={80} placeholder="Ej. 2 lb / 60 cápsulas" />}
         </Campo>
       </div>
+
+      <Campo etiqueta="Descripción" opcional error={guardar.campos.descripcion}>
+        {(p) => (
+          <Textarea {...p} value={d.descripcion ?? ""} onChange={(e) => poner("descripcion", e.target.value)} rows={3} maxLength={2000} placeholder="Para qué sirve, cómo se toma, notas del producto…" />
+        )}
+      </Campo>
 
       <div className="grid gap-4 rounded-2xl bg-muted/60 p-4 sm:grid-cols-3">
         <Campo etiqueta="Precio de venta (Bs)" error={guardar.campos.precioVenta}>

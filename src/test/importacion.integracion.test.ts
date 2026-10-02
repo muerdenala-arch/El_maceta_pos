@@ -35,8 +35,8 @@ describe("importar productos", () => {
   it("revisa sin guardar, muestra errores por fila y no importa nada si hay errores", async () => {
     await comoUsuario(b.admin);
     const { datos } = await planilla([
-      ["BCAA 2:1:1", "Marca X", "Aminoácidos", "Limón", "300 g", 180, 120, "7790001", 2, "2027-06-30", 30, 5, 0],
-      ["Whey Test", "Marca", "Proteínas", null, null, 350, 280.5, null, 3, null, 1, 0, 0], // ya existe
+      ["BCAA 2:1:1", "Marca X", "Aminoácidos", "Limón", "300 g", null, 180, 120, "7790001", 2, "2027-06-30", 30, 5, 0],
+      ["Whey Test", "Marca", "Proteínas", null, null, null, 350, 280.5, null, 3, null, 1, 0, 0], // ya existe
     ]);
     const r = await importarProductos(datos);
     if (!r.ok) throw new Error(r.error);
@@ -52,8 +52,8 @@ describe("importar productos", () => {
   it("aplica todo en una transacción: categorías nuevas, productos, stock con lote y auditoría", async () => {
     await comoUsuario(b.admin);
     const { datos } = await planilla([
-      ["BCAA 2:1:1", "Marca X", "Aminoácidos", "Limón", "300 g", 180, "120,00", "7790001", 2, "30/06/2027", 30, 5, null],
-      ["Shaker", null, "Accesorios", null, "600 ml", 45, 20, null, 0, null, null, 10, 10],
+      ["BCAA 2:1:1", "Marca X", "Aminoácidos", "Limón", "300 g", "Aminoácidos ramificados para la recuperación", 180, "120,00", "7790001", 2, "30/06/2027", 30, 5, null],
+      ["Shaker", null, "Accesorios", null, "600 ml", null, 45, 20, null, 0, null, null, 10, 10],
     ]);
     datos.set("aplicar", "1");
     const r = await importarProductos(datos);
@@ -61,7 +61,7 @@ describe("importar productos", () => {
     expect(r.datos).toMatchObject({ aplicado: true, productos: 2, unidades: 55, errores: [] });
 
     const [bcaa] = await db.select().from(productos).where(eq(productos.nombre, "BCAA 2:1:1"));
-    expect(bcaa).toMatchObject({ precioVenta: "180.00", precioCosto: "120.00", codigoBarras: "7790001", stockMinimo: 2 });
+    expect(bcaa).toMatchObject({ descripcion: "Aminoácidos ramificados para la recuperación", precioVenta: "180.00", precioCosto: "120.00", codigoBarras: "7790001", stockMinimo: 2 });
     const [cat] = await db.select().from(categorias).where(eq(categorias.id, bcaa.categoriaId!));
     expect(cat.nombre).toBe("Aminoácidos");
     expect(await stock(bcaa.id, b.bodega.id)).toBe(30);

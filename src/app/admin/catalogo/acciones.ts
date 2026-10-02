@@ -19,7 +19,7 @@ import { idPositivo } from "@/lib/validaciones/comunes";
 import { esquemaCategoria, esquemaProducto, type DatosProducto } from "@/lib/validaciones/admin";
 import { contextoImportacion } from "@/lib/importacion/contexto";
 import { leerPlanilla, normalizar } from "@/lib/importacion/productos";
-import { cambiarStock } from "@/lib/inventario/stock";
+import { aplicarImportacion, unidadesDe } from "@/lib/importacion/aplicar";
 import * as XLSX from "xlsx";
 
 const ERROR_CODIGO_REPETIDO = { codigoBarras: "Ya hay otro producto con este código de barras" };
@@ -157,7 +157,7 @@ export async function importarProductos(formulario: FormData): Promise<Resultado
 
     const ctx = await contextoImportacion();
     const r = leerPlanilla(filas, ctx);
-    const unidades = r.productos.reduce((s, p) => s + p.stock.reduce((t, x) => t + x.cantidad, 0), 0);
+    const unidades = unidadesDe(r);
     const resumen: ResumenImportacion = {
       aplicado: false,
       productos: r.productos.length,
@@ -175,41 +175,7 @@ export async function importarProductos(formulario: FormData): Promise<Resultado
     if (!aplicar || r.errores.length > 0 || r.productos.length === 0) return exito(resumen);
 
     try {
-      await db.transaction(async (tx) => {
-        const idsCategoria = new Map(ctx.categorias);
-        for (const nombre of r.categoriasNuevas) {
-          const [c] = await tx.insert(categorias).values({ nombre }).onConflictDoNothing().returning({ id: categorias.id });
-          const id = c?.id ?? (await tx.select({ id: categorias.id }).from(categorias).where(eq(categorias.nombre, nombre)))[0].id;
-          idsCategoria.set(normalizar(nombre), id);
-        }
-        for (const p of r.productos) {
-          const [nuevo] = await tx
-            .insert(productos)
-            .values({
-              nombre: p.nombre,
-              marca: p.marca,
-              categoriaId: p.categoria ? (idsCategoria.get(normalizar(p.categoria)) ?? null) : null,
-              sabor: p.sabor,
-              presentacion: p.presentacion,
-              precioVenta: p.precioVenta,
-              precioCosto: p.precioCosto,
-              codigoBarras: p.codigoBarras,
-              stockMinimo: p.stockMinimo,
-            })
-            .returning({ id: productos.id });
-          for (const s of p.stock) {
-            await cambiarStock(tx, {
-              productoId: nuevo.id,
-              ubicacionId: s.ubicacionId,
-              delta: s.cantidad,
-              tipo: "ingreso",
-              usuarioId: sesion.uid,
-              motivo: "Carga inicial desde Excel",
-              lotesEntrada: [{ vencimiento: p.vencimiento, cantidad: s.cantidad }],
-            });
-          }
-        }
-      });
+      await aplicarImportacion(r, ctx, sesion.uid);
     } catch (e) {
       // Otro usuario creó el mismo código mientras tanto: se vuelve a revisar la planilla.
       if (esViolacionUnica(e, "productos_codigo_barras_uq")) return fallo("Un código de barras ya existe: vuelve a revisar la planilla");

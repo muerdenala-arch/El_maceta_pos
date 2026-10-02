@@ -57,6 +57,13 @@
       "when": 1790681936300,
       "tag": "0007_torneo_pulseada",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1790916929259,
+      "tag": "0008_producto_descripcion",
+      "breakpoints": true
     }
   ]
 }

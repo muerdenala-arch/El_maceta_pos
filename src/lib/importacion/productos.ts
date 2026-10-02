@@ -24,6 +24,7 @@ export type ProductoImportado = {
   categoria: string | null;
   sabor: string | null;
   presentacion: string | null;
+  descripcion: string | null;
   precioVenta: string;
   precioCosto: string;
   codigoBarras: string | null;
@@ -60,6 +61,7 @@ export const COLUMNAS = [
   "Categoría",
   "Sabor",
   "Presentación",
+  "Descripción",
   "Precio venta",
   "Precio costo",
   "Código de barras",
@@ -139,6 +141,7 @@ export function leerPlanilla(filas: Record<string, unknown>[], ctx: ContextoImpo
       categoriaId: null,
       sabor: texto(valor("Sabor")),
       presentacion: texto(valor("Presentación")),
+      descripcion: texto(valor("Descripción")),
       precioVenta: monto(valor("Precio venta")) ?? "",
       precioCosto: monto(valor("Precio costo")) ?? "",
       codigoBarras: texto(valor("Código de barras")),
@@ -148,7 +151,7 @@ export function leerPlanilla(filas: Record<string, unknown>[], ctx: ContextoImpo
     });
     if (!v.success) {
       for (const issue of v.error.issues) {
-        const campo = { nombre: "Nombre", precioVenta: "Precio venta", precioCosto: "Precio costo", codigoBarras: "Código de barras" }[String(issue.path[0])] ?? String(issue.path[0]);
+        const campo = { nombre: "Nombre", descripcion: "Descripción", precioVenta: "Precio venta", precioCosto: "Precio costo", codigoBarras: "Código de barras" }[String(issue.path[0])] ?? String(issue.path[0]);
         mensajes.push(`${campo}: ${issue.message}`);
       }
     }
@@ -183,6 +186,7 @@ export function leerPlanilla(filas: Record<string, unknown>[], ctx: ContextoImpo
           categoria,
           sabor: d.sabor,
           presentacion: d.presentacion,
+          descripcion: d.descripcion,
           precioVenta: d.precioVenta,
           precioCosto: d.precioCosto,
           codigoBarras: d.codigoBarras,

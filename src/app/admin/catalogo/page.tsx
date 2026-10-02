@@ -19,6 +19,7 @@ export default async function PaginaCatalogo() {
         categoriaId: productos.categoriaId,
         sabor: productos.sabor,
         presentacion: productos.presentacion,
+        descripcion: productos.descripcion,
         precioVenta: productos.precioVenta,
         precioCosto: productos.precioCosto,
         codigoBarras: productos.codigoBarras,
