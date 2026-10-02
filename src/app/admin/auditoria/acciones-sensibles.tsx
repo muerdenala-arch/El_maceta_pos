@@ -66,6 +66,8 @@ function describir(e: EventoAuditoria, n: Nombres): string {
       return `Esperado ${bs(d.esperado)} · contado ${bs(d.contado)} · diferencia ${bs(d.diferencia)}`;
     case "alerta_revisada":
       return String(d.mensaje ?? "");
+    case "descuento_manual":
+      return `Venta #${d.venta}: ${Number(d.porcentaje ?? 0).toLocaleString("es-BO")} % = ${bs(d.monto)} (total cobrado ${bs(d.total)}) · Motivo: ${d.motivo}`;
     default:
       return JSON.stringify(d).slice(0, 160);
   }

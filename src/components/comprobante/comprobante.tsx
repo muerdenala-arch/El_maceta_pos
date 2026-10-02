@@ -1,5 +1,5 @@
 /* eslint-disable @next/next/no-img-element -- logo propio */
-import { fechaHoraComprobante, numeroComprobante, type DatosComprobante, type TamanoImpresion, cantidadLinea, lineasImprimibles } from "@/lib/comprobante/datos";
+import { fechaHoraComprobante, numeroComprobante, type DatosComprobante, type TamanoImpresion, cantidadLinea, filasDescuento, lineasImprimibles } from "@/lib/comprobante/datos";
 import { formatoBs } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 
@@ -126,8 +126,9 @@ export function Comprobante({ datos, tamano }: { datos: DatosComprobante; tamano
         {Number(venta.descuento) > 0 && (
           <>
             <Fila etiqueta="Subtotal" valor={formatoBs(venta.subtotal)} />
-            <Fila etiqueta="Descuentos" valor={`−${formatoBs(venta.descuento)}`} />
-            {venta.cupon && <Fila etiqueta="Cupón" valor={venta.cupon} />}
+            {filasDescuento(venta).map(([etiqueta, monto]) => (
+              <Fila key={etiqueta} etiqueta={etiqueta} valor={`−${formatoBs(monto)}`} />
+            ))}
           </>
         )}
         <Fila etiqueta="TOTAL" valor={formatoBs(venta.total)} fuerte />

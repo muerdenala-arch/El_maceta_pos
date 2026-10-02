@@ -142,6 +142,28 @@ export function FormularioConfiguracion({ inicial }: { inicial: Datos }) {
               )}
             </Campo>
           </section>
+
+          <section className="space-y-4 rounded-3xl border bg-card p-5 shadow-sm sm:p-6">
+            <h2 className="text-lg font-extrabold">Descuento manual del cajero</h2>
+            <Campo
+              etiqueta="Máximo que puede descontar el cajero"
+              error={guardar.campos.descuentoManualMaximo}
+              ayuda="Porcentaje sobre el total de la venta. Con 0 el cajero no puede dar descuentos manuales. Cada uno queda en auditoría con su motivo."
+            >
+              {(p) => (
+                <div className="flex max-w-32 items-center rounded-md border focus-within:ring-3 focus-within:ring-ring/50">
+                  <Input
+                    {...p}
+                    value={d.descuentoManualMaximo ?? "0"}
+                    onChange={(e) => poner("descuentoManualMaximo", e.target.value.replace(/[^\d.,]/g, "").slice(0, 6))}
+                    inputMode="decimal"
+                    className="cifras border-0 bg-transparent text-lg font-bold shadow-none focus-visible:ring-0 dark:bg-transparent"
+                  />
+                  <span className="pr-3 font-bold text-muted-foreground">%</span>
+                </div>
+              )}
+            </Campo>
+          </section>
         </div>
 
         <aside className="space-y-4 lg:sticky lg:top-8 lg:self-start">

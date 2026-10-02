@@ -1,7 +1,7 @@
 import "server-only";
 import { and, desc, eq, gte, lt, sql, type SQL } from "drizzle-orm";
 import { db } from "@/db";
-import { clientes, detalleVenta, gastos, productos, sucursales, usuarios, ventas } from "@/db/schema";
+import { clientes, cupones, detalleVenta, gastos, productos, promociones, sucursales, usuarios, ventas } from "@/db/schema";
 import type { VentaResumida } from "@/components/comprobante/lista-ventas";
 import { condicionBusqueda } from "@/lib/busqueda-sql";
 import { inicioDiaBolivia, ZONA_HORARIA } from "@/lib/formato";
@@ -264,4 +264,76 @@ export async function lineasDeVentas(f: FiltrosReporte, limite: number): Promise
     .where(condiciones(f))
     .orderBy(desc(ventas.fecha), desc(ventas.id), detalleVenta.id)
     .limit(limite);
+}
+
+// ---------------------------------------------------------------- Descuentos del período
+
+export type ReporteDescuentos = {
+  /** Cuánto se descontó por cada vía (solo ventas completadas). */
+  totales: { promociones: string; combos: string; cupones: string; manual: string; total: string };
+  cupones: { codigo: string; descripcion: string | null; usos: number; total: string }[];
+  promociones: { id: number; nombre: string; ventas: number; total: string }[];
+  manuales: { ventaId: number; numero: number; fecha: string; cajero: string; sucursal: string; porcentaje: string | null; monto: string; total: string; motivo: string | null }[];
+};
+
+/** Cuánto se descontó por promociones, combos, cupones y descuentos manuales en el período (respeta los filtros). */
+export async function reporteDescuentos(f: FiltrosReporte, limiteManuales = 200): Promise<ReporteDescuentos> {
+  const donde = and(condiciones(f), completada);
+  const [[t], porCupon, porPromocion, manuales] = await Promise.all([
+    db
+      .select({
+        promociones: sql<string>`coalesce(sum(${ventas.descuentoPromociones}), 0)::text`,
+        combos: sql<string>`coalesce(sum(${ventas.descuentoCombos}), 0)::text`,
+        cupones: sql<string>`coalesce(sum(${ventas.descuentoCupon}), 0)::text`,
+        manual: sql<string>`coalesce(sum(${ventas.descuentoManual}), 0)::text`,
+        total: sql<string>`coalesce(sum(${ventas.descuento}), 0)::text`,
+      })
+      .from(ventas)
+      .where(donde),
+    db
+      .select({
+        codigo: cupones.codigo,
+        descripcion: cupones.descripcion,
+        usos: sql<number>`count(*)::int`,
+        total: sql<string>`sum(${ventas.descuentoCupon})::text`,
+      })
+      .from(ventas)
+      .innerJoin(cupones, eq(cupones.id, ventas.cuponId))
+      .where(donde)
+      .groupBy(cupones.id)
+      .orderBy(sql`sum(${ventas.descuentoCupon}) desc`),
+    db
+      .select({
+        id: promociones.id,
+        nombre: promociones.nombre,
+        ventas: sql<number>`count(distinct ${detalleVenta.ventaId})::int`,
+        // Lo que queda de la línea tras quitar el cupón y el descuento manual es lo que dio la promoción.
+        total: sql<string>`sum(${detalleVenta.descuento} - ${detalleVenta.descuentoCupon} - ${detalleVenta.descuentoManual})::text`,
+      })
+      .from(detalleVenta)
+      .innerJoin(ventas, eq(ventas.id, detalleVenta.ventaId))
+      .innerJoin(promociones, eq(promociones.id, detalleVenta.promocionId))
+      .where(donde)
+      .groupBy(promociones.id)
+      .orderBy(sql`sum(${detalleVenta.descuento} - ${detalleVenta.descuentoCupon} - ${detalleVenta.descuentoManual}) desc`),
+    db
+      .select({
+        ventaId: ventas.id,
+        numero: ventas.numeroComprobante,
+        fecha: ventas.fecha,
+        cajero: usuarios.nombre,
+        sucursal: sucursales.nombre,
+        porcentaje: ventas.porcentajeDescuentoManual,
+        monto: ventas.descuentoManual,
+        total: ventas.total,
+        motivo: ventas.motivoDescuentoManual,
+      })
+      .from(ventas)
+      .innerJoin(usuarios, eq(usuarios.id, ventas.cajeroId))
+      .innerJoin(sucursales, eq(sucursales.id, ventas.sucursalId))
+      .where(and(donde, sql`${ventas.descuentoManual} > 0`))
+      .orderBy(desc(ventas.fecha))
+      .limit(limiteManuales),
+  ]);
+  return { totales: t, cupones: porCupon, promociones: porPromocion, manuales: manuales.map((m) => ({ ...m, fecha: m.fecha.toISOString() })) };
 }

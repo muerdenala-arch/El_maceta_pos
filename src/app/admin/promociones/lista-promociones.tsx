@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarRange, Pencil, Percent, Plus, Shapes, Store, Tag, TicketPercent, Trash2, Wand2 } from "lucide-react";
+import { CalendarRange, Pencil, Percent, Plus, Shapes, Store, Tag, TicketPercent } from "lucide-react";
 import { useState } from "react";
 import { Campo } from "@/components/formularios/campo";
 import { DialogoFormulario } from "@/components/formularios/dialogo-formulario";
@@ -15,11 +15,10 @@ import { Switch } from "@/components/ui/switch";
 import { describirBeneficio } from "@/lib/promociones/motor";
 import { cn } from "@/lib/utils";
 import type { DatosPromocion } from "@/lib/validaciones/promociones";
-import { crearCupon, eliminarCupon, guardarPromocion } from "./acciones";
+import { guardarPromocion } from "./acciones";
 import { Buscador, Resaltar, SinResultados } from "@/components/busqueda/buscador";
 import { coincide } from "@/lib/busqueda";
 
-type Cupon = { id: number; codigo: string; usosMaximos: number | null; usosActuales: number };
 type Promo = {
   id: number;
   nombre: string;
@@ -38,7 +37,6 @@ type Promo = {
   hasta: string;
   requiereCupon: boolean;
   activo: boolean;
-  cupones: Cupon[];
 };
 type Opcion = { id: number; nombre: string };
 /** Estado del formulario (los campos numéricos con tipo explícito; el servidor los valida igual). */
@@ -69,15 +67,17 @@ export function ListaPromociones({
   productos,
   categorias,
   sucursales,
+  children,
 }: {
   hoy: string;
   promociones: Promo[];
   productos: ProductoLigero[];
   categorias: Opcion[];
   sucursales: Opcion[];
+  /** Pestañas (Descuentos automáticos / Cupones). */
+  children?: React.ReactNode;
 }) {
   const [editando, setEditando] = useState<Promo | "nueva" | null>(null);
-  const [cuponesDe, setCuponesDe] = useState<Promo | null>(null);
   const [busqueda, setBusqueda] = useState("");
   const visibles = promociones.filter((p) =>
     coincide(busqueda, [
@@ -86,8 +86,7 @@ export function ListaPromociones({
       alcanceTexto(p),
       p.sucursal ?? "Todas las sucursales",
       estado(p, hoy).texto,
-      p.requiereCupon ? "Con cupón" : "Automática",
-      ...p.cupones.map((c) => c.codigo),
+      p.requiereCupon ? "Solo con cupón (antigua)" : "Automática",
     ]),
   );
 
@@ -96,17 +95,18 @@ export function ListaPromociones({
       <EncabezadoPagina
         icono={TicketPercent}
         titulo="Promociones y cupones"
-        descripcion="Se aplican solas en el punto de venta (o con cupón). A cada producto se le aplica la mejor, nunca se acumulan."
+        descripcion="Los descuentos automáticos se aplican solos en el punto de venta: a cada producto, el mejor (nunca se acumulan entre sí)."
       >
         <Button size="lg" className="rounded-full font-bold" onClick={() => setEditando("nueva")}>
-          <Plus className="size-5" /> Nueva promoción
+          <Plus className="size-5" /> Nuevo descuento automático
         </Button>
       </EncabezadoPagina>
+      {children}
 
       {promociones.length === 0 ? (
         <div className="flex flex-col items-center gap-3 rounded-3xl border border-dashed p-12 text-center text-muted-foreground">
           <TicketPercent className="size-10" />
-          <p>Crea tu primera promoción: un porcentaje, un monto por unidad o un combo como 2x1.</p>
+          <p>Crea tu primer descuento automático: un porcentaje, un monto por unidad o un 2x1 (por ejemplo, 10 % en toda una categoría este fin de semana).</p>
         </div>
       ) : (
         <>
@@ -114,7 +114,7 @@ export function ListaPromociones({
         {visibles.length === 0 && <SinResultados consulta={busqueda} onLimpiar={() => setBusqueda("")} />}
         <ul className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {visibles.map((p) => {
-            const cuponHallado = busqueda.trim() ? p.cupones.find((c) => coincide(busqueda, [c.codigo])) : undefined;
+
             const e = estado(p, hoy);
             return (
               <li key={p.id} className={cn("flex flex-col rounded-3xl border bg-card p-5 shadow-sm", e.texto !== "Vigente" && "opacity-75")}>
@@ -137,19 +137,11 @@ export function ListaPromociones({
                 <ul className="mt-3 mb-4 space-y-1.5 text-sm text-muted-foreground">
                   <li className="flex items-center gap-2"><Tag className="size-4 shrink-0" /> <span className="truncate"><Resaltar texto={alcanceTexto(p)} consulta={busqueda} /></span></li>
                   <li className="flex items-center gap-2"><Store className="size-4 shrink-0" /> <Resaltar texto={p.sucursal ?? "Todas las sucursales"} consulta={busqueda} /></li>
-                  {cuponHallado && (
-                    <li className="flex items-center gap-2">
-                      <TicketPercent className="size-4 shrink-0" /> Cupón <span className="font-mono font-semibold text-foreground"><Resaltar texto={cuponHallado.codigo} consulta={busqueda} /></span>
-                    </li>
-                  )}
                   <li className="flex items-center gap-2"><CalendarRange className="size-4 shrink-0" /> {fechaCorta(p.desde)} – {fechaCorta(p.hasta)}</li>
                 </ul>
                 <div className="mt-auto flex flex-wrap items-center gap-2 border-t pt-3">
                   <Badge className={e.clase}>{e.texto}</Badge>
-                  <Badge variant="outline">{p.requiereCupon ? "Con cupón" : "Automática"}</Badge>
-                  <Button variant="ghost" size="sm" className="ml-auto" onClick={() => setCuponesDe(p)}>
-                    <TicketPercent className="size-4" /> Cupones ({p.cupones.length})
-                  </Button>
+                  <Badge variant="outline">{p.requiereCupon ? "Solo con cupón (antigua): no se aplica sola" : "Automática"}</Badge>
                 </div>
               </li>
             );
@@ -167,12 +159,6 @@ export function ListaPromociones({
           categorias={categorias}
           sucursales={sucursales}
           onCerrar={() => setEditando(null)}
-        />
-      )}
-      {cuponesDe && (
-        <DialogoCupones
-          promo={promociones.find((p) => p.id === cuponesDe.id) ?? cuponesDe}
-          onCerrar={() => setCuponesDe(null)}
         />
       )}
     </div>
@@ -212,7 +198,8 @@ function FormularioPromocion({
     sucursalId: promo?.sucursalId ?? null,
     desde: promo?.desde ?? hoy,
     hasta: promo?.hasta ?? hoy,
-    requiereCupon: promo?.requiereCupon ?? false,
+    // Los cupones ahora son independientes (pestaña Cupones): un descuento automático nunca pide cupón.
+    requiereCupon: false,
     activo: promo?.activo ?? true,
   }));
   const guardar = useAccion(guardarPromocion, { mensajeExito: promo ? "Promoción actualizada" : "Promoción creada", alExito: onCerrar });
@@ -360,82 +347,10 @@ function FormularioPromocion({
 
       <div className="space-y-2">
         <label className="flex items-center justify-between gap-4 rounded-2xl border p-4">
-          <span>
-            <span className="block font-semibold">Solo con cupón</span>
-            <span className="block text-sm text-muted-foreground">Si está apagado, se aplica sola a todos los clientes</span>
-          </span>
-          <Switch checked={d.requiereCupon} onCheckedChange={(v) => poner("requiereCupon", v)} />
-        </label>
-        <label className="flex items-center justify-between gap-4 rounded-2xl border p-4">
           <span className="font-semibold">Activa</span>
           <Switch checked={d.activo} onCheckedChange={(v) => poner("activo", v)} />
         </label>
       </div>
-    </DialogoFormulario>
-  );
-}
-
-/** Código aleatorio legible (sin 0/O ni 1/I para evitar confusiones al dictarlo). */
-function codigoAleatorio() {
-  const letras = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  return Array.from(crypto.getRandomValues(new Uint8Array(8)), (b) => letras[b % letras.length]).join("");
-}
-
-function DialogoCupones({ promo, onCerrar }: { promo: Promo; onCerrar: () => void }) {
-  const [codigo, setCodigo] = useState("");
-  const [usos, setUsos] = useState("");
-  const crear = useAccion(crearCupon, { mensajeExito: "Cupón creado", alExito: () => { setCodigo(""); setUsos(""); } });
-  const eliminar = useAccion(eliminarCupon, { mensajeExito: "Cupón eliminado" });
-
-  return (
-    <DialogoFormulario
-      abierto
-      onAbierto={(v) => !v && onCerrar()}
-      titulo={`Cupones · ${promo.nombre}`}
-      descripcion="El cajero escribe el código al cobrar. Crear un cupón hace que la promoción solo se aplique con código."
-      pendiente={crear.pendiente}
-      textoGuardar="Crear cupón"
-      onGuardar={() => crear.ejecutar({ promocionId: promo.id, codigo, usosMaximos: usos ? Number(usos) : null })}
-    >
-      <div className="grid gap-3 sm:grid-cols-[1fr_9rem]">
-        <Campo etiqueta="Código" error={crear.campos.codigo}>
-          {(p) => (
-            <div className="flex gap-2">
-              <Input {...p} value={codigo} onChange={(e) => setCodigo(e.target.value.toUpperCase().replace(/\s/g, ""))} maxLength={40} placeholder="VERANO10" className="font-mono uppercase" />
-              <Button type="button" variant="outline" size="icon" aria-label="Generar código" title="Generar código" onClick={() => setCodigo(codigoAleatorio())}>
-                <Wand2 className="size-4" />
-              </Button>
-            </div>
-          )}
-        </Campo>
-        <Campo etiqueta="Límite de usos" opcional error={crear.campos.usosMaximos}>
-          {(p) => <Input {...p} inputMode="numeric" value={usos} onChange={(e) => setUsos(e.target.value.replace(/\D/g, "").slice(0, 7))} placeholder="Sin límite" className="cifras" />}
-        </Campo>
-      </div>
-
-      <ul className="divide-y rounded-2xl border">
-        {promo.cupones.map((c) => (
-          <li key={c.id} className="flex items-center gap-3 px-4 py-2.5">
-            <span className="font-mono font-bold">{c.codigo}</span>
-            <span className="cifras ml-auto text-sm text-muted-foreground">
-              {c.usosActuales}{c.usosMaximos !== null ? ` / ${c.usosMaximos}` : ""} usos
-            </span>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="text-destructive hover:text-destructive"
-              aria-label={`Eliminar cupón ${c.codigo}`}
-              disabled={c.usosActuales > 0 || eliminar.pendiente}
-              title={c.usosActuales > 0 ? "Ya se usó: no se puede eliminar" : "Eliminar"}
-              onClick={() => eliminar.ejecutar({ id: c.id })}
-            >
-              <Trash2 className="size-4" />
-            </Button>
-          </li>
-        ))}
-        {promo.cupones.length === 0 && <li className="p-6 text-center text-sm text-muted-foreground">Sin cupones.</li>}
-      </ul>
     </DialogoFormulario>
   );
 }

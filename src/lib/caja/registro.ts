@@ -9,14 +9,16 @@ import { cambio, normalizarTelefono } from "@/lib/caja/calculos";
 import { cajaAbiertaDe } from "@/lib/caja/consultas";
 import { obtenerComprobante } from "@/lib/comprobante/consulta";
 import type { DatosComprobante } from "@/lib/comprobante/datos";
-import type { ComboVendido } from "@/lib/combos/calculo";
+import { COTIZACION_VACIA, type ComboVendido } from "@/lib/combos/calculo";
 import { cotizarCombos } from "@/lib/combos/consultas";
-import { aCentavos, deCentavos, sumar } from "@/lib/dinero";
+import { aCentavos, deCentavos } from "@/lib/dinero";
 import { formatoBs, hoyEnBolivia } from "@/lib/formato";
 import { esFraccionado, unidadesDeLinea } from "@/lib/inventario/fraccion";
 import { cambiarStock, ErrorStock, type Tx } from "@/lib/inventario/stock";
-import { promocionesAutomaticas, validarCuponEn } from "@/lib/promociones/consultas";
-import { aplicarPromociones, type LineaConDescuento } from "@/lib/promociones/motor";
+import { buscarCupon, consumirCupon, promocionesAutomaticas } from "@/lib/promociones/consultas";
+import { calcularVenta, mensajeCupon, type CuponVenta } from "@/lib/promociones/venta";
+import { registrarAuditoria } from "@/lib/auditoria";
+import type { LineaConDescuento } from "@/lib/promociones/motor";
 import type { DatosGastoOffline, DatosVentaOffline, esquemaVenta } from "@/lib/validaciones/caja";
 import type { z } from "zod";
 
@@ -50,6 +52,9 @@ export async function ventaExistente(uuid: string, cajeroId: number): Promise<Ve
 
 type LineaFinal = Pick<LineaConDescuento, "productoId" | "cantidad" | "precioUnitario" | "descuento" | "promocionId"> & {
   fraccion?: boolean;
+  /** Partes de `descuento` que vienen del cupón y del descuento manual. */
+  descuentoCupon?: string;
+  descuentoManual?: string;
   /** Posición en `combos` del combo al que pertenece (null = producto suelto). */
   combo?: number | null;
 };
@@ -67,6 +72,10 @@ type NuevaVenta = {
   combos?: ComboVendido[];
   subtotal: string;
   descuento: string;
+  /** Desglose de `descuento`. */
+  desglose: { promociones: string; combos: string; cupon: string; manual: string };
+  /** Descuento manual del cajero (porcentaje y motivo). */
+  manual?: { porcentaje: string; motivo: string } | null;
   total: string;
   metodoPago: "efectivo" | "qr";
   montoRecibido: string | null;
@@ -113,6 +122,12 @@ async function insertarVenta(tx: Tx, n: NuevaVenta) {
       clienteId,
       subtotal: n.subtotal,
       descuento: n.descuento,
+      descuentoPromociones: n.desglose.promociones,
+      descuentoCombos: n.desglose.combos,
+      descuentoCupon: n.desglose.cupon,
+      descuentoManual: n.desglose.manual,
+      porcentajeDescuentoManual: n.manual?.porcentaje ?? null,
+      motivoDescuentoManual: n.manual?.motivo ?? null,
       total: n.total,
       cuponId: n.cuponId,
       metodoPago: n.metodoPago,
@@ -139,6 +154,8 @@ async function insertarVenta(tx: Tx, n: NuevaVenta) {
       cantidad: l.cantidad,
       precioUnitario: l.precioUnitario,
       descuento: l.descuento,
+      descuentoCupon: l.descuentoCupon ?? "0",
+      descuentoManual: l.descuentoManual ?? "0",
       promocionId: l.promocionId,
       fraccion: !!l.fraccion,
       unidadFraccion: l.fraccion ? (n.catalogo.get(l.productoId)?.unidadFraccion ?? "capsula") : null,
@@ -211,6 +228,23 @@ async function catalogoDe(tx: Tx, ids: number[]) {
   return new Map(catalogo.map((p) => [p.id, p]));
 }
 
+const minuscula = (t: string) => t.charAt(0).toLowerCase() + t.slice(1);
+
+async function maximoDescuentoManual(tx: Tx) {
+  const [conf] = await tx.select({ maximo: configuracion.descuentoManualMaximo }).from(configuracion).where(eq(configuracion.id, 1));
+  return Number(conf?.maximo ?? 0);
+}
+
+/** Los descuentos manuales son una acción sensible: quedan en auditoría con su motivo (fuera de la transacción). */
+async function auditarDescuentoManual(usuarioId: number, ventaId: number) {
+  const [v] = await db
+    .select({ numero: ventas.numeroComprobante, monto: ventas.descuentoManual, porcentaje: ventas.porcentajeDescuentoManual, motivo: ventas.motivoDescuentoManual, total: ventas.total })
+    .from(ventas)
+    .where(eq(ventas.id, ventaId));
+  if (!v || aCentavos(v.monto) <= 0n) return;
+  await registrarAuditoria("descuento_manual", { usuarioId, detalle: { ventaId, venta: v.numero, porcentaje: v.porcentaje, monto: v.monto, total: v.total, motivo: v.motivo } });
+}
+
 /** Precio de la BD para la línea: el de la unidad suelta o el del envase completo. */
 const precioDe = (p: { precioVenta: string; precioUnidad: string | null }, fraccion?: boolean) => (fraccion ? (p.precioUnidad ?? p.precioVenta) : p.precioVenta);
 
@@ -243,32 +277,40 @@ export async function registrarVentaEnLinea(sesion: Sesion, d: z.output<typeof e
         categoriaId: porId.get(l.productoId)!.categoriaId,
       }));
 
-      // Promociones vigentes de la BD (nunca las del dispositivo) + el cupón, si lo hay.
+      // Promociones vigentes de la BD (nunca las del dispositivo), el cupón y el descuento manual, si los hay.
       const candidatas = await promocionesAutomaticas(caja.sucursalId, tx);
+      let cupon: CuponVenta | null = null;
       if (d.cuponCodigo) {
-        const cupon = await validarCuponEn(d.cuponCodigo, caja.sucursalId, tx);
-        if (!cupon.ok) throw new ErrorStock(cupon.error);
-        candidatas.push(cupon.promocion);
+        const hallado = await buscarCupon(d.cuponCodigo, caja.sucursalId, tx);
+        if (!hallado.ok) throw new ErrorStock(hallado.error);
+        cupon = hallado.cupon;
       }
-      // Las promociones y el cupón solo tocan los productos sueltos: el combo ya trae su descuento.
-      const sueltos = aplicarPromociones(lineasCarrito, candidatas);
-      const promo = {
-        ...sueltos,
-        subtotal: sumar(sueltos.subtotal, combos.subtotal),
-        descuento: sumar(sueltos.descuento, combos.descuento),
-        total: sumar(sueltos.total, combos.total),
-      };
-      // El cupón solo se gasta si realmente dio el descuento (si otra promoción era mejor, no se usa).
-      const cuponUsado = promo.aplicadas.find((a) => a.cuponId)?.cuponId ?? null;
-      if (cuponUsado && d.cuponCodigo) {
-        const consumo = await validarCuponEn(d.cuponCodigo, caja.sucursalId, tx, { consumir: true });
-        if (!consumo.ok) throw new ErrorStock(consumo.error);
+      if (d.descuentoManual) {
+        const maximo = await maximoDescuentoManual(tx);
+        if (maximo <= 0) throw new ErrorStock("El descuento manual no está habilitado. Pídeselo al administrador.");
+        if (Number(d.descuentoManual.porcentaje) > maximo) throw new ErrorStock(`El descuento manual máximo es ${maximo.toLocaleString("es-BO")} %`);
       }
+
+      const calculo = calcularVenta({
+        lineas: lineasCarrito,
+        combos,
+        promociones: candidatas,
+        cupon,
+        manualPorcentaje: d.descuentoManual?.porcentaje,
+        categoriaDe: (id) => porId.get(id)?.categoriaId ?? null,
+      });
+      // Cupón que no se puede usar en este carrito: se le dice al cajero por qué (no se cobra sin avisar).
+      if (calculo.cupon && (calculo.cupon.estado === "minimo" || calculo.cupon.estado === "no_aplica")) {
+        throw new ErrorStock(`Cupón ${cupon!.codigo}: ${minuscula(mensajeCupon(calculo.cupon, formatoBs))}`);
+      }
+      // Solo se gasta si realmente descontó algo (si otro descuento era mejor, no se usa).
+      const cuponUsado = calculo.cupon?.estado === "aplicado" ? cupon!.id : null;
+      if (cuponUsado && !(await consumirCupon(tx, cuponUsado))) throw new ErrorStock("Cupón agotado: ya alcanzó su límite de usos");
 
       let vuelto: string | null = null;
       if (d.metodoPago === "efectivo") {
-        vuelto = cambio(promo.total, d.montoRecibido!);
-        if (vuelto === null) throw new ErrorStock(`El monto recibido no alcanza: el total es ${formatoBs(promo.total)}`);
+        vuelto = cambio(calculo.total, d.montoRecibido!);
+        if (vuelto === null) throw new ErrorStock(`El monto recibido no alcanza: el total es ${formatoBs(calculo.total)}`);
       }
 
       const nueva = await insertarVenta(tx, {
@@ -276,12 +318,14 @@ export async function registrarVentaEnLinea(sesion: Sesion, d: z.output<typeof e
         sucursalId: caja.sucursalId,
         cajaId: caja.id,
         cajeroId: sesion.uid,
-        lineas: [...promo.lineas, ...combos.lineas],
+        lineas: calculo.lineas,
         catalogo: porId,
         combos: combos.combos,
-        subtotal: promo.subtotal,
-        descuento: promo.descuento,
-        total: promo.total,
+        subtotal: calculo.subtotal,
+        descuento: calculo.descuento,
+        desglose: { promociones: calculo.descuentoPromociones, combos: calculo.descuentoCombos, cupon: calculo.descuentoCupon, manual: calculo.descuentoManual },
+        manual: d.descuentoManual && Number(calculo.descuentoManual) > 0 ? d.descuentoManual : null,
+        total: calculo.total,
         metodoPago: d.metodoPago,
         montoRecibido: d.metodoPago === "efectivo" ? d.montoRecibido : null,
         cambio: vuelto,
@@ -291,6 +335,7 @@ export async function registrarVentaEnLinea(sesion: Sesion, d: z.output<typeof e
       });
       return aResultado(nueva);
     });
+    await auditarDescuentoManual(sesion.uid, venta.ventaId);
     return exito({ ...venta, comprobante: await obtenerComprobante({ ventaId: venta.ventaId }) });
   } catch (e) {
     if (e instanceof ErrorStock) return fallo(e.message);
@@ -325,12 +370,19 @@ export async function registrarVentaOffline(sesion: Sesion, d: DatosVentaOffline
   // Coherencia interna de lo cobrado (en centavos exactos).
   let subtotal = 0n;
   let descuento = 0n;
+  let manual = 0n;
+  let enCombos = 0n;
   for (const l of d.lineas) {
     const sub = aCentavos(l.precioUnitario) * BigInt(l.cantidad);
-    if (aCentavos(l.descuento) > sub) return { ok: false, error: "Descuento mayor que el importe de una línea", permanente: true };
+    if (aCentavos(l.descuento) > sub || aCentavos(l.descuentoManual) > aCentavos(l.descuento)) {
+      return { ok: false, error: "Descuento mayor que el importe de una línea", permanente: true };
+    }
     subtotal += sub;
     descuento += aCentavos(l.descuento);
+    manual += aCentavos(l.descuentoManual);
+    if (l.combo !== null) enCombos += aCentavos(l.descuento) - aCentavos(l.descuentoManual);
   }
+  if (manual > 0n && !d.descuentoManual) return { ok: false, error: "Descuento manual sin motivo", permanente: true };
   const total = deCentavos(subtotal - descuento);
   let vuelto: string | null = null;
   if (d.metodoPago === "efectivo") {
@@ -348,22 +400,27 @@ export async function registrarVentaOffline(sesion: Sesion, d: DatosVentaOffline
       if (d.lineas.some((l) => !porId.has(l.productoId))) throw new ErrorStock("Algún producto de la venta ya no existe");
 
       // Lo que la BD habría cobrado en ese momento, para detectar diferencias.
-      let combosEsperados = "0.00";
+      let combosEsperados = COTIZACION_VACIA;
       try {
-        combosEsperados = (await cotizarCombos(tx, d.combos.map((c) => ({ comboId: c.comboId, cantidad: c.cantidad })), hoyEnBolivia(fecha))).total;
+        combosEsperados = await cotizarCombos(tx, d.combos.map((c) => ({ comboId: c.comboId, cantidad: c.cantidad })), hoyEnBolivia(fecha));
       } catch (e) {
         if (!(e instanceof ErrorStock)) throw e; // combo ya no vigente: la venta se registra y saltará la alerta de revisión
       }
-      const esperado = aplicarPromociones(
-        d.lineas.filter((l) => l.combo === null).map((l) => ({
-          productoId: l.productoId,
-          cantidad: l.cantidad,
-          fraccion: l.fraccion,
-          precioUnitario: precioDe(porId.get(l.productoId)!, l.fraccion),
-          categoriaId: porId.get(l.productoId)!.categoriaId,
-        })),
-        await promocionesAutomaticas(caja.sucursalId, tx, fecha),
-      );
+      const esperado = calcularVenta({
+        lineas: d.lineas
+          .filter((l) => l.combo === null)
+          .map((l) => ({
+            productoId: l.productoId,
+            cantidad: l.cantidad,
+            fraccion: l.fraccion,
+            precioUnitario: precioDe(porId.get(l.productoId)!, l.fraccion),
+            categoriaId: porId.get(l.productoId)!.categoriaId,
+          })),
+        combos: combosEsperados,
+        promociones: await promocionesAutomaticas(caja.sucursalId, tx, fecha),
+        manualPorcentaje: d.descuentoManual?.porcentaje,
+      });
+      const maximoManual = d.descuentoManual ? await maximoDescuentoManual(tx) : 0;
 
       const venta = await insertarVenta(tx, {
         uuid: d.uuid,
@@ -375,6 +432,8 @@ export async function registrarVentaOffline(sesion: Sesion, d: DatosVentaOffline
         combos: d.combos,
         subtotal: deCentavos(subtotal),
         descuento: deCentavos(descuento),
+        desglose: { promociones: deCentavos(descuento - enCombos - manual), combos: deCentavos(enCombos), cupon: "0", manual: deCentavos(manual) },
+        manual: manual > 0n ? d.descuentoManual : null,
         total,
         metodoPago: d.metodoPago,
         montoRecibido: d.metodoPago === "efectivo" ? d.montoRecibido : null,
@@ -385,8 +444,15 @@ export async function registrarVentaOffline(sesion: Sesion, d: DatosVentaOffline
         offline: { fecha },
       });
 
-      const totalEsperado = sumar(esperado.total, combosEsperados);
-      if (aCentavos(totalEsperado) !== aCentavos(total)) {
+      const totalEsperado = esperado.total;
+      if (d.descuentoManual && Number(d.descuentoManual.porcentaje) > maximoManual) {
+        await tx.insert(alertas).values({
+          tipo: "revision_offline",
+          ventaId: venta.id,
+          sucursalId: caja.sucursalId,
+          mensaje: `Venta #${venta.numeroComprobante} sin conexión con descuento manual de ${d.descuentoManual.porcentaje} %, mayor al máximo permitido (${maximoManual} %).`,
+        });
+      } else if (aCentavos(totalEsperado) !== aCentavos(total)) {
         await tx.insert(alertas).values({
           tipo: "revision_offline",
           ventaId: venta.id,
@@ -396,6 +462,7 @@ export async function registrarVentaOffline(sesion: Sesion, d: DatosVentaOffline
       }
       return venta;
     });
+    await auditarDescuentoManual(sesion.uid, nueva.id);
     return { ok: true, numero: nueva.numeroComprobante, tokenPublico: nueva.tokenPublico, ventaId: nueva.id };
   } catch (e) {
     if (e instanceof ErrorStock) return { ok: false, error: e.message, permanente: true };

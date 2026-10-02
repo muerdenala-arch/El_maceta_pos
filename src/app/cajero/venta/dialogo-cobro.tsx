@@ -1,7 +1,7 @@
 "use client";
 
 /* eslint-disable @next/next/no-img-element -- imagen del QR configurado */
-import { Banknote, ChevronDown, Loader2, QrCode, TicketPercent, UserRound, X } from "lucide-react";
+import { Banknote, ChevronDown, Loader2, Percent, QrCode, TicketPercent, UserRound, X } from "lucide-react";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -10,10 +10,11 @@ import { Input } from "@/components/ui/input";
 import { cambio, montosSugeridos } from "@/lib/caja/calculos";
 import type { QrCobro } from "@/lib/caja/consultas";
 import type { CotizacionCombos } from "@/lib/combos/calculo";
-import { sumar } from "@/lib/dinero";
 import { formatoBs } from "@/lib/formato";
 import { cn } from "@/lib/utils";
-import { aplicarPromociones, type LineaCarrito, type Promocion } from "@/lib/promociones/motor";
+import { textoDescuentoCupon } from "@/lib/promociones/cupones";
+import type { LineaCarrito, Promocion } from "@/lib/promociones/motor";
+import { calcularVenta, mensajeCupon, type CuponVenta } from "@/lib/promociones/venta";
 import { nuevoUuid } from "@/lib/uuid";
 import type { Instantanea } from "@/lib/offline/base";
 import { registrarVentaLocal, type VentaLocalRealizada } from "@/lib/offline/venta-local";
@@ -24,6 +25,10 @@ type Props = {
   /** Combos del carrito, ya cotizados (el servidor los vuelve a cotizar con los precios de la BD). */
   combos: CotizacionCombos;
   promociones: Promocion[];
+  /** Categoría de un producto (para cupones por categoría sobre los productos de un combo). */
+  categoriaDe: (productoId: number) => number | null;
+  /** Máximo descuento manual que puede dar el cajero, en % (0 = no puede). */
+  descuentoManualMaximo: number;
   /** Copia local: permite vender sin conexión. */
   instantanea: Instantanea | null;
   qrs: QrCobro[];
@@ -32,7 +37,7 @@ type Props = {
   onError: () => void;
 };
 
-export function DialogoCobro({ lineas, combos, promociones, instantanea, qrs, onCerrar, onExito, onError }: Props) {
+export function DialogoCobro({ lineas, combos, promociones, categoriaDe, descuentoManualMaximo, instantanea, qrs, onCerrar, onExito, onError }: Props) {
   // Un UUID por intento de cobro: si se pulsa dos veces o se reintenta, el servidor no duplica la venta.
   const [uuid] = useState(nuevoUuid);
   const [metodo, setMetodo] = useState<"efectivo" | "qr">("efectivo");
@@ -46,25 +51,39 @@ export function DialogoCobro({ lineas, combos, promociones, instantanea, qrs, on
   const [errores, setErrores] = useState<Record<string, string>>({});
   const [conCupon, setConCupon] = useState(false);
   const [codigo, setCodigo] = useState("");
-  const [cupon, setCupon] = useState<Promocion | null>(null);
+  const [cupon, setCupon] = useState<CuponVenta | null>(null);
+  const [errorCupon, setErrorCupon] = useState<string | null>(null);
   const [validandoCupon, setValidandoCupon] = useState(false);
+  const [conManual, setConManual] = useState(false);
+  const [porcentajeManual, setPorcentajeManual] = useState("");
+  const [motivoManual, setMotivoManual] = useState("");
 
-  // Mismo motor que el servidor: el total mostrado es el que se cobrará.
-  const resultado = aplicarPromociones(lineas, cupon ? [...promociones, cupon] : promociones);
-  // Promociones y cupón solo sobre los productos sueltos; los combos ya traen su descuento.
-  const total = sumar(resultado.total, combos.total);
-  const ahorro = sumar(resultado.descuento, combos.descuento);
-  const cuponAplicado = resultado.aplicadas.find((a) => a.cuponId);
+  // Descuento manual: hasta el máximo que configuró el administrador y siempre con motivo.
+  const porcentaje = porcentajeManual.replace(",", ".");
+  const porcentajeValido = /^\d{1,3}(\.\d{1,2})?$/.test(porcentaje) && Number(porcentaje) > 0;
+  const manualExcedido = porcentajeValido && Number(porcentaje) > descuentoManualMaximo;
+  const manualActivo = conManual && porcentajeValido && !manualExcedido;
+  const manual = manualActivo ? { porcentaje, motivo: motivoManual.trim() } : null;
+  const faltaMotivo = manualActivo && motivoManual.trim().length < 4;
+
+  // Mismo cálculo que el servidor: el total mostrado es el que se cobrará.
+  const resultado = calcularVenta({ lineas, combos, promociones, cupon, manualPorcentaje: manual?.porcentaje, categoriaDe });
+  const total = resultado.total;
+  const ahorro = resultado.descuento;
+  const estadoCupon = resultado.cupon;
+  // Un cupón que no se puede usar en este carrito bloquea el cobro hasta quitarlo (el servidor también lo rechaza).
+  const cuponBloquea = estadoCupon?.estado === "minimo" || estadoCupon?.estado === "no_aplica";
 
   async function aplicarCupon() {
     if (!codigo.trim()) return;
     setValidandoCupon(true);
+    setErrorCupon(null);
     try {
       const r = await consultarCupon(codigo);
       if (r.ok) setCupon(r.datos);
-      else toast.error(r.error);
+      else setErrorCupon(r.error);
     } catch {
-      toast.error("No se pudo validar el cupón. Revisa la conexión.");
+      setErrorCupon("No se pudo validar el cupón. Revisa la conexión.");
     } finally {
       setValidandoCupon(false);
     }
@@ -72,7 +91,7 @@ export function DialogoCobro({ lineas, combos, promociones, instantanea, qrs, on
 
   const recibidoNormalizado = recibido.replace(",", ".");
   const vuelto = metodo === "efectivo" && /^\d+(\.\d{1,2})?$/.test(recibidoNormalizado) ? cambio(total, recibidoNormalizado) : null;
-  const puedeCobrar = metodo === "qr" ? qrs.length > 0 : vuelto !== null;
+  const puedeCobrar = (metodo === "qr" ? qrs.length > 0 : vuelto !== null) && !cuponBloquea && !faltaMotivo && !(conManual && manualExcedido);
   const qr = qrs.find((q) => q.id === qrElegido);
 
   // Búsqueda de clientes existentes (con pausa para no consultar en cada tecla).
@@ -101,8 +120,9 @@ export function DialogoCobro({ lineas, combos, promociones, instantanea, qrs, on
     const local = await registrarVentaLocal({
       uuid,
       instantanea,
-      promo: resultado,
+      calculo: resultado,
       combos,
+      descuentoManual: manual,
       metodoPago: metodo,
       montoRecibido: metodo === "efectivo" ? recibidoNormalizado : null,
       cambio: metodo === "efectivo" ? vuelto : null,
@@ -121,7 +141,8 @@ export function DialogoCobro({ lineas, combos, promociones, instantanea, qrs, on
           uuid,
           lineas: lineas.map((l) => ({ productoId: l.productoId, cantidad: l.cantidad, fraccion: !!l.fraccion })),
           combos: combos.combos.map((c) => ({ comboId: c.comboId, cantidad: c.cantidad })),
-          cuponCodigo: cupon ? codigo : "",
+          cuponCodigo: cupon ? cupon.codigo : "",
+          descuentoManual: manual,
           metodoPago: metodo,
           montoRecibido: metodo === "efectivo" ? recibidoNormalizado : null,
           clienteNombre: conCliente ? clienteNombre : "",
@@ -267,49 +288,125 @@ export function DialogoCobro({ lineas, combos, promociones, instantanea, qrs, on
               className="flex w-full items-center gap-2 px-4 py-3 text-left font-semibold"
             >
               <TicketPercent className="size-5 text-muted-foreground" />
-              Cupón {cupon ? <span className="font-mono text-primary">{codigo}</span> : <span className="font-normal text-muted-foreground">(opcional)</span>}
+              Cupón {cupon ? <span className="font-mono text-primary">{cupon.codigo}</span> : <span className="font-normal text-muted-foreground">(opcional)</span>}
               <ChevronDown className={cn("ml-auto size-4 transition-transform", conCupon && "rotate-180")} />
             </button>
             {conCupon && (
               <div className="space-y-2 border-t p-4">
-                {cupon ? (
-                  <div className="flex items-center gap-3 rounded-xl bg-muted p-3">
+                {cupon && estadoCupon ? (
+                  <div
+                    role="status"
+                    className={cn(
+                      "flex items-center gap-3 rounded-xl p-3",
+                      estadoCupon.estado === "aplicado" ? "bg-ficha-verde text-ficha-verde-foreground" : cuponBloquea ? "bg-destructive/10 text-destructive" : "bg-muted",
+                    )}
+                  >
                     <div className="min-w-0 flex-1">
-                      <p className="truncate font-bold">{cupon.nombre}</p>
-                      <p className={cn("text-sm", cuponAplicado ? "font-semibold text-exito" : "text-muted-foreground")}>
-                        {cuponAplicado
-                          ? `Descuento: ${formatoBs(cuponAplicado.descuento)}`
-                          : "No mejora las promociones actuales: no se usará"}
+                      <p className="truncate font-bold">
+                        {cupon.codigo} · {textoDescuentoCupon(cupon, formatoBs)}
                       </p>
+                      <p className="text-sm font-semibold">{mensajeCupon(estadoCupon, formatoBs)}</p>
                     </div>
-                    <Button type="button" variant="ghost" size="icon" aria-label="Quitar cupón" onClick={() => { setCupon(null); setCodigo(""); }}>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      aria-label="Quitar cupón"
+                      onClick={() => {
+                        setCupon(null);
+                        setCodigo("");
+                        setErrorCupon(null);
+                      }}
+                    >
                       <X className="size-4" />
                     </Button>
                   </div>
                 ) : (
-                  <div className="flex gap-2">
-                    <Input
-                      value={codigo}
-                      onChange={(e) => setCodigo(e.target.value.toUpperCase().replace(/\s/g, ""))}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          aplicarCupon();
-                        }
-                      }}
-                      placeholder="CÓDIGO"
-                      aria-label="Código de cupón"
-                      maxLength={40}
-                      className="font-mono uppercase"
-                    />
-                    <Button type="button" variant="outline" disabled={!codigo.trim() || validandoCupon} onClick={aplicarCupon}>
-                      {validandoCupon ? <Loader2 className="size-4 animate-spin" /> : "Aplicar"}
-                    </Button>
-                  </div>
+                  <>
+                    <div className="flex gap-2">
+                      <Input
+                        value={codigo}
+                        onChange={(e) => {
+                          setCodigo(e.target.value.toUpperCase().replace(/\s/g, ""));
+                          setErrorCupon(null);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            aplicarCupon();
+                          }
+                        }}
+                        placeholder="CÓDIGO"
+                        aria-label="Código de cupón"
+                        aria-invalid={errorCupon ? true : undefined}
+                        maxLength={40}
+                        className="font-mono uppercase"
+                      />
+                      <Button type="button" variant="outline" disabled={!codigo.trim() || validandoCupon} onClick={aplicarCupon}>
+                        {validandoCupon ? <Loader2 className="size-4 animate-spin" /> : "Aplicar"}
+                      </Button>
+                    </div>
+                    {errorCupon && (
+                      <p className="text-sm font-semibold text-destructive" role="alert">
+                        {errorCupon}
+                      </p>
+                    )}
+                  </>
                 )}
               </div>
             )}
           </div>
+
+          {descuentoManualMaximo > 0 && (
+            <div className="rounded-2xl border">
+              <button
+                type="button"
+                onClick={() => setConManual((v) => !v)}
+                aria-expanded={conManual}
+                className="flex w-full items-center gap-2 px-4 py-3 text-left font-semibold"
+              >
+                <Percent className="size-5 text-muted-foreground" />
+                Descuento manual{" "}
+                {manualActivo ? (
+                  <span className="cifras text-primary">−{formatoBs(resultado.descuentoManual)}</span>
+                ) : (
+                  <span className="font-normal text-muted-foreground">(hasta {descuentoManualMaximo.toLocaleString("es-BO")} %)</span>
+                )}
+                <ChevronDown className={cn("ml-auto size-4 transition-transform", conManual && "rotate-180")} />
+              </button>
+              {conManual && (
+                <div className="space-y-2 border-t p-4">
+                  <div className="flex items-center gap-2">
+                    <Input
+                      value={porcentajeManual}
+                      onChange={(e) => setPorcentajeManual(e.target.value.replace(/[^\d.,]/g, "").slice(0, 6))}
+                      inputMode="decimal"
+                      placeholder="0"
+                      aria-label="Porcentaje de descuento manual"
+                      aria-invalid={manualExcedido ? true : undefined}
+                      className="cifras w-24 text-lg font-bold"
+                    />
+                    <span className="font-bold">%</span>
+                    {manualActivo && <span className="cifras ml-auto text-sm font-semibold text-exito">−{formatoBs(resultado.descuentoManual)}</span>}
+                  </div>
+                  {manualExcedido && (
+                    <p className="text-sm font-semibold text-destructive" role="alert">
+                      El máximo permitido es {descuentoManualMaximo.toLocaleString("es-BO")} %
+                    </p>
+                  )}
+                  <Input
+                    value={motivoManual}
+                    onChange={(e) => setMotivoManual(e.target.value)}
+                    placeholder="Motivo del descuento (obligatorio)"
+                    aria-label="Motivo del descuento manual"
+                    aria-invalid={faltaMotivo ? true : undefined}
+                    maxLength={300}
+                  />
+                  <p className="text-xs text-muted-foreground">Se aplica sobre el total, después de los demás descuentos. Queda registrado con tu nombre y el motivo.</p>
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="rounded-2xl border">
             <button

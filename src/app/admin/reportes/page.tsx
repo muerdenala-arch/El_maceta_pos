@@ -11,13 +11,14 @@ import { aCentavos, deCentavos, restar } from "@/lib/dinero";
 import { formatoBs, hoyEnBolivia } from "@/lib/formato";
 import { aParametros, leerFiltros, textoRango } from "@/lib/reportes/filtros";
 import { opcionesFiltros } from "@/lib/reportes/opciones";
-import { listarVentas, resumenVentas, ventasPorCajero, ventasPorDia, ventasPorProducto } from "@/lib/reportes/ventas";
+import { ReporteDeDescuentos } from "@/components/reportes/descuentos";
+import { listarVentas, reporteDescuentos, resumenVentas, ventasPorCajero, ventasPorDia, ventasPorProducto } from "@/lib/reportes/ventas";
 import { obtenerSucursalVista } from "@/lib/sucursal-vista";
 
 export const metadata: Metadata = { title: "Reporte de ventas" };
 
 const POR_PAGINA = 50;
-const VISTAS = ["ventas", "productos", "dias", "cajeros"] as const;
+const VISTAS = ["ventas", "productos", "dias", "cajeros", "descuentos"] as const;
 type Vista = (typeof VISTAS)[number];
 
 /** Reporte de ventas (sección 4.2 del plan): filtros, totales, desgloses, comprobantes y exportación. */
@@ -40,6 +41,8 @@ export default async function PaginaReporteVentas(props: PageProps<"/admin/repor
         ? ventasPorDia(f).then((filas) => <TablaDias filas={filas} />)
         : vista === "cajeros"
           ? ventasPorCajero(f).then((filas) => <CajerosConBuscador filas={filas} />)
+          : vista === "descuentos"
+            ? reporteDescuentos(f).then((d) => <ReporteDeDescuentos r={d} />)
           : listarVentas(f, { limite: POR_PAGINA + 1, desplazamiento: (pagina - 1) * POR_PAGINA, busqueda }).then((filas) => (
               <div className="space-y-3">
                 <VentasConBuscador admin conFecha={f.desde !== f.hasta} ventaInicial={ventaInicial} ventas={filas.slice(0, POR_PAGINA)} />
@@ -127,6 +130,7 @@ export default async function PaginaReporteVentas(props: PageProps<"/admin/repor
           { valor: "productos", titulo: "Productos", href: pestana("productos") },
           { valor: "dias", titulo: "Por día", href: pestana("dias") },
           { valor: "cajeros", titulo: "Por cajero", href: pestana("cajeros") },
+          { valor: "descuentos", titulo: "Descuentos", href: pestana("descuentos") },
         ]}
       />
       {contenido}

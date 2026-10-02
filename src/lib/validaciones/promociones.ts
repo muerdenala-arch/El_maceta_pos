@@ -52,9 +52,53 @@ export const codigoCupon = z
   .toUpperCase()
   .regex(/^[A-Z0-9-]{3,40}$/, "De 3 a 40 letras, números o guiones, sin espacios");
 
-export const esquemaCupon = z.object({
-  promocionId: idPositivo,
-  codigo: codigoCupon,
-  usosMaximos: z.coerce.number().int().min(1, "Mínimo 1").max(1_000_000).nullable(),
-});
+const fechaOpcional = z
+  .string()
+  .trim()
+  .nullable()
+  .optional()
+  .transform((s) => (s ? s : null))
+  .refine((s) => s === null || fechaValida(s) !== null, "Fecha inválida");
+const ids = z.array(idPositivo).max(500).optional().default([]);
+
+export const esquemaCupon = z
+  .object({
+    codigo: codigoCupon,
+    descripcion: z.string().trim().max(160, "Máximo 160 caracteres").optional().default("").transform((s) => s || null),
+    tipo: z.enum(["porcentaje", "monto"]),
+    valor: z.string().trim().transform((s) => s.replace(",", ".")),
+    /** Vacío = sin mínimo. */
+    montoMinimo: z.string().trim().optional().default("").transform((s) => (s === "" ? "0" : s.replace(",", "."))),
+    fechaInicio: fechaOpcional,
+    fechaFin: fechaOpcional,
+    /** Vacío = sin límite. */
+    usosMaximos: z
+      .union([z.literal(""), z.null(), z.coerce.number({ message: "Número inválido" }).int("Debe ser un número entero").min(1, "Mínimo 1").max(1_000_000)])
+      .optional()
+      .transform((v) => (v === "" || v === null || v === undefined ? null : v)),
+    alcance: z.enum(["todo", "productos", "categorias"]),
+    productoIds: ids,
+    categoriaIds: ids,
+    /** Vacío = todas las sucursales. */
+    sucursalIds: ids,
+    acumulaPromociones: z.boolean(),
+    acumulaCombos: z.boolean(),
+    activo: z.boolean(),
+  })
+  .superRefine((d, ctx) => {
+    const error = (path: string, message: string) => ctx.addIssue({ code: "custom", path: [path], message });
+    if (d.tipo === "porcentaje") {
+      if (!/^\d{1,3}(\.\d{1,2})?$/.test(d.valor) || Number(d.valor) <= 0 || Number(d.valor) > 100) error("valor", "Entre 0,01 y 100 %");
+    } else if (!/^\d{1,7}(\.\d{1,2})?$/.test(d.valor) || Number(d.valor) <= 0) error("valor", "Monto inválido");
+    if (!/^\d{1,9}(\.\d{1,2})?$/.test(d.montoMinimo)) error("montoMinimo", "Monto inválido");
+    if (d.alcance === "productos" && d.productoIds.length === 0) error("productoIds", "Elige al menos un producto");
+    if (d.alcance === "categorias" && d.categoriaIds.length === 0) error("categoriaIds", "Elige al menos una categoría");
+    if (d.fechaInicio && d.fechaFin && d.fechaFin < d.fechaInicio) error("fechaFin", "Debe ser igual o posterior a la fecha de inicio");
+  })
+  .transform((d) => ({
+    ...d,
+    productoIds: d.alcance === "productos" ? [...new Set(d.productoIds)] : [],
+    categoriaIds: d.alcance === "categorias" ? [...new Set(d.categoriaIds)] : [],
+    sucursalIds: [...new Set(d.sucursalIds)],
+  }));
 export type DatosCupon = z.input<typeof esquemaCupon>;

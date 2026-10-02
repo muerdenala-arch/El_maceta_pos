@@ -9,6 +9,15 @@ export const CATEGORIAS_GASTO = ["Transporte", "Limpieza", "Alimentación", "Ser
 export const esquemaApertura = z.object({ montoInicial: monto("Monto inválido") });
 export type DatosApertura = z.input<typeof esquemaApertura>;
 
+export const esquemaDescuentoManual = z.object({
+  porcentaje: z
+    .string()
+    .trim()
+    .transform((s) => s.replace(",", "."))
+    .refine((s) => /^\d{1,3}(\.\d{1,2})?$/.test(s) && Number(s) > 0 && Number(s) <= 100, "Porcentaje inválido"),
+  motivo: textoRequerido(300, "Escribe el motivo del descuento").min(4, "Describe el motivo (mínimo 4 caracteres)"),
+});
+
 export const esquemaVenta = z
   .object({
     /** UUID generado en el dispositivo: si se reenvía (doble clic, reintento), no se duplica la venta. */
@@ -31,6 +40,8 @@ export const esquemaVenta = z
     clienteTelefono: textoOpcional(30).refine((t) => t === null || /^[\d\s+()-]{7,30}$/.test(t), "Teléfono inválido"),
     /** Código de cupón (opcional); se valida y consume en el servidor. */
     cuponCodigo: textoOpcional(40).transform((c) => c?.toUpperCase() ?? null),
+    /** Descuento manual del cajero: porcentaje sobre el total (hasta el máximo de Configuración) y motivo. */
+    descuentoManual: esquemaDescuentoManual.nullable().optional().default(null),
   })
   .refine((d) => d.lineas.length + d.combos.length > 0, { path: ["lineas"], message: "El carrito está vacío" })
   .refine((d) => d.metodoPago !== "efectivo" || d.montoRecibido !== null, {
@@ -83,6 +94,8 @@ export const esquemaVentaOffline = z
           descuento: monto(),
           promocionId: idPositivo.nullable(),
           fraccion: z.boolean().optional().default(false),
+          /** Parte de `descuento` que es descuento manual del cajero. */
+          descuentoManual: monto().optional().default("0"),
           /** Posición en `combos` del combo al que pertenece la línea (null = producto suelto). */
           combo: z.number().int().min(0).max(49).nullable().optional().default(null),
         }),
@@ -95,6 +108,7 @@ export const esquemaVentaOffline = z
       .max(50)
       .optional()
       .default([]),
+    descuentoManual: esquemaDescuentoManual.nullable().optional().default(null),
     metodoPago: z.enum(["efectivo", "qr"]),
     montoRecibido: monto().nullable(),
     clienteNombre: textoOpcional(120),

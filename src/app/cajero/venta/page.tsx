@@ -1,4 +1,7 @@
+import { eq } from "drizzle-orm";
 import type { Metadata } from "next";
+import { db } from "@/db";
+import { configuracion } from "@/db/schema";
 import { connection } from "next/server";
 import { requerirSesion } from "@/lib/auth/sesion";
 import { productosPos, qrsDeSucursal, requerirCajaAbierta } from "@/lib/caja/consultas";
@@ -15,12 +18,13 @@ export default async function PaginaVenta() {
   // Sin caja abierta no se vende: lleva a la apertura.
   const caja = await requerirCajaAbierta(sesion);
   await connection();
-  const [productos, qrs, promociones, base, combos] = await Promise.all([
+  const [productos, qrs, promociones, base, combos, [conf]] = await Promise.all([
     productosPos(caja.sucursalId),
     qrsDeSucursal(caja.sucursalId),
     promocionesAutomaticas(caja.sucursalId),
     baseComprobante(caja.sucursalId),
     combosPos(hoyEnBolivia()),
+    db.select({ maximo: configuracion.descuentoManualMaximo }).from(configuracion).where(eq(configuracion.id, 1)),
   ]);
 
   return (
@@ -31,6 +35,7 @@ export default async function PaginaVenta() {
         cajaId: caja.id,
         sucursalId: caja.sucursalId,
         baseComprobante: base,
+        descuentoManualMaximo: conf?.maximo ?? "0",
         // Momento de estos datos: la copia local más nueva (p. ej. con ventas sin conexión) gana.
         generadoEn: instanteActual(),
       }}

@@ -14,8 +14,8 @@ import { obtenerComprobante, puedeVerVenta } from "@/lib/comprobante/consulta";
 import type { DatosComprobante } from "@/lib/comprobante/datos";
 import { aCentavos } from "@/lib/dinero";
 import { formatoBs } from "@/lib/formato";
-import { validarCuponEn } from "@/lib/promociones/consultas";
-import type { Promocion } from "@/lib/promociones/motor";
+import { buscarCupon } from "@/lib/promociones/consultas";
+import type { CuponVenta } from "@/lib/promociones/venta";
 import {
   esquemaApertura,
   esquemaCierre,
@@ -80,15 +80,18 @@ export async function verComprobante(ventaId: number): Promise<Resultado<DatosCo
   });
 }
 
-/** Valida un cupón para mostrar el descuento antes de cobrar (no lo consume: eso ocurre al registrar la venta). */
-export async function consultarCupon(codigo: string): Promise<Resultado<Promocion>> {
+/**
+ * Busca un cupón para mostrar su descuento antes de cobrar (no lo gasta: eso ocurre al registrar la venta).
+ * Si no se puede usar, dice por qué: no existe, vencido, agotado, desactivado, de otra sucursal…
+ */
+export async function consultarCupon(codigo: string): Promise<Resultado<CuponVenta>> {
   return conPermiso(async () => {
     const sesion = await autorizar("cajero");
     if (!sesion.sucursalId) return fallo("No tienes una sucursal asignada");
     const limpio = String(codigo ?? "").trim().toUpperCase();
     if (!/^[A-Z0-9-]{3,40}$/.test(limpio)) return fallo("Código inválido");
-    const r = await validarCuponEn(limpio, sesion.sucursalId);
-    return r.ok ? exito(r.promocion) : fallo(r.error);
+    const r = await buscarCupon(limpio, sesion.sucursalId);
+    return r.ok ? exito(r.cupon) : fallo(r.error);
   });
 }
 

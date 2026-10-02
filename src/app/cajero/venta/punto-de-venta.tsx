@@ -519,6 +519,8 @@ export function PuntoDeVenta({
           lineas={lineasCarrito}
           combos={cotizacion}
           promociones={promociones}
+          categoriaDe={(id) => porId.get(id)?.categoriaId ?? null}
+          descuentoManualMaximo={Number(instantanea?.descuentoManualMaximo ?? contexto.descuentoManualMaximo ?? 0)}
           instantanea={instantanea}
           qrs={qrs}
           onCerrar={() => setCobrando(false)}

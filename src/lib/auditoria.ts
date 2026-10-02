@@ -40,6 +40,8 @@ export type AccionAuditoria =
   | "promocion_creada"
   | "promocion_editada"
   | "cupon_creado"
+  | "cupon_editado"
+  | "descuento_manual"
   | "cupon_eliminado"
   // Fase 7
   | "alerta_revisada"

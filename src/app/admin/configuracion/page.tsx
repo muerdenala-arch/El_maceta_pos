@@ -19,6 +19,7 @@ export default async function PaginaConfiguracion() {
         mensajeAgradecimiento: c?.mensajeAgradecimiento ?? "¡Gracias por tu compra!",
         plantillaWhatsapp: c?.plantillaWhatsapp ?? "Hola {cliente}, aquí está tu comprobante de {negocio}: {enlace}",
         codigoPais: c?.codigoPais ?? "591",
+        descuentoManualMaximo: String(Number(c?.descuentoManualMaximo ?? 0)),
         logoUrl: c?.logoUrl ?? null,
       }}
     />

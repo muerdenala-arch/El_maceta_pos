@@ -101,5 +101,13 @@ export const esquemaConfiguracion = z.object({
   ),
   codigoPais: z.string().trim().regex(/^\d{1,4}$/, "Solo números, ej. 591"),
   logoUrl: urlImagen,
+  /** Máximo descuento manual del cajero, en % (0 = no puede dar descuentos manuales). */
+  descuentoManualMaximo: z
+    .string()
+    .trim()
+    .optional()
+    .default("0")
+    .transform((s) => (s === "" ? "0" : s.replace(",", ".")))
+    .refine((s) => /^\d{1,3}(\.\d{1,2})?$/.test(s) && Number(s) <= 100, "Entre 0 y 100 %"),
 });
 export type DatosConfiguracion = z.input<typeof esquemaConfiguracion>;

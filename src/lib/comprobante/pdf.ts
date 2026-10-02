@@ -6,7 +6,7 @@
  */
 import { jsPDF, type jsPDF as JsPdf } from "jspdf";
 import { formatoBs } from "@/lib/formato";
-import { fechaHoraComprobante, numeroComprobante, type DatosComprobante, type TamanoImpresion, cantidadLinea, lineasImprimibles } from "./datos";
+import { fechaHoraComprobante, numeroComprobante, type DatosComprobante, type TamanoImpresion, cantidadLinea, filasDescuento, lineasImprimibles } from "./datos";
 
 type Imagen = { dataUrl: string; ancho: number; alto: number };
 
@@ -111,8 +111,7 @@ function dibujarTermica(doc: JsPdf, d: DatosComprobante, ancho: number, logo: Im
 
   if (Number(d.venta.descuento) > 0) {
     fila("Subtotal", bs(d.venta.subtotal));
-    fila("Descuentos", menos(d.venta.descuento));
-    if (d.venta.cupon) fila("Cupón", d.venta.cupon);
+    for (const [etiqueta, monto] of filasDescuento(d.venta)) fila(recortar(etiqueta, ancho === 58 ? 20 : 28), menos(monto));
   }
   y += 1.5; // aire antes del total, que va en letra más grande
   fila("TOTAL", bs(d.venta.total), base + 3, true);
@@ -203,8 +202,9 @@ function dibujarCarta(doc: JsPdf, d: DatosComprobante, logo: Imagen | null) {
 
   y += 3;
   const totales: [string, string, boolean?][] = [];
-  if (Number(d.venta.descuento) > 0) totales.push(["Subtotal", bs(d.venta.subtotal)], ["Descuentos", menos(d.venta.descuento)]);
-  if (d.venta.cupon) totales.push(["Cupón", d.venta.cupon]);
+  if (Number(d.venta.descuento) > 0) {
+    totales.push(["Subtotal", bs(d.venta.subtotal)], ...filasDescuento(d.venta).map(([etiqueta, monto]): [string, string] => [etiqueta, menos(monto)]));
+  }
   totales.push(["TOTAL", bs(d.venta.total), true], ["Pago", pago(d)]);
   if (d.venta.metodoPago === "efectivo" && d.venta.montoRecibido) totales.push(["Recibido", bs(d.venta.montoRecibido)], ["Cambio", bs(d.venta.cambio ?? "0")]);
   for (const [a, b, fuerte] of totales) {

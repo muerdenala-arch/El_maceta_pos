@@ -3,7 +3,10 @@ import { and, eq, gt, isNull, lte, or, sql } from "drizzle-orm";
 import { db, type Db } from "@/db";
 import { cupones, promociones } from "@/db/schema";
 import type { Tx } from "@/lib/inventario/stock";
+import { hoyEnBolivia } from "@/lib/formato";
+import { motivoNoUsable } from "./cupones";
 import type { Promocion } from "./motor";
+import type { CuponVenta } from "./venta";
 
 const columnas = {
   id: promociones.id,
@@ -34,50 +37,42 @@ export async function promocionesAutomaticas(sucursalId: number, ejecutor: Db | 
     .where(and(vigenteEn(sucursalId, ahora), eq(promociones.requiereCupon, false)));
 }
 
-export type ResultadoCupon = { ok: true; promocion: Promocion } | { ok: false; error: string };
+export type ResultadoCupon = { ok: true; cupon: CuponVenta } | { ok: false; error: string };
 
 /**
- * Valida un cupón para la sucursal: existe, su promoción está vigente y le quedan usos.
- * Con `consumir` (dentro de la transacción de la venta) descuenta un uso de forma atómica.
+ * Busca un cupón por su código y comprueba lo que no depende del carrito: que exista, esté activo, dentro de sus
+ * fechas, con usos disponibles y que valga en la sucursal. Lo que depende del carrito (a qué aplica, monto mínimo,
+ * acumulación) lo resuelve `calcularVenta`.
  */
-export async function validarCuponEn(
-  codigo: string,
-  sucursalId: number,
-  ejecutor: Db | Tx = db,
-  opciones: { consumir?: boolean; ahora?: Date } = {},
-): Promise<ResultadoCupon> {
-  const ahora = opciones.ahora ?? new Date();
-  const [c] = await ejecutor
-    .select({ cuponId: cupones.id, usosMaximos: cupones.usosMaximos, usosActuales: cupones.usosActuales, ...columnas })
-    .from(cupones)
-    .innerJoin(promociones, eq(promociones.id, cupones.promocionId))
-    .where(and(eq(cupones.codigo, codigo), vigenteEn(sucursalId, ahora)));
-  if (!c) return { ok: false, error: "Cupón inválido o vencido" };
-  if (c.usosMaximos !== null && c.usosActuales >= c.usosMaximos) return { ok: false, error: "Este cupón ya alcanzó su límite de usos" };
-
-  if (opciones.consumir) {
-    // Suma condicionada: dos ventas simultáneas no pueden pasar el límite.
-    const [usado] = await ejecutor
-      .update(cupones)
-      .set({ usosActuales: sql`${cupones.usosActuales} + 1` })
-      .where(and(eq(cupones.id, c.cuponId), or(isNull(cupones.usosMaximos), sql`${cupones.usosActuales} < ${cupones.usosMaximos}`)))
-      .returning({ id: cupones.id });
-    if (!usado) return { ok: false, error: "Este cupón ya alcanzó su límite de usos" };
-  }
-
+export async function buscarCupon(codigo: string, sucursalId: number, ejecutor: Db | Tx = db, hoy = hoyEnBolivia()): Promise<ResultadoCupon> {
+  const [c] = await ejecutor.select().from(cupones).where(eq(cupones.codigo, codigo));
+  if (!c) return { ok: false, error: "Ese cupón no existe" };
+  const motivo = motivoNoUsable(c, hoy);
+  if (motivo) return { ok: false, error: motivo };
+  if (c.sucursalIds.length > 0 && !c.sucursalIds.includes(sucursalId)) return { ok: false, error: "Este cupón no vale en esta sucursal" };
   return {
     ok: true,
-    promocion: {
+    cupon: {
       id: c.id,
-      nombre: c.nombre,
-      tipo: c.tipo,
+      codigo: c.codigo,
+      tipo: c.tipo === "monto" ? "monto" : "porcentaje",
       valor: c.valor,
-      comboLleva: c.comboLleva,
-      comboPaga: c.comboPaga,
-      alcance: c.alcance,
-      productoId: c.productoId,
-      categoriaId: c.categoriaId,
-      cuponId: c.cuponId,
+      montoMinimo: c.montoMinimo,
+      alcance: c.alcance === "productos" || c.alcance === "categorias" ? c.alcance : "todo",
+      productoIds: c.productoIds,
+      categoriaIds: c.categoriaIds,
+      acumulaPromociones: c.acumulaPromociones,
+      acumulaCombos: c.acumulaCombos,
     },
   };
+}
+
+/** Gasta un uso del cupón dentro de la transacción de la venta. Suma condicionada: dos ventas simultáneas no pasan el límite. */
+export async function consumirCupon(tx: Tx, id: number) {
+  const [usado] = await tx
+    .update(cupones)
+    .set({ usosActuales: sql`${cupones.usosActuales} + 1` })
+    .where(and(eq(cupones.id, id), or(isNull(cupones.usosMaximos), sql`${cupones.usosActuales} < ${cupones.usosMaximos}`)))
+    .returning({ id: cupones.id });
+  return !!usado;
 }

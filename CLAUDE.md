@@ -118,6 +118,7 @@ Credenciales de prueba locales: en `.env.local` (`SEED_*`), nunca en el código 
 
 - Motor puro y probado: `lib/promociones/motor.ts` (`aplicarPromociones`). Lo usan el POS (vista previa) y
   `registrarVenta` (cobro real, con las promociones vigentes de la BD).
+- (Cupones: ver "Cupones y descuentos" más abajo; lo que sigue vale para los descuentos automáticos.)
 - Reglas (decididas con el dueño en mente; confirmar si cambian): **no se acumulan** (cada línea recibe la mejor
   promoción, asignación codiciosa por descuento total); **monto fijo = Bs por unidad**; **combo N×M** regala las
   unidades más baratas; el **cupón compite** con las automáticas y solo se consume si realmente gana.
@@ -303,6 +304,34 @@ Credenciales de prueba locales: en `.env.local` (`SEED_*`), nunca en el código 
 - Pruebas: `combos/calculo.test.ts`, `comprobante/combos.test.ts`, `test/combos.integracion.test.ts`, `e2e/revision-combos.spec.ts`.
 - **Ojo al parchear con scripts**: un `` dentro de una cadena normal de Python es un carácter de retroceso invisible (pasó en una
   expresión regular); usar cadenas crudas o revisar caracteres de control.
+
+## Cupones y descuentos (reemplaza las reglas de cupones de la Fase 5)
+
+- **Promociones = descuentos automáticos** (sin código; entre sí no se acumulan, como antes). **Cupones = entidad propia**
+  (`cupones`, migración 0011): código (escrito o generado), `tipo` porcentaje | monto, `monto_minimo`, vigencia opcional
+  (fechas inclusivas en días de Bolivia), `usos_maximos`, `alcance` todo | productos | categorias (`producto_ids`/`categoria_ids`),
+  `sucursal_ids` (vacío = todas), `acumula_promociones`, `acumula_combos`, `activo`. Ya no cuelgan de una promoción
+  (`promocion_id` solo en los antiguos; `promociones.requiere_cupon` quedó sin uso en la interfaz).
+- Decisiones del dueño: **monto fijo = Bs una sola vez** repartidos entre lo que cubre; **no acumulable = en cada producto queda
+  el mayor** (cupón o automático), nunca los dos, y si no mejora nada no se gasta; **descuento manual = % sobre el total que
+  queda**, sumado a lo demás; **sin límite por cliente**.
+- Cálculo único, puro y probado: `calcularVenta` (`lib/promociones/venta.ts`) = promociones (motor.ts) + combos + cupón +
+  descuento manual. Lo usan el diálogo de cobro (vista previa) y el servidor (cobro real). El mínimo de compra se mide sobre
+  el total antes del cupón. Estados del cupón en el carrito: `aplicado`, `sin_efecto`, `no_aplica`, `minimo`.
+- Lo que no depende del carrito (existe, activo, vigente, usos, sucursal) lo valida `buscarCupon` (`lib/promociones/consultas.ts`)
+  con el motivo exacto (`motivoNoUsable` en `lib/promociones/cupones.ts`); `consumirCupon` gasta el uso de forma atómica.
+  `consultarCupon` (cajero) no gasta. El servidor rechaza la venta si el cupón queda en `minimo` / `no_aplica`.
+- Descuento manual del cajero: máximo en `configuracion.descuento_manual_maximo` (% ; 0 = apagado, valor por defecto), motivo
+  obligatorio, auditoría `descuento_manual` (acción sensible). Viaja también en la venta sin conexión (la copia local trae el
+  máximo); si al sincronizar supera el máximo → alerta `revision_offline`. Los cupones siguen necesitando conexión.
+- Dónde queda guardado: `ventas.descuento_promociones | _combos | _cupon | _manual` (suman `descuento`) +
+  `porcentaje_descuento_manual` + `motivo_descuento_manual`; `detalle_venta.descuento` = todo lo descontado en la línea, con
+  `descuento_cupon` y `descuento_manual` aparte (**el neto de las líneas siempre suma el total de la venta**).
+- Comprobante: en cada línea solo su promoción; en el pie `filasDescuento()` (Promociones, Combos, Cupón CÓDIGO, Descuento (5 %)).
+- Pantallas: Promociones con pestañas "Descuentos automáticos" / "Cupones" (`lista-cupones.tsx`: buscador, estado
+  activo/vencido/agotado/programado/inactivo, usos); Configuración → máximo del cajero; Reportes → pestaña "Descuentos"
+  (`reporteDescuentos`: por tipo, por cupón, por promoción y lista de descuentos manuales).
+- Pruebas: `promociones/venta.test.ts`, `promociones/cupones.test.ts`, `test/cupones.integracion.test.ts`, `e2e/revision-cupones.spec.ts`.
 
 ## Buscador único
 

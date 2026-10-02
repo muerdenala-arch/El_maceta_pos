@@ -333,6 +333,14 @@ export const ventas = pgTable(
     clienteId: integer("cliente_id").references(() => clientes.id),
     subtotal: dinero("subtotal").notNull(),
     descuento: dinero("descuento").notNull().default("0"),
+    /** Desglose de `descuento` (suman lo mismo): promociones automáticas, combos, cupón y descuento manual del cajero. */
+    descuentoPromociones: dinero("descuento_promociones").notNull().default("0"),
+    descuentoCombos: dinero("descuento_combos").notNull().default("0"),
+    descuentoCupon: dinero("descuento_cupon").notNull().default("0"),
+    descuentoManual: dinero("descuento_manual").notNull().default("0"),
+    /** Descuento manual del cajero: porcentaje aplicado y motivo (obligatorio). */
+    porcentajeDescuentoManual: numeric("porcentaje_descuento_manual", { precision: 5, scale: 2 }),
+    motivoDescuentoManual: text("motivo_descuento_manual"),
     total: dinero("total").notNull(),
     metodoPago: metodoPagoEnum("metodo_pago").notNull(),
     montoRecibido: dinero("monto_recibido"),
@@ -370,7 +378,11 @@ export const detalleVenta = pgTable(
       .references(() => productos.id),
     cantidad: integer("cantidad").notNull(),
     precioUnitario: dinero("precio_unitario").notNull(),
+    /** Todo lo descontado en la línea: promoción (o combo) + cupón + descuento manual. */
     descuento: dinero("descuento").notNull().default("0"),
+    /** Parte de `descuento` que viene del cupón y del descuento manual del cajero. */
+    descuentoCupon: dinero("descuento_cupon").notNull().default("0"),
+    descuentoManual: dinero("descuento_manual").notNull().default("0"),
     /** Promoción que generó el descuento de esta línea (para reportes). */
     promocionId: integer("promocion_id").references(() => promociones.id),
     /** Precio de costo del producto al momento de la venta (ganancia en reportes aunque el costo cambie). */
@@ -443,15 +455,46 @@ export const promociones = pgTable("promociones", {
   activo: boolean("activo").notNull().default(true),
 });
 
-export const cupones = pgTable("cupones", {
-  id: serial("id").primaryKey(),
-  codigo: varchar("codigo", { length: 40 }).notNull().unique(),
-  promocionId: integer("promocion_id")
-    .notNull()
-    .references(() => promociones.id),
-  usosMaximos: integer("usos_maximos"),
-  usosActuales: integer("usos_actuales").notNull().default(0),
-});
+/**
+ * Cupón: código que el cajero ingresa al cobrar. Lleva su propio descuento y reglas (ver lib/promociones/venta.ts).
+ * Los descuentos que se aplican solos, sin código, son las `promociones`.
+ */
+export const cupones = pgTable(
+  "cupones",
+  {
+    id: serial("id").primaryKey(),
+    codigo: varchar("codigo", { length: 40 }).notNull().unique(),
+    /** Solo en cupones antiguos (antes eran un código de una promoción). */
+    promocionId: integer("promocion_id").references(() => promociones.id),
+    descripcion: varchar("descripcion", { length: 160 }),
+    /** porcentaje | monto (Bs una sola vez sobre lo que cubre). */
+    tipo: varchar("tipo", { length: 12 }).notNull().default("porcentaje"),
+    valor: dinero("valor").notNull().default("0"),
+    /** Total mínimo de la compra (antes del cupón) para poder usarlo. */
+    montoMinimo: dinero("monto_minimo").notNull().default("0"),
+    /** Vigencia opcional, en días de Bolivia; ambas fechas inclusivas. */
+    fechaInicio: date("fecha_inicio"),
+    fechaFin: date("fecha_fin"),
+    usosMaximos: integer("usos_maximos"),
+    usosActuales: integer("usos_actuales").notNull().default(0),
+    activo: boolean("activo").notNull().default(true),
+    /** A qué aplica: todo | productos | categorias (según `producto_ids` / `categoria_ids`). */
+    alcance: varchar("alcance", { length: 12 }).notNull().default("todo"),
+    productoIds: integer("producto_ids").array().notNull().default(sql`'{}'::integer[]`),
+    categoriaIds: integer("categoria_ids").array().notNull().default(sql`'{}'::integer[]`),
+    /** Sucursales donde vale; vacío = todas. */
+    sucursalIds: integer("sucursal_ids").array().notNull().default(sql`'{}'::integer[]`),
+    /** Si se suma a los descuentos automáticos (si no, en cada producto queda el mayor de los dos). */
+    acumulaPromociones: boolean("acumula_promociones").notNull().default(false),
+    /** Si también descuenta sobre los productos que van dentro de un combo. */
+    acumulaCombos: boolean("acumula_combos").notNull().default(false),
+    creadoEn: creadoEn(),
+  },
+  (t) => [
+    check("cupones_tipo_ck", sql`${t.tipo} in ('porcentaje', 'monto') and ${t.valor} >= 0 and ${t.montoMinimo} >= 0`),
+    check("cupones_alcance_ck", sql`${t.alcance} in ('todo', 'productos', 'categorias')`),
+  ],
+);
 
 // ---------- Configuración ----------
 
@@ -476,6 +519,8 @@ export const configuracion = pgTable("configuracion", {
     .notNull()
     .default("Hola {cliente}, aquí está tu comprobante de {negocio}: {enlace}"),
   codigoPais: varchar("codigo_pais", { length: 4 }).notNull().default("591"),
+  /** Máximo descuento manual que puede dar el cajero, en % sobre el total (0 = no puede). */
+  descuentoManualMaximo: numeric("descuento_manual_maximo", { precision: 5, scale: 2 }).notNull().default("0"),
 });
 
 // ---------- Alertas y auditoría ----------

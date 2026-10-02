@@ -6,12 +6,15 @@ import { requerirSesion } from "@/lib/auth/sesion";
 import { diaBolivia, hoyEnBolivia } from "@/lib/formato";
 import { listarProductosInventario } from "@/lib/inventario/consultas";
 import { listarSucursalesActivas } from "@/lib/sucursal-vista";
+import { Pestanas } from "@/components/inventario/pestanas";
+import { ListaCupones } from "./lista-cupones";
 import { ListaPromociones } from "./lista-promociones";
 
 export const metadata: Metadata = { title: "Promociones y cupones" };
 
-export default async function PaginaPromociones() {
+export default async function PaginaPromociones(props: PageProps<"/admin/promociones">) {
   await requerirSesion("admin");
+  const vista = (await props.searchParams).vista === "cupones" ? "cupones" : "automaticos";
 
   const [filas, listaCupones, listaProductos, listaCategorias, listaSucursales] = await Promise.all([
     db
@@ -39,28 +42,71 @@ export default async function PaginaPromociones() {
       .leftJoin(categorias, eq(categorias.id, promociones.categoriaId))
       .leftJoin(sucursales, eq(sucursales.id, promociones.sucursalId))
       .orderBy(desc(promociones.activo), desc(promociones.fechaFin)),
-    db.select().from(cupones).orderBy(asc(cupones.codigo)),
+    db.select().from(cupones).orderBy(desc(cupones.activo), asc(cupones.codigo)),
     listarProductosInventario(),
     db.select({ id: categorias.id, nombre: categorias.nombre }).from(categorias).orderBy(asc(categorias.nombre)),
     listarSucursalesActivas(),
   ]);
+  const hoy = hoyEnBolivia();
+  const activos = listaProductos.filter((p) => p.activo);
+
+  const pestanas = (
+    <Pestanas
+      actual={vista}
+      opciones={[
+        { valor: "automaticos", titulo: "Descuentos automáticos", href: "/admin/promociones", contador: filas.length },
+        { valor: "cupones", titulo: "Cupones", href: "/admin/promociones?vista=cupones", contador: listaCupones.length },
+      ]}
+    />
+  );
+
+  if (vista === "cupones") {
+    return (
+      <ListaCupones
+        hoy={hoy}
+        cupones={listaCupones.map((c) => ({
+          id: c.id,
+          codigo: c.codigo,
+          descripcion: c.descripcion,
+          tipo: c.tipo === "monto" ? ("monto" as const) : ("porcentaje" as const),
+          valor: c.valor,
+          montoMinimo: c.montoMinimo,
+          fechaInicio: c.fechaInicio,
+          fechaFin: c.fechaFin,
+          usosMaximos: c.usosMaximos,
+          usosActuales: c.usosActuales,
+          activo: c.activo,
+          alcance: c.alcance === "productos" || c.alcance === "categorias" ? c.alcance : ("todo" as const),
+          productoIds: c.productoIds,
+          categoriaIds: c.categoriaIds,
+          sucursalIds: c.sucursalIds,
+          acumulaPromociones: c.acumulaPromociones,
+          acumulaCombos: c.acumulaCombos,
+        }))}
+        productos={activos}
+        categorias={listaCategorias}
+        sucursales={listaSucursales}
+      >
+        {pestanas}
+      </ListaCupones>
+    );
+  }
 
   return (
     <ListaPromociones
-      hoy={hoyEnBolivia()}
+      hoy={hoy}
       promociones={filas.map(({ fechaInicio, fechaFin, ...p }) => ({
         ...p,
         // "sucursal" se edita como "todo" + sucursal elegida.
         alcance: p.alcance === "sucursal" ? ("todo" as const) : p.alcance,
         desde: diaBolivia(fechaInicio),
         hasta: diaBolivia(fechaFin, true),
-        cupones: listaCupones
-          .filter((c) => c.promocionId === p.id)
-          .map((c) => ({ id: c.id, codigo: c.codigo, usosMaximos: c.usosMaximos, usosActuales: c.usosActuales })),
       }))}
-      productos={listaProductos.filter((p) => p.activo)}
+      productos={activos}
       categorias={listaCategorias}
       sucursales={listaSucursales}
-    />
+    >
+      {pestanas}
+    </ListaPromociones>
   );
 }

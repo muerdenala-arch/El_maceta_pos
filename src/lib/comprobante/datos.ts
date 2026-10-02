@@ -56,6 +56,8 @@ export type DatosComprobante = {
     }[];
     subtotal: string;
     descuento: string;
+    /** Desglose de `descuento` (las ventas guardadas antes de que existiera no lo traen). */
+    descuentos?: { promociones: string; combos: string; cupon: string; manual: string; porcentajeManual: string | null };
     total: string;
     metodoPago: "efectivo" | "qr";
     estadoPago: "pagado" | "qr_por_confirmar";
@@ -71,6 +73,20 @@ export type DatosComprobante = {
     codigoLocal?: string;
   };
 };
+
+/** Filas de descuento del pie del comprobante: ["Promociones", "59.00"], ["Cupón DIEZ", "24.00"], ["Descuento (5 %)", "12.00"]. */
+export function filasDescuento(venta: Pick<DatosComprobante["venta"], "descuento" | "descuentos" | "cupon">): [string, string][] {
+  const d = venta.descuentos;
+  if (!d) return Number(venta.descuento) > 0 ? [["Descuentos", venta.descuento]] : [];
+  const porcentaje = d.porcentajeManual ? ` (${Number(d.porcentajeManual).toLocaleString("es-BO")} %)` : "";
+  const filas: [string, string][] = [
+    ["Promociones", d.promociones],
+    ["Combos", d.combos],
+    [venta.cupon ? `Cupón ${venta.cupon}` : "Cupón", d.cupon],
+    [`Descuento${porcentaje}`, d.manual],
+  ];
+  return filas.filter(([, monto]) => Number(monto) > 0);
+}
 
 /** Cantidad de una línea como se imprime: "2" (envases) o "30 cápsulas" (unidades sueltas). */
 export const cantidadLinea = (l: { cantidad: number; unidad?: string | null }) => textoCantidadVendida(l.cantidad, l.unidad ?? null);

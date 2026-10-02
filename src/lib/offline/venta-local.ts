@@ -6,8 +6,8 @@
 
 import type { CotizacionCombos } from "@/lib/combos/calculo";
 import type { DatosComprobante } from "@/lib/comprobante/datos";
-import { aCentavos, deCentavos, sumar } from "@/lib/dinero";
-import type { ResultadoPromociones } from "@/lib/promociones/motor";
+import { aCentavos, deCentavos } from "@/lib/dinero";
+import type { CalculoVenta } from "@/lib/promociones/venta";
 import { unidadesPedidas } from "@/lib/inventario/fraccion";
 import { baseLocal, type Instantanea } from "./base";
 
@@ -26,9 +26,12 @@ export type VentaLocalRealizada = {
 export async function registrarVentaLocal(p: {
   uuid: string;
   instantanea: Instantanea;
-  promo: ResultadoPromociones;
-  /** Combos del carrito ya cotizados con los precios de la copia local. */
+  /** Cálculo completo de la venta (promociones, combos y descuento manual) con los datos de la copia local. */
+  calculo: CalculoVenta;
+  /** Combos del carrito ya cotizados (nombres y precios para el comprobante). */
   combos: CotizacionCombos;
+  /** Descuento manual del cajero, si lo hay. */
+  descuentoManual: { porcentaje: string; motivo: string } | null;
   metodoPago: "efectivo" | "qr";
   montoRecibido: string | null;
   cambio: string | null;
@@ -38,9 +41,8 @@ export async function registrarVentaLocal(p: {
   const base = baseLocal();
   const ahora = Date.now();
   const nombres = new Map(p.instantanea.productos.map((x) => [x.id, x]));
-  const subtotal = sumar(p.promo.subtotal, p.combos.subtotal);
-  const descuento = sumar(p.promo.descuento, p.combos.descuento);
-  const total = sumar(p.promo.total, p.combos.total);
+  const { subtotal, descuento, total } = p.calculo;
+  const sueltas = p.calculo.lineas.filter((l) => l.combo === null);
 
   const comprobante: DatosComprobante = {
     ...p.instantanea.baseComprobante,
@@ -50,7 +52,7 @@ export async function registrarVentaLocal(p: {
       fecha: new Date(ahora).toISOString(),
       cajero: p.instantanea.cajero,
       cliente: p.clienteNombre || p.clienteTelefono ? { nombre: p.clienteNombre || null, telefono: p.clienteTelefono || null } : null,
-      lineas: p.promo.lineas.map((l) => {
+      lineas: sueltas.map((l) => {
         const prod = nombres.get(l.productoId);
         return {
           nombre: prod?.nombre ?? "Producto",
@@ -58,7 +60,8 @@ export async function registrarVentaLocal(p: {
           cantidad: l.cantidad,
           unidad: l.fraccion ? (prod?.unidadFraccion ?? "capsula") : null,
           precioUnitario: l.precioUnitario,
-          descuento: l.descuento,
+          // En la línea solo su promoción; el descuento manual va en el pie.
+          descuento: l.descuentoPromocion,
           subtotal: l.subtotal,
           promocion: l.promocion,
         };
@@ -78,6 +81,13 @@ export async function registrarVentaLocal(p: {
       }),
       subtotal,
       descuento,
+      descuentos: {
+        promociones: p.calculo.descuentoPromociones,
+        combos: p.calculo.descuentoCombos,
+        cupon: "0.00",
+        manual: p.calculo.descuentoManual,
+        porcentajeManual: p.descuentoManual?.porcentaje ?? null,
+      },
       total,
       metodoPago: p.metodoPago,
       estadoPago: p.metodoPago === "qr" ? "qr_por_confirmar" : "pagado",
@@ -103,19 +113,18 @@ export async function registrarVentaLocal(p: {
         uuid: p.uuid,
         cajaId: p.instantanea.cajaId,
         fecha: ahora,
-        lineas: [
-          ...p.promo.lineas.map((l) => ({
-            productoId: l.productoId,
-            cantidad: l.cantidad,
-            precioUnitario: l.precioUnitario,
-            descuento: l.descuento,
-            promocionId: l.promocionId,
-            fraccion: !!l.fraccion,
-            combo: null,
-          })),
-          // Los productos de cada combo, con su parte del descuento.
-          ...p.combos.lineas,
-        ],
+        // Todas las líneas (productos sueltos y los de cada combo) con lo que se descontó en cada una.
+        lineas: p.calculo.lineas.map((l) => ({
+          productoId: l.productoId,
+          cantidad: l.cantidad,
+          precioUnitario: l.precioUnitario,
+          descuento: l.descuento,
+          descuentoManual: l.descuentoManual,
+          promocionId: l.promocionId,
+          fraccion: l.fraccion,
+          combo: l.combo,
+        })),
+        descuentoManual: p.descuentoManual,
         combos: p.combos.combos,
         metodoPago: p.metodoPago,
         montoRecibido: p.montoRecibido,
@@ -124,7 +133,7 @@ export async function registrarVentaLocal(p: {
       },
     });
     await base.ventasLocales.put({ uuid: p.uuid, usuarioId: p.instantanea.usuarioId, creado: ahora, comprobante, sincronizada: false });
-    await descontarStockLocal(p.instantanea.clave, [...p.promo.lineas, ...p.combos.lineas]);
+    await descontarStockLocal(p.instantanea.clave, p.calculo.lineas);
   });
 
   return {

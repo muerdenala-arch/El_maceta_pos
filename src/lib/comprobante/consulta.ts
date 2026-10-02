@@ -19,6 +19,11 @@ export async function obtenerComprobante(filtro: { ventaId: number } | { token: 
       clienteTelefono: clientes.telefono,
       subtotal: ventas.subtotal,
       descuento: ventas.descuento,
+      descuentoPromociones: ventas.descuentoPromociones,
+      descuentoCombos: ventas.descuentoCombos,
+      descuentoCupon: ventas.descuentoCupon,
+      descuentoManual: ventas.descuentoManual,
+      porcentajeManual: ventas.porcentajeDescuentoManual,
       total: ventas.total,
       metodoPago: ventas.metodoPago,
       estadoPago: ventas.estadoPago,
@@ -51,7 +56,8 @@ export async function obtenerComprobante(filtro: { ventaId: number } | { token: 
         unidad: detalleVenta.unidadFraccion,
         ventaComboId: detalleVenta.ventaComboId,
         precioUnitario: detalleVenta.precioUnitario,
-        descuento: detalleVenta.descuento,
+        // En cada línea se muestra solo su promoción (o combo); el cupón y el descuento manual van en el pie.
+        descuento: sql<string>`(${detalleVenta.descuento} - ${detalleVenta.descuentoCupon} - ${detalleVenta.descuentoManual})::text`,
         promocion: promociones.nombre,
       })
       .from(detalleVenta)
@@ -108,6 +114,7 @@ export async function obtenerComprobante(filtro: { ventaId: number } | { token: 
       })),
       subtotal: v.subtotal,
       descuento: v.descuento,
+      descuentos: { promociones: v.descuentoPromociones, combos: v.descuentoCombos, cupon: v.descuentoCupon, manual: v.descuentoManual, porcentajeManual: v.porcentajeManual },
       total: v.total,
       metodoPago: v.metodoPago,
       estadoPago: v.estadoPago,
