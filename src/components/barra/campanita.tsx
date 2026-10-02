@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState, useTransition } from "react";
 import { ESTILO_ALERTA } from "@/components/alertas/estilo";
+import { EVENTO_RESALTAR } from "@/components/alertas/use-resaltado";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { marcarAlertaLeida, marcarAlertaRevisada, marcarTodasLeidas, obtenerAlertas } from "@/lib/alertas/acciones";
@@ -61,6 +62,7 @@ export function Campanita({ noLeidas: inicial = 0 }: { noLeidas?: number }) {
       setAbierta(false);
       if (!a.leida) await marcarAlertaLeida({ id: a.id }).catch(() => {});
       router.push(a.destino);
+      window.dispatchEvent(new Event(EVENTO_RESALTAR));
     });
 
   return (

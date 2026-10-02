@@ -34,6 +34,8 @@ type AlertaDestino = {
   cajaId: number | null;
   ventaId: number | null;
   eventoId?: number | null;
+  /** La alerta es de la bodega central (no de una sucursal). */
+  enBodega?: boolean;
 };
 
 /** Pantalla a la que lleva cada alerta (con el producto, caja o venta resaltados). */
@@ -44,6 +46,8 @@ export function destinoAlerta(a: AlertaDestino): string {
     case "agotado":
     case "stock_negativo":
       if (a.productoId) q.set("resaltar", String(a.productoId));
+      // Donde está el problema: la bodega central o el inventario de esa sucursal.
+      if (a.enBodega) return `/admin/bodega?${q}`;
       if (a.sucursalId) q.set("sucursal", String(a.sucursalId));
       return `/admin/inventario?${q}`;
     case "por_vencer":

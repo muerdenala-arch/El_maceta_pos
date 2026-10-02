@@ -1,7 +1,8 @@
 "use client";
 
 import { AlertTriangle, CheckCircle2, Clock } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
+import { useResaltado } from "@/components/alertas/use-resaltado";
 import { Badge } from "@/components/ui/badge";
 import { aCentavos, sumar } from "@/lib/dinero";
 import { formatoBs } from "@/lib/formato";
@@ -43,11 +44,7 @@ export function AuditoriaCajas({
   hoy: string;
   resaltar: number | null;
 }) {
-  const fila = useRef<HTMLTableRowElement>(null);
-  useEffect(() => {
-    // Sin llaves devolvería la promesa de scrollIntoView (Chrome) y React la tomaría como limpieza.
-    fila.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-  }, []);
+  const resaltado = useResaltado<HTMLTableRowElement>(resaltar);
 
   const [busqueda, setBusqueda] = useState("");
   const visibles = cajas.filter((c) => coincide(busqueda, [c.cajero, c.sucursal, c.estado === "abierta" ? "Abierta" : "Cerrada"]));
@@ -88,7 +85,7 @@ export function AuditoriaCajas({
             {visibles.map((c) => {
               const dif = c.diferencia !== null ? aCentavos(c.diferencia) : null;
               return (
-                <tr key={c.id} ref={c.id === resaltar ? fila : undefined} className={cn("border-b last:border-0", c.id === resaltar && "fila-resaltada")}>
+                <tr key={c.id} ref={c.id === resaltar ? resaltado.ref : undefined} className={cn("border-b last:border-0", resaltado.activo && c.id === resaltar && "fila-resaltada")}>
                   <td className="px-4 py-3">
                     <p className="font-semibold">
                       <Resaltar texto={c.cajero} consulta={busqueda} />

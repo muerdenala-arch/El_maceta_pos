@@ -23,6 +23,7 @@ export async function listarAlertasPendientes(limite = 50): Promise<AlertaCampan
       tipo: alertas.tipo,
       mensaje: alertas.mensaje,
       sucursal: sucursales.nombre,
+      tipoSucursal: sucursales.tipo,
       leida: alertas.leida,
       fecha: alertas.fecha,
       productoId: alertas.productoId,
@@ -45,7 +46,7 @@ export async function listarAlertasPendientes(limite = 50): Promise<AlertaCampan
     sucursal: f.sucursal,
     leida: f.leida,
     fecha: f.fecha.toISOString(),
-    destino: destinoAlerta(f),
+    destino: destinoAlerta({ ...f, enBodega: f.tipoSucursal === "bodega" }),
     automatica: TIPOS_AUTOMATICOS.includes(f.tipo),
   }));
 }

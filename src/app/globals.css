@@ -222,24 +222,33 @@
   }
 }
 
-/* Resaltado de fila al llegar desde una alerta (?resaltar=ID) */
-@keyframes pulso-resaltado {
+/*
+ * Fila o tarjeta a la que se llega desde una alerta (?resaltar=ID): parpadea 5 veces en ámbar suave y queda con un
+ * borde de color hasta que se hace clic en otro lugar (useResaltado). Con "reducir movimiento": solo resaltada.
+ */
+@keyframes parpadeo-alerta {
   0%,
   100% {
     background-color: transparent;
   }
-  20%,
-  60% {
-    background-color: var(--resaltado);
+  50% {
+    background-color: color-mix(in oklch, var(--aviso) 30%, transparent);
   }
 }
+.fila-resaltada,
+tr.fila-resaltada > td {
+  animation: parpadeo-alerta 0.6s ease-in-out 5;
+}
 .fila-resaltada {
-  animation: pulso-resaltado 2.4s ease-in-out 1;
-  box-shadow: inset 3px 0 0 var(--primary);
+  outline: 2px solid var(--aviso);
+  outline-offset: -2px;
 }
 @media (prefers-reduced-motion: reduce) {
-  .fila-resaltada {
+  .fila-resaltada,
+  tr.fila-resaltada > td {
     animation: none;
+  }
+  .fila-resaltada {
     background-color: var(--resaltado);
   }
 }

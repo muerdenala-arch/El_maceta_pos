@@ -282,6 +282,18 @@ Credenciales de prueba locales: en `.env.local` (`SEED_*`), nunca en el código 
 - Usado en: tarjetas y carrito del punto de venta, Catálogo, Inventario, Bodega (stock y vencimientos) y campanita.
   Prueba: `e2e/revision-marquesina.spec.ts`.
 
+## Llegar desde una alerta (resaltado)
+
+- `destinoAlerta` (`lib/alertas/reglas.ts`): stock bajo/agotado/negativo → `/admin/bodega?resaltar=ID` si la alerta es de la
+  bodega (`enBodega`), o `/admin/inventario?resaltar=ID&sucursal=ID` si es de una sucursal. Siempre por parámetro en la URL
+  (funciona al recargar). La campanita marca la alerta como leída y emite `EVENTO_RESALTAR`.
+- `useResaltado(id)` (`components/alertas/use-resaltado.ts`): desplaza hasta la fila, la deja con la clase `fila-resaltada`
+  (parpadeo ámbar ×5 + borde, en globals.css; con "reducir movimiento" solo resaltada) hasta un clic en otro lugar, y da una
+  `clave` que cambia en cada llegada: la pantalla la usa para **quitar filtros/búsqueda** que oculten la fila y como `key`
+  para reiniciar el parpadeo. En tablas, el parpadeo también va en los `<td>` (la celda fija tiene fondo propio).
+- La cantidad que motivó la alerta lleva `data-en-alerta` y va en rojo. Usado en Inventario, Bodega (stock y vencimientos)
+  y Auditoría → Cajas. Pruebas: `test/campanita.integracion.test.ts`, `e2e/revision-campanita.spec.ts`.
+
 ## Botón atrás por niveles
 
 - `lib/navegacion/niveles.ts` (`padreDe`, probado): apartados del menú → inicio del rol; pantallas internas → un nivel arriba.

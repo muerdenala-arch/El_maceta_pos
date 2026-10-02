@@ -1,7 +1,8 @@
 "use client";
 
 import { Boxes, PackagePlus, SlidersHorizontal, Truck } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
+import { useResaltado } from "@/components/alertas/use-resaltado";
 import { Buscador, Resaltar, SinResultados } from "@/components/busqueda/buscador";
 import { coincide } from "@/lib/busqueda";
 import { Marquesina } from "@/components/texto/marquesina";
@@ -22,15 +23,26 @@ type Props = {
   enCamino: Record<string, number>;
   /** ?resaltar=ID: producto a destacar al llegar desde una alerta. */
   resaltar: number | null;
+  /** ?sucursal=ID de la alerta: su cantidad se marca en rojo. */
+  ubicacionResaltada?: number | null;
   children?: React.ReactNode;
 };
 
-export function TablaInventario({ ubicaciones, columnas, productos, stock, enCamino, resaltar, children }: Props) {
+export function TablaInventario({ ubicaciones, columnas, productos, stock, enCamino, resaltar, ubicacionResaltada = null, children }: Props) {
   const [busqueda, setBusqueda] = useState("");
   const [soloBajo, setSoloBajo] = useState(false);
   const [ajuste, setAjuste] = useState<{ productoId: number; ubicacionId: number } | "nuevo" | null>(null);
   const [ingreso, setIngreso] = useState(false);
-  const filaResaltada = useRef<HTMLTableRowElement>(null);
+  const resaltado = useResaltado<HTMLTableRowElement>(resaltar);
+  // Al llegar desde una alerta se quitan los filtros: el producto no puede quedar oculto.
+  const [llegada, setLlegada] = useState(resaltado.clave);
+  if (llegada !== resaltado.clave) {
+    setLlegada(resaltado.clave);
+    if (resaltar !== null) {
+      setBusqueda("");
+      setSoloBajo(false);
+    }
+  }
 
   const cant = (p: number, u: number) => stock[`${p}:${u}`] ?? 0;
   const bajo = (p: ProductoInventario, u: number) => p.stockMinimo > 0 && cant(p.id, u) < p.stockMinimo;
@@ -45,10 +57,6 @@ export function TablaInventario({ ubicaciones, columnas, productos, stock, enCam
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps -- bajo/cant derivan de stock y columnas
   }, [productos, busqueda, soloBajo, stock, columnas]);
-
-  useEffect(() => {
-    filaResaltada.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-  }, [resaltar]);
 
   const cantidadBajos = productos.filter((p) => columnasVenta.some((c) => bajo(p, c.id))).length;
 
@@ -90,11 +98,11 @@ export function TablaInventario({ ubicaciones, columnas, productos, stock, enCam
           <tbody>
             {visibles.map((p) => {
               const total = columnas.reduce((s, u) => s + cant(p.id, u.id), 0);
-              const esResaltado = p.id === resaltar;
+              const esResaltado = resaltado.activo && p.id === resaltar;
               return (
                 <tr
-                  key={p.id}
-                  ref={esResaltado ? filaResaltada : undefined}
+                  key={esResaltado ? resaltado.clave : p.id}
+                  ref={esResaltado ? resaltado.ref : undefined}
                   data-desplazar
                   className={cn("border-b last:border-0", esResaltado && "fila-resaltada", !p.activo && "opacity-60")}
                 >
@@ -115,6 +123,8 @@ export function TablaInventario({ ubicaciones, columnas, productos, stock, enCam
                   {columnas.map((u) => {
                     const c = cant(p.id, u.id);
                     const llegando = enCamino[`${p.id}:${u.id}`];
+                    // La cantidad que motivó la alerta: la de su sucursal o, si no se sabe, las que están bajas.
+                    const enAlerta = esResaltado && (ubicacionResaltada ? u.id === ubicacionResaltada : c <= 0 || (u.tipo === "sucursal" && bajo(p, u.id)));
                     return (
                       <td key={u.id} className="px-2 py-2 text-right">
                         <button
@@ -126,7 +136,9 @@ export function TablaInventario({ ubicaciones, columnas, productos, stock, enCam
                             c < 0 && "bg-destructive/15 text-destructive",
                             c === 0 && "text-muted-foreground",
                             c > 0 && u.tipo === "sucursal" && bajo(p, u.id) && "bg-aviso/25",
+                            enAlerta && "bg-destructive/15 text-destructive ring-2 ring-destructive",
                           )}
+                          data-en-alerta={enAlerta || undefined}
                         >
                           {c}
                           {llegando > 0 && (

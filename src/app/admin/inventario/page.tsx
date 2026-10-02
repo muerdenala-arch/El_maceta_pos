@@ -71,6 +71,7 @@ export default async function PaginaInventario(props: PageProps<"/admin/inventar
         stock={stock}
         enCamino={enCamino}
         resaltar={resaltar}
+        ubicacionResaltada={Number(sp.sucursal) || null}
       >
         {pestanas}
       </TablaInventario>

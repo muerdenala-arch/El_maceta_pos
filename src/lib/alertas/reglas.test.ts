@@ -16,6 +16,12 @@ describe("destino al tocar una alerta", () => {
 
   it("stock → inventario de esa sucursal con el producto resaltado", () => {
     expect(destinoAlerta({ ...base, tipo: "stock_bajo" })).toBe("/admin/inventario?resaltar=7&sucursal=3");
+    expect(destinoAlerta({ ...base, tipo: "stock_negativo" })).toBe("/admin/inventario?resaltar=7&sucursal=3");
+  });
+
+  it("stock de la bodega → bodega central con el producto resaltado", () => {
+    expect(destinoAlerta({ ...base, tipo: "agotado", enBodega: true })).toBe("/admin/bodega?resaltar=7");
+    expect(destinoAlerta({ ...base, tipo: "stock_bajo", enBodega: true })).toBe("/admin/bodega?resaltar=7");
   });
 
   it("vencimientos, cajas y ventas llevan a su pantalla", () => {

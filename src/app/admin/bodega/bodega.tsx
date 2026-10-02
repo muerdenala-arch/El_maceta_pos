@@ -12,9 +12,10 @@ import {
   Warehouse,
   X,
 } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { Buscador, Resaltar, SinResultados } from "@/components/busqueda/buscador";
 import { coincide } from "@/lib/busqueda";
+import { useResaltado } from "@/components/alertas/use-resaltado";
 import { Marquesina } from "@/components/texto/marquesina";
 import { EncabezadoPagina } from "@/components/formularios/encabezado-pagina";
 import { useAccion } from "@/components/formularios/use-accion";
@@ -116,7 +117,7 @@ export function Bodega({ vista, resaltar, hoy, ubicaciones, productos, stock, lo
         ]}
       />
 
-      {vista === "stock" && <StockBodega productos={productos} cantidad={enBodega} lotes={lotes.filter((l) => l.ubicacionId === bodega?.id)} hoy={hoy} />}
+      {vista === "stock" && <StockBodega productos={productos} cantidad={enBodega} lotes={lotes.filter((l) => l.ubicacionId === bodega?.id)} hoy={hoy} resaltar={resaltar} />}
       {vista === "transferencias" && <ListaTransferencias transferencias={transferencias} />}
       {vista === "vencimientos" && <Vencimientos lotes={lotes} hoy={hoy} ubicaciones={ubicaciones} resaltar={resaltar} />}
 
@@ -182,13 +183,22 @@ function StockBodega({
   cantidad,
   lotes,
   hoy,
+  resaltar,
 }: {
   productos: ProductoInventario[];
   cantidad: (productoId: number) => number;
   lotes: LoteVigente[];
   hoy: string;
+  resaltar: number | null;
 }) {
   const [busqueda, setBusqueda] = useState("");
+  const resaltado = useResaltado<HTMLLIElement>(resaltar);
+  // Al llegar desde una alerta se quita la búsqueda: el producto no puede quedar oculto.
+  const [llegada, setLlegada] = useState(resaltado.clave);
+  if (llegada !== resaltado.clave) {
+    setLlegada(resaltado.clave);
+    if (resaltar !== null) setBusqueda("");
+  }
   const visibles = useMemo(() => {
     return productos
       .filter((p) => coincide(busqueda, [p.nombre, p.marca, p.sabor, p.presentacion, p.codigoBarras]))
@@ -202,8 +212,14 @@ function StockBodega({
         {visibles.map((p) => {
           const c = cantidad(p.id);
           const suyos = lotes.filter((l) => l.productoId === p.id);
+          const esResaltado = resaltado.activo && p.id === resaltar;
           return (
-            <li key={p.id} data-desplazar className="flex flex-wrap items-center gap-3 px-4 py-3">
+            <li
+              key={esResaltado ? resaltado.clave : p.id}
+              ref={esResaltado ? resaltado.ref : undefined}
+              data-desplazar
+              className={cn("flex flex-wrap items-center gap-3 px-4 py-3", esResaltado && "fila-resaltada")}
+            >
               <Miniatura url={p.fotoUrl} className="size-11" />
               <div className="min-w-0 flex-1 basis-48">
                 <Marquesina titulo={p.nombre} className="font-semibold">
@@ -228,7 +244,15 @@ function StockBodega({
                   );
                 })}
               </div>
-              <span className={cn("cifras w-16 text-right font-display text-xl font-extrabold", c <= 0 && "text-muted-foreground", c < 0 && "text-destructive")}>
+              <span
+                data-en-alerta={esResaltado || undefined}
+                className={cn(
+                  "cifras w-16 text-right font-display text-xl font-extrabold",
+                  c <= 0 && "text-muted-foreground",
+                  c < 0 && "text-destructive",
+                  esResaltado && "rounded-lg bg-destructive/15 px-2 text-destructive ring-2 ring-destructive",
+                )}
+              >
                 {c}
               </span>
             </li>
@@ -345,14 +369,19 @@ function Vencimientos({
   resaltar: number | null;
 }) {
   const [ubicacion, setUbicacion] = useState<number | "todas">("todas");
-  const primero = useRef<HTMLLIElement>(null);
-  useEffect(() => {
-    // Sin llaves devolvería la promesa de scrollIntoView (Chrome) y React la tomaría como limpieza.
-    primero.current?.scrollIntoView({ behavior: "smooth", block: "center" });
-  }, []);
+  const resaltado = useResaltado<HTMLLIElement>(resaltar);
+  const [llegada, setLlegada] = useState(resaltado.clave);
   const [busqueda, setBusqueda] = useState("");
   const visibles = lotes.filter((l) => (ubicacion === "todas" || l.ubicacionId === ubicacion) && coincide(busqueda, [l.producto, l.presentacion, l.ubicacion]));
   const idPrimeroResaltado = visibles.find((l) => l.productoId === resaltar)?.id;
+  // Al llegar desde una alerta se quitan los filtros: el lote no puede quedar oculto.
+  if (llegada !== resaltado.clave) {
+    setLlegada(resaltado.clave);
+    if (resaltar !== null) {
+      setBusqueda("");
+      setUbicacion("todas");
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -387,9 +416,9 @@ function Vencimientos({
             return (
               <li
                 key={l.id}
-                ref={l.id === idPrimeroResaltado ? primero : undefined}
+                ref={l.id === idPrimeroResaltado ? resaltado.ref : undefined}
                 data-desplazar
-                className={cn("flex flex-wrap items-center gap-3 px-4 py-3", l.productoId === resaltar && "fila-resaltada")}
+                className={cn("flex flex-wrap items-center gap-3 px-4 py-3", resaltado.activo && l.productoId === resaltar && "fila-resaltada")}
               >
                 <span
                   className={cn(
