@@ -15,7 +15,7 @@ import { EncabezadoPagina } from "@/components/formularios/encabezado-pagina";
 import { sumar } from "@/lib/dinero";
 import { formatoBs } from "@/lib/formato";
 
-export function ListaVentasDia({ ventas, usuarioId }: { ventas: VentaResumida[]; usuarioId: number }) {
+export function ListaVentasDia({ ventas, usuarioId, rol }: { ventas: VentaResumida[]; usuarioId: number; rol: "cajero" | "encargado" }) {
   // Ventas hechas sin conexión en este dispositivo que aún no se enviaron (se reimprimen desde aquí).
   const locales = useLiveQuery(
     () => baseLocal().ventasLocales.where("usuarioId").equals(usuarioId).filter((v) => !v.sincronizada).reverse().sortBy("creado"),
@@ -35,7 +35,7 @@ export function ListaVentasDia({ ventas, usuarioId }: { ventas: VentaResumida[];
         titulo="Ventas de hoy"
         descripcion={`${completadas.length} venta${completadas.length === 1 ? "" : "s"} · ${formatoBs(completadas.length ? sumar(...completadas.map((v) => v.total)) : "0")}`}
       />
-      <p className="text-sm text-muted-foreground">Toca una venta para reimprimir, descargar o reenviar su comprobante.</p>
+      <p className="text-sm text-muted-foreground">Toca una venta para reimprimir, descargar o reenviar su comprobante{rol === "cajero" ? "; para anularla hace falta el PIN del encargado" : " o para anularla"}.</p>
       {locales.length > 0 && (
         <section className="space-y-2 rounded-3xl border border-aviso/50 bg-aviso/10 p-4">
           <h2 className="flex items-center gap-2 font-bold">
@@ -62,7 +62,7 @@ export function ListaVentasDia({ ventas, usuarioId }: { ventas: VentaResumida[];
         </section>
       )}
       {ventas.length > 0 && <Buscador grande className="max-w-none" valor={busqueda} onCambiar={setBusqueda} etiqueta="Buscar ventas" placeholder="N.º de venta, cliente o producto" />}
-      <ListaVentas ventas={visibles} consulta={busqueda} onLimpiar={() => setBusqueda("")} />
+      <ListaVentas ventas={visibles} anulacion={rol} consulta={busqueda} onLimpiar={() => setBusqueda("")} />
       <Dialog open={!!abierta} onOpenChange={(v) => !v && setAbierta(null)}>
         <DialogContent className="max-h-[94dvh] overflow-y-auto rounded-3xl sm:max-w-md">
           <DialogTitle className="font-display text-xl font-extrabold">Comprobante provisional</DialogTitle>

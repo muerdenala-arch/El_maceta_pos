@@ -39,10 +39,10 @@ function Vacio({ columnas, texto }: { columnas: number; texto: string }) {
   );
 }
 
-export function TablaProductos({ filas, consulta = "" }: { filas: VentasProducto[]; consulta?: string }) {
+export function TablaProductos({ filas, consulta = "", sinCostos = false }: { filas: VentasProducto[]; consulta?: string; /** Encargado: sin costo, ganancia ni margen. */ sinCostos?: boolean }) {
   const maximo = Math.max(...filas.map((f) => Number(f.neto)), 0);
   return (
-    <Tabla minimo="min-w-[52rem]">
+    <Tabla minimo={sinCostos ? "min-w-[36rem]" : "min-w-[52rem]"}>
       <thead>
         <tr className="border-b text-xs font-bold tracking-wide text-muted-foreground uppercase">
           <th className={th}>Producto</th>
@@ -50,9 +50,13 @@ export function TablaProductos({ filas, consulta = "" }: { filas: VentasProducto
           <th className={th}>Bruto</th>
           <th className={th}>Descuentos</th>
           <th className={th}>Neto</th>
-          <th className={th}>Costo</th>
-          <th className={th}>Ganancia</th>
-          <th className={th}>Margen</th>
+          {!sinCostos && (
+            <>
+              <th className={th}>Costo</th>
+              <th className={th}>Ganancia</th>
+              <th className={th}>Margen</th>
+            </>
+          )}
         </tr>
       </thead>
       <tbody>
@@ -85,12 +89,16 @@ export function TablaProductos({ filas, consulta = "" }: { filas: VentasProducto
             <td className={td}>{formatoBs(p.bruto)}</td>
             <td className={cn(td, aCentavos(p.descuento) > 0n && "text-destructive")}>{aCentavos(p.descuento) > 0n ? `−${formatoBs(p.descuento)}` : "—"}</td>
             <td className={cn(td, "font-display font-extrabold")}>{formatoBs(p.neto)}</td>
-            <td className={cn(td, "text-muted-foreground")}>{formatoBs(p.costo)}</td>
-            <td className={cn(td, "font-bold", aCentavos(p.ganancia) < 0n ? "text-destructive" : "text-exito")}>{formatoBs(p.ganancia)}</td>
-            <td className={td}>{margen(p.ganancia, p.neto)}</td>
+            {!sinCostos && (
+              <>
+                <td className={cn(td, "text-muted-foreground")}>{formatoBs(p.costo)}</td>
+                <td className={cn(td, "font-bold", aCentavos(p.ganancia) < 0n ? "text-destructive" : "text-exito")}>{formatoBs(p.ganancia)}</td>
+                <td className={td}>{margen(p.ganancia, p.neto)}</td>
+              </>
+            )}
           </tr>
         ))}
-        {filas.length === 0 && <Vacio columnas={8} texto="No se vendieron productos con estos filtros." />}
+        {filas.length === 0 && <Vacio columnas={sinCostos ? 5 : 8} texto="No se vendieron productos con estos filtros." />}
       </tbody>
     </Tabla>
   );

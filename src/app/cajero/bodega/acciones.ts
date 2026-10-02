@@ -8,6 +8,7 @@ import { conPermiso, exito, fallo, falloValidacion, type Resultado } from "@/lib
 import { autorizar } from "@/lib/auth/sesion";
 import { esFraccionado, nombreEnvase, type Fraccionable } from "@/lib/inventario/fraccion";
 import { esquemaSolicitudReposicion, type DatosSolicitudReposicion } from "@/lib/validaciones/inventario";
+import { ROLES_CAJA } from "@/lib/auth/constantes";
 
 /** Formato fijo: el panel de bodega lee la cantidad del inicio del mensaje. No se exporta (sería una acción pública). */
 const mensajeSolicitud = (cantidad: number, nota: string | null, producto: Fraccionable) =>
@@ -19,7 +20,7 @@ const mensajeSolicitud = (cantidad: number, nota: string | null, producto: Fracc
  */
 export async function solicitarReposicion(entrada: DatosSolicitudReposicion): Promise<Resultado> {
   return conPermiso(async () => {
-    const sesion = await autorizar("cajero");
+    const sesion = await autorizar(...ROLES_CAJA);
     if (!sesion.sucursalId) return fallo("No tienes una sucursal asignada");
     const v = esquemaSolicitudReposicion.safeParse(entrada);
     if (!v.success) return falloValidacion(v.error);

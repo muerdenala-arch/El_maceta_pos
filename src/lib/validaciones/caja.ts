@@ -42,6 +42,8 @@ export const esquemaVenta = z
     cuponCodigo: textoOpcional(40).transform((c) => c?.toUpperCase() ?? null),
     /** Descuento manual del cajero: porcentaje sobre el total (hasta el máximo de Configuración) y motivo. */
     descuentoManual: esquemaDescuentoManual.nullable().optional().default(null),
+    /** Permiso del encargado o de un administrador (PIN) para un descuento manual mayor al máximo de quien vende. */
+    autorizacion: z.string().max(2000).nullable().optional().default(null),
   })
   .refine((d) => d.lineas.length + d.combos.length > 0, { path: ["lineas"], message: "El carrito está vacío" })
   .refine((d) => d.metodoPago !== "efectivo" || d.montoRecibido !== null, {

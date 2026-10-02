@@ -55,7 +55,7 @@ export async function cambiarEstadoSucursal(entrada: { id: number; activo: boole
         .where(and(eq(usuarios.sucursalId, id), eq(usuarios.activo, true)));
       if (cajeros > 0) {
         return fallo(
-          `Tiene ${cajeros} cajero${cajeros === 1 ? "" : "s"} activo${cajeros === 1 ? "" : "s"}: reasígnalos o desactívalos primero`,
+          `Tiene ${cajeros} usuario${cajeros === 1 ? "" : "s"} activo${cajeros === 1 ? "" : "s"} (cajeros o encargados): reasígnalos o desactívalos primero`,
         );
       }
     }

@@ -2,17 +2,17 @@ import { and, desc, eq, gte, inArray, lt, sql } from "drizzle-orm";
 import { ScrollText } from "lucide-react";
 import type { Metadata } from "next";
 import { db } from "@/db";
-import { auditoria, cajas, productos, sucursales, usuarios } from "@/db/schema";
+import { auditoria, productos, sucursales, usuarios } from "@/db/schema";
 import { EncabezadoPagina } from "@/components/formularios/encabezado-pagina";
 import { Pestanas } from "@/components/inventario/pestanas";
 import { requerirSesion } from "@/lib/auth/sesion";
-import { totalesCaja } from "@/lib/caja/consultas";
+import { listarCajasAuditadas } from "@/lib/caja/auditadas";
 import { fechaValida, hoyEnBolivia, ZONA_HORARIA } from "@/lib/formato";
 import { obtenerSucursalVista } from "@/lib/sucursal-vista";
 import { ACCIONES_SENSIBLES } from "@/lib/auditoria-acciones";
 import { condicionBusqueda } from "@/lib/busqueda-sql";
 import { AccionesSensibles, type EventoAuditoria } from "./acciones-sensibles";
-import { AuditoriaCajas, type CajaAuditada } from "./auditoria-cajas";
+import { AuditoriaCajas } from "./auditoria-cajas";
 
 export const metadata: Metadata = { title: "Auditoría" };
 
@@ -41,46 +41,7 @@ export default async function PaginaAuditoria(props: PageProps<"/admin/auditoria
   if (vista === "cajas") {
     const sucursalId = await obtenerSucursalVista(sesion);
     const cajaResaltada = Number(sp.caja) || null;
-    const filas = await db
-      .select({
-        caja: cajas,
-        cajero: usuarios.nombre,
-        sucursal: sucursales.nombre,
-      })
-      .from(cajas)
-      .innerJoin(usuarios, eq(usuarios.id, cajas.cajeroId))
-      .innerJoin(sucursales, eq(sucursales.id, cajas.sucursalId))
-      .where(
-        and(
-          // Desde una alerta se muestra esa caja aunque esté fuera del rango de fechas.
-          cajaResaltada ? sql`(${rango(cajas.apertura)} or ${cajas.id} = ${cajaResaltada})` : rango(cajas.apertura),
-          sucursalId ? eq(cajas.sucursalId, sucursalId) : undefined,
-        ),
-      )
-      .orderBy(desc(cajas.apertura))
-      .limit(200);
-
-    const lista: CajaAuditada[] = await Promise.all(
-      filas.map(async ({ caja: c, cajero, sucursal }) => {
-        // Caja abierta: totales en vivo (lo que se cerraría ahora).
-        const vivo = c.estado === "abierta" ? await totalesCaja(c.id, c.montoInicial) : null;
-        return {
-          id: c.id,
-          cajero,
-          sucursal,
-          estado: c.estado,
-          apertura: c.apertura.toISOString(),
-          cierre: c.cierre?.toISOString() ?? null,
-          montoInicial: c.montoInicial,
-          ventasEfectivo: vivo?.ventasEfectivo ?? c.ventasEfectivo ?? "0",
-          ventasQr: vivo?.ventasQr ?? c.ventasQr ?? "0",
-          gastos: vivo?.gastos ?? c.gastos ?? "0",
-          esperado: vivo?.esperado ?? c.esperado ?? "0",
-          contado: c.efectivoContado,
-          diferencia: c.diferencia,
-        };
-      }),
-    );
+    const lista = await listarCajasAuditadas({ desde, hasta, sucursalId, cajaResaltada });
     return (
       <div className="mx-auto max-w-7xl space-y-6">
         <EncabezadoPagina icono={ScrollText} titulo="Auditoría" descripcion="Aperturas y cierres de caja, y acciones sensibles" />

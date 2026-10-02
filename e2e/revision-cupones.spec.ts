@@ -99,7 +99,7 @@ test("cajero: validación al instante, cupón aplicado y descuento manual con mo
   await dialogo.getByRole("button", { name: /^Descuento manual/ }).click();
   const porcentaje = dialogo.getByLabel("Porcentaje de descuento manual");
   await porcentaje.fill("10");
-  await expect(dialogo.getByText("El máximo permitido es 5 %")).toBeVisible();
+  await expect(dialogo.getByText(/este descuento necesita el PIN de un administrador/)).toBeVisible();
   await porcentaje.fill("5");
   await dialogo.getByRole("button", { name: "Exacto" }).click();
   await expect(confirmar).toBeDisabled(); // falta el motivo
@@ -130,7 +130,7 @@ test("administrador: usos del cupón, reporte de descuentos y auditoría", async
   await page.screenshot({ path: "test-results/cupones-6-reporte.png", fullPage: true });
 
   await page.goto("/admin/auditoria?vista=acciones");
-  await expect(page.getByText("Descuento manual del cajero").first()).toBeVisible();
+  await expect(page.getByText("Descuento manual", { exact: true }).first()).toBeVisible();
 
   await page.setViewportSize({ width: 375, height: 812 });
   await page.goto("/admin/promociones?vista=cupones");

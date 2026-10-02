@@ -15,17 +15,18 @@ import { BotonCerrarSesion } from "@/components/seguridad/boton-cerrar-sesion";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
-import { navAdmin, navCajero } from "./navegacion";
+import { NOMBRES_ROL, type Rol } from "@/lib/auth/constantes";
+import { navAdmin, navCajero, navEncargado, navEncargadoInferior } from "./navegacion";
 import { SelectorSucursal } from "./selector-sucursal";
 
 export type PropsShell = {
-  rol: "admin" | "cajero";
+  rol: Rol;
   usuario: { nombre: string };
   marca: { nombre: string; logoUrl: string | null };
-  /** Admin: opciones del selector. Cajero: solo su sucursal (fija). */
+  /** Admin: opciones del selector. Cajero y encargado: solo su sucursal (fija). */
   sucursales: { id: number; nombre: string }[];
   sucursalActual: number | null;
-  /** Solo admin: contador de la campanita y numeritos por módulo del menú. */
+  /** Admin y encargado: contador de la campanita y numeritos por módulo del menú. */
   alertas?: { noLeidas: number; porModulo: Record<string, number> };
   children: React.ReactNode;
 };
@@ -39,7 +40,7 @@ export type PropsShell = {
 export function Shell(props: PropsShell) {
   const { rol, marca, children } = props;
   const [menuAbierto, setMenuAbierto] = useState(false);
-  const items = rol === "admin" ? navAdmin : navCajero;
+  const inferior = rol === "encargado" ? navEncargadoInferior : navCajero;
   const pathname = usePathname();
   const activo = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
 
@@ -69,19 +70,19 @@ export function Shell(props: PropsShell) {
               <IndicadorConexion />
             </span>
             <BotonRecarga />
-            {rol === "admin" && <Campanita noLeidas={props.alertas?.noLeidas} />}
+            {rol !== "cajero" && <Campanita noLeidas={props.alertas?.noLeidas} />}
             <SelectorTema />
           </div>
         </header>
 
         <NavegacionPorNiveles />
-        <main className={cn("flex-1 px-4 py-5 sm:px-8 sm:py-8", rol === "cajero" && "pb-28 lg:pb-8")}>
+        <main className={cn("flex-1 px-4 py-5 sm:px-8 sm:py-8", rol !== "admin" && "pb-28 lg:pb-8")}>
           {children}
         </main>
 
-        {rol === "cajero" && (
+        {rol !== "admin" && (
           <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 border-t bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden">
-            {items.map(({ href, titulo, icono: Icono }) => (
+            {inferior.map(({ href, titulo, icono: Icono }) => (
               <Link
                 key={href}
                 href={href}
@@ -120,7 +121,7 @@ function ContenidoLateral({
 }: PropsShell & { alNavegar?: () => void }) {
   const router = useRouter();
   const pathname = usePathname();
-  const items = rol === "admin" ? navAdmin : navCajero;
+  const items = rol === "admin" ? navAdmin : rol === "encargado" ? navEncargado : navCajero;
   const activo = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
 
   return (
@@ -137,7 +138,7 @@ function ContenidoLateral({
 
         <div className="flex items-center gap-1">
           <Logo nombre={marca.nombre} url={marca.logoUrl} className="mr-auto size-11" />
-          {rol === "admin" && <Campanita noLeidas={alertas?.noLeidas} />}
+          {rol !== "cajero" && <Campanita noLeidas={alertas?.noLeidas} />}
           <BotonRecarga />
           <SelectorTema className="ml-1" />
         </div>
@@ -194,7 +195,7 @@ function ContenidoLateral({
           </span>
           <div className="min-w-0 flex-1">
             <p className="truncate font-bold">{usuario.nombre}</p>
-            <p className="text-sm text-sidebar-foreground/60">{rol === "admin" ? "Administrador" : "Cajero"}</p>
+            <p className="text-sm text-sidebar-foreground/60">{NOMBRES_ROL[rol]}</p>
           </div>
           <IndicadorConexion />
         </div>

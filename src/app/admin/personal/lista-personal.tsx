@@ -14,6 +14,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
+import { NOMBRES_ROL, type Rol } from "@/lib/auth/constantes";
 import {
   cambiarEstadoUsuario,
   crearUsuario,
@@ -26,7 +27,7 @@ type Persona = {
   id: number;
   nombre: string;
   usuario: string;
-  rol: "admin" | "cajero";
+  rol: Rol;
   sucursalId: number | null;
   sucursal: string | null;
   activo: boolean;
@@ -54,12 +55,12 @@ export function ListaPersonal({
   const desbloquear = useAccion(desbloquearUsuario, { mensajeExito: "Usuario desbloqueado" });
 
   const visibles = useMemo(() => {
-    return personas.filter((p) => coincide(busqueda, [p.nombre, p.usuario, p.sucursal, p.rol === "admin" ? "Administrador" : "Cajero"]));
+    return personas.filter((p) => coincide(busqueda, [p.nombre, p.usuario, p.sucursal, NOMBRES_ROL[p.rol]]));
   }, [personas, busqueda]);
 
   return (
     <div className="mx-auto max-w-6xl">
-      <EncabezadoPagina icono={Users} titulo="Personal" descripcion="Administradores y cajeros, sucursal asignada y PIN">
+      <EncabezadoPagina icono={Users} titulo="Personal" descripcion="Administradores, encargados y cajeros, sucursal asignada y PIN">
         <Button size="lg" className="rounded-full font-bold" onClick={() => setDialogo({ tipo: "nuevo" })}>
           <UserPlus className="size-5" />
           Nuevo usuario
@@ -80,7 +81,7 @@ export function ListaPersonal({
             <span
               className={cn(
                 "flex size-11 shrink-0 items-center justify-center rounded-full font-display text-lg font-bold",
-                p.rol === "admin" ? "bg-ficha-rosa-foreground text-white" : "bg-ficha-naranja text-ficha-naranja-foreground",
+                p.rol === "admin" ? "bg-ficha-rosa-foreground text-white" : p.rol === "encargado" ? "bg-ficha-verde text-ficha-verde-foreground" : "bg-ficha-naranja text-ficha-naranja-foreground",
               )}
             >
               {p.nombre.trim().charAt(0).toUpperCase()}
@@ -97,10 +98,10 @@ export function ListaPersonal({
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2 text-sm">
-              <Badge variant={p.rol === "admin" ? "default" : "secondary"}>
-                {p.rol === "admin" ? "Administrador" : "Cajero"}
+              <Badge variant={p.rol === "admin" ? "default" : p.rol === "encargado" ? "outline" : "secondary"}>
+                {NOMBRES_ROL[p.rol]}
               </Badge>
-              {p.rol === "cajero" && (
+              {p.rol !== "admin" && (
                 <span className="flex items-center gap-1.5 text-muted-foreground">
                   <Store className="size-4" />
                   <Resaltar texto={p.sucursal ?? "Sin sucursal"} consulta={busqueda} />
@@ -201,7 +202,7 @@ function FormularioUsuario({
 }) {
   const [nombre, setNombre] = useState(persona?.nombre ?? "");
   const [usuario, setUsuario] = useState("");
-  const [rol, setRol] = useState<"admin" | "cajero">(persona?.rol ?? "cajero");
+  const [rol, setRol] = useState<Rol>(persona?.rol ?? "cajero");
   const [sucursalId, setSucursalId] = useState<number | null>(
     persona?.sucursalId ?? (sucursales.length === 1 ? sucursales[0].id : null),
   );
@@ -221,7 +222,7 @@ function FormularioUsuario({
       abierto
       onAbierto={(v) => !v && onCerrar()}
       titulo={persona ? `Editar a ${persona.nombre}` : "Nuevo usuario"}
-      descripcion={persona ? `@${persona.usuario}` : "El cajero ingresa con su usuario y PIN."}
+      descripcion={persona ? `@${persona.usuario}` : "Cada persona ingresa con su PIN (único)."}
       pendiente={accion.pendiente}
       textoGuardar={persona ? "Guardar" : "Crear usuario"}
       onGuardar={() =>
@@ -250,8 +251,8 @@ function FormularioUsuario({
       )}
       <Campo etiqueta="Rol" error={accion.campos.rol} ayuda={esYo ? "No puedes cambiar tu propio rol." : undefined}>
         {(p) => (
-          <div {...p} role="radiogroup" className="grid grid-cols-2 gap-2">
-            {(["cajero", "admin"] as const).map((r) => (
+          <div {...p} role="radiogroup" className="grid gap-2 sm:grid-cols-3">
+            {(["cajero", "encargado", "admin"] as const).map((r) => (
               <button
                 key={r}
                 type="button"
@@ -264,16 +265,16 @@ function FormularioUsuario({
                   rol === r ? "border-primary bg-nav-activo text-nav-activo-foreground" : "hover:bg-accent",
                 )}
               >
-                <span className="block font-bold">{r === "admin" ? "Administrador" : "Cajero"}</span>
+                <span className="block font-bold">{NOMBRES_ROL[r]}</span>
                 <span className="block text-xs opacity-80">
-                  {r === "admin" ? "Acceso total, todas las sucursales" : "Vende en una sucursal"}
+                  {r === "admin" ? "Acceso total, todas las sucursales" : r === "encargado" ? "Vende y supervisa su sucursal" : "Vende en una sucursal"}
                 </span>
               </button>
             ))}
           </div>
         )}
       </Campo>
-      {rol === "cajero" && (
+      {rol !== "admin" && (
         <Campo etiqueta="Sucursal" error={accion.campos.sucursalId}>
           {(p) => (
             <Select value={sucursalId ? String(sucursalId) : ""} onValueChange={(v) => setSucursalId(Number(v))}>

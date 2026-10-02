@@ -3,13 +3,14 @@
 import { ErrorImagen, guardarImagen, type Carpeta } from "@/lib/almacenamiento";
 import { autorizar } from "@/lib/auth/sesion";
 import { conPermiso, exito, fallo, type Resultado } from "./resultado";
+import type { Rol } from "@/lib/auth/constantes";
 
 /** Quién puede subir a cada carpeta: el cajero solo fotos de comprobantes de gasto. */
-const PERMISOS: Record<Carpeta, ("admin" | "cajero")[]> = {
+const PERMISOS: Record<Carpeta, Rol[]> = {
   productos: ["admin"],
   logo: ["admin"],
   qr: ["admin"],
-  gastos: ["admin", "cajero"],
+  gastos: ["admin", "cajero", "encargado"],
 };
 
 export async function subirImagen(formulario: FormData): Promise<Resultado<{ url: string }>> {

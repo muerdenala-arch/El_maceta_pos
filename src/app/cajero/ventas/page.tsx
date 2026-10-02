@@ -5,12 +5,13 @@ import { clientes, detalleVenta, productos, ventas } from "@/db/schema";
 import { requerirSesion } from "@/lib/auth/sesion";
 import { hoyEnBolivia, ZONA_HORARIA } from "@/lib/formato";
 import { ListaVentasDia } from "./lista-ventas-dia";
+import { ROLES_CAJA } from "@/lib/auth/constantes";
 
 export const metadata: Metadata = { title: "Ventas de hoy" };
 
 /** El cajero ve y reimprime los comprobantes de sus ventas del día (sección 5 del plan). */
 export default async function PaginaVentasDelDia() {
-  const sesion = await requerirSesion("cajero");
+  const sesion = await requerirSesion(...ROLES_CAJA);
   const filas = await db
     .select({
       id: ventas.id,
@@ -30,5 +31,5 @@ export default async function PaginaVentasDelDia() {
     )
     .orderBy(desc(ventas.fecha));
 
-  return <ListaVentasDia usuarioId={sesion.uid} ventas={filas.map((v) => ({ ...v, fecha: v.fecha.toISOString() }))} />;
+  return <ListaVentasDia usuarioId={sesion.uid} rol={sesion.rol === "encargado" ? "encargado" : "cajero"} ventas={filas.map((v) => ({ ...v, fecha: v.fecha.toISOString() }))} />;
 }

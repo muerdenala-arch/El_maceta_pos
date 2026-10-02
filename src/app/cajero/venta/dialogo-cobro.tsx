@@ -1,13 +1,15 @@
 "use client";
 
 /* eslint-disable @next/next/no-img-element -- imagen del QR configurado */
-import { Banknote, ChevronDown, Loader2, Percent, QrCode, TicketPercent, UserRound, X } from "lucide-react";
+import { Banknote, ChevronDown, Loader2, Percent, QrCode, ShieldCheck, TicketPercent, UserRound, X } from "lucide-react";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { DialogoAutorizacion, type AutorizacionDada } from "@/components/seguridad/dialogo-autorizacion";
 import { cambio, montosSugeridos } from "@/lib/caja/calculos";
+import { nivelDescuento } from "@/lib/caja/descuento-manual";
 import type { QrCobro } from "@/lib/caja/consultas";
 import type { CotizacionCombos } from "@/lib/combos/calculo";
 import { formatoBs } from "@/lib/formato";
@@ -27,8 +29,10 @@ type Props = {
   promociones: Promocion[];
   /** Categoría de un producto (para cupones por categoría sobre los productos de un combo). */
   categoriaDe: (productoId: number) => number | null;
-  /** Máximo descuento manual que puede dar el cajero, en % (0 = no puede). */
+  /** Máximo descuento manual que puede dar por su cuenta quien vende, en % (0 = no puede). */
   descuentoManualMaximo: number;
+  /** Hasta qué % puede autorizar el encargado con su PIN; más que eso, solo un administrador. */
+  descuentoManualConPin: number;
   /** Copia local: permite vender sin conexión. */
   instantanea: Instantanea | null;
   qrs: QrCobro[];
@@ -37,7 +41,7 @@ type Props = {
   onError: () => void;
 };
 
-export function DialogoCobro({ lineas, combos, promociones, categoriaDe, descuentoManualMaximo, instantanea, qrs, onCerrar, onExito, onError }: Props) {
+export function DialogoCobro({ lineas, combos, promociones, categoriaDe, descuentoManualMaximo, descuentoManualConPin, instantanea, qrs, onCerrar, onExito, onError }: Props) {
   // Un UUID por intento de cobro: si se pulsa dos veces o se reintenta, el servidor no duplica la venta.
   const [uuid] = useState(nuevoUuid);
   const [metodo, setMetodo] = useState<"efectivo" | "qr">("efectivo");
@@ -58,10 +62,17 @@ export function DialogoCobro({ lineas, combos, promociones, categoriaDe, descuen
   const [porcentajeManual, setPorcentajeManual] = useState("");
   const [motivoManual, setMotivoManual] = useState("");
 
-  // Descuento manual: hasta el máximo que configuró el administrador y siempre con motivo.
+  const [autorizacion, setAutorizacion] = useState<(AutorizacionDada & { porcentaje: string }) | null>(null);
+  const [pidiendoPin, setPidiendoPin] = useState(false);
+
+  // Descuento manual: hasta el máximo de quien vende; por encima, con el PIN del encargado o de un administrador.
+  // Siempre con motivo.
   const porcentaje = porcentajeManual.replace(",", ".");
-  const porcentajeValido = /^\d{1,3}(\.\d{1,2})?$/.test(porcentaje) && Number(porcentaje) > 0;
-  const manualExcedido = porcentajeValido && Number(porcentaje) > descuentoManualMaximo;
+  const porcentajeValido = /^\d{1,3}(\.\d{1,2})?$/.test(porcentaje) && Number(porcentaje) > 0 && Number(porcentaje) <= 100;
+  const nivel = nivelDescuento(Number(porcentaje) || 0, { propio: descuentoManualMaximo, encargado: descuentoManualConPin });
+  // El permiso vale solo para el porcentaje que se autorizó.
+  const autorizado = autorizacion !== null && Number(autorizacion.porcentaje) === Number(porcentaje);
+  const manualExcedido = porcentajeValido && nivel !== "libre" && !autorizado;
   const manualActivo = conManual && porcentajeValido && !manualExcedido;
   const manual = manualActivo ? { porcentaje, motivo: motivoManual.trim() } : null;
   const faltaMotivo = manualActivo && motivoManual.trim().length < 4;
@@ -117,6 +128,10 @@ export function DialogoCobro({ lineas, combos, promociones, categoriaDe, descuen
       toast.error("No hay datos guardados en este dispositivo para vender sin conexión. Conéctate una vez para descargarlos.");
       return;
     }
+    if (manual && nivel !== "libre") {
+      toast.error("Un descuento autorizado con PIN necesita conexión. Bájalo o quítalo para vender sin internet.");
+      return;
+    }
     const local = await registrarVentaLocal({
       uuid,
       instantanea,
@@ -143,6 +158,7 @@ export function DialogoCobro({ lineas, combos, promociones, categoriaDe, descuen
           combos: combos.combos.map((c) => ({ comboId: c.comboId, cantidad: c.cantidad })),
           cuponCodigo: cupon ? cupon.codigo : "",
           descuentoManual: manual,
+          autorizacion: manual && nivel !== "libre" ? (autorizacion?.token ?? null) : null,
           metodoPago: metodo,
           montoRecibido: metodo === "efectivo" ? recibidoNormalizado : null,
           clienteNombre: conCliente ? clienteNombre : "",
@@ -161,6 +177,7 @@ export function DialogoCobro({ lineas, combos, promociones, categoriaDe, descuen
   }
 
   return (
+    <>
     <Dialog open onOpenChange={(v) => !v && !pendiente && onCerrar()}>
       <DialogContent className="max-h-[94dvh] overflow-y-auto rounded-3xl sm:max-w-lg">
         <DialogHeader>
@@ -357,7 +374,7 @@ export function DialogoCobro({ lineas, combos, promociones, categoriaDe, descuen
             )}
           </div>
 
-          {descuentoManualMaximo > 0 && (
+          {Math.max(descuentoManualMaximo, descuentoManualConPin) > 0 && (
             <div className="rounded-2xl border">
               <button
                 type="button"
@@ -370,7 +387,9 @@ export function DialogoCobro({ lineas, combos, promociones, categoriaDe, descuen
                 {manualActivo ? (
                   <span className="cifras text-primary">−{formatoBs(resultado.descuentoManual)}</span>
                 ) : (
-                  <span className="font-normal text-muted-foreground">(hasta {descuentoManualMaximo.toLocaleString("es-BO")} %)</span>
+                  <span className="font-normal text-muted-foreground">
+                    {descuentoManualMaximo > 0 ? `(hasta ${descuentoManualMaximo.toLocaleString("es-BO")} %)` : "(con PIN del encargado)"}
+                  </span>
                 )}
                 <ChevronDown className={cn("ml-auto size-4 transition-transform", conManual && "rotate-180")} />
               </button>
@@ -390,8 +409,22 @@ export function DialogoCobro({ lineas, combos, promociones, categoriaDe, descuen
                     {manualActivo && <span className="cifras ml-auto text-sm font-semibold text-exito">−{formatoBs(resultado.descuentoManual)}</span>}
                   </div>
                   {manualExcedido && (
-                    <p className="text-sm font-semibold text-destructive" role="alert">
-                      El máximo permitido es {descuentoManualMaximo.toLocaleString("es-BO")} %
+                    <div className="space-y-2 rounded-xl border border-aviso/50 bg-aviso/10 p-3" role="alert">
+                      <p className="text-sm font-semibold">
+                        {nivel === "pin"
+                          ? descuentoManualMaximo > 0
+                            ? `Más de ${descuentoManualMaximo.toLocaleString("es-BO")} % necesita el PIN del encargado o de un administrador.`
+                            : "Este descuento necesita el PIN del encargado o de un administrador."
+                          : `El encargado autoriza hasta ${descuentoManualConPin.toLocaleString("es-BO")} %: este descuento necesita el PIN de un administrador.`}
+                      </p>
+                      <Button type="button" variant="outline" size="sm" onClick={() => setPidiendoPin(true)}>
+                        <ShieldCheck className="size-4" /> Autorizar con PIN
+                      </Button>
+                    </div>
+                  )}
+                  {manualActivo && nivel !== "libre" && autorizacion && (
+                    <p className="flex items-center gap-1.5 text-sm font-semibold text-exito">
+                      <ShieldCheck className="size-4" /> Autorizado por {autorizacion.autorizador}
                     </p>
                   )}
                   <Input
@@ -464,5 +497,24 @@ export function DialogoCobro({ lineas, combos, promociones, categoriaDe, descuen
         </form>
       </DialogContent>
     </Dialog>
+    {pidiendoPin && (
+      <DialogoAutorizacion
+        titulo="Autorizar descuento"
+        descripcion={
+          <>
+            Descuento manual de <strong>{Number(porcentaje).toLocaleString("es-BO")} %</strong> sobre esta venta.
+          </>
+        }
+        proposito="descuento"
+        referencia={uuid}
+        porcentaje={porcentaje}
+        onCerrar={() => setPidiendoPin(false)}
+        onAutorizado={(a) => {
+          setAutorizacion({ ...a, porcentaje });
+          setPidiendoPin(false);
+        }}
+      />
+    )}
+    </>
   );
 }

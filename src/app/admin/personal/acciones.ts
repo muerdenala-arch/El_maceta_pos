@@ -118,7 +118,7 @@ export async function cambiarEstadoUsuario(entrada: { id: number; activo: boolea
     if (!activo) {
       if (id === sesion.uid) return fallo("No puedes desactivar tu propio usuario");
       if (actual.rol === "admin" && !(await hayOtroAdminActivo(id))) return fallo(MENSAJE_ULTIMO_ADMIN);
-    } else if (actual.rol === "cajero" && !(await sucursalValidaParaCajero(actual.sucursalId))) {
+    } else if (actual.rol !== "admin" && !(await sucursalValidaParaCajero(actual.sucursalId))) {
       return fallo("Su sucursal está inactiva: asígnale otra antes de activarlo");
     }
 

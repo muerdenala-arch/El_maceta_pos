@@ -3,6 +3,9 @@ import {
   Boxes,
   ClipboardCheck,
   Gift,
+  HandCoins,
+  Truck,
+  Wallet,
   LayoutDashboard,
   Package,
   QrCode,
@@ -44,4 +47,28 @@ export const navCajero: ItemNav[] = [
   { href: "/cajero/bodega", titulo: "Bodega", icono: Warehouse, fase: 3 },
   { href: "/cajero/gastos", titulo: "Gastos", icono: ReceiptText, fase: 4 },
   { href: "/cajero/cierre", titulo: "Cierre de caja", icono: ClipboardCheck, fase: 4 },
+];
+
+/**
+ * Menú del encargado de sucursal: supervisa su sucursal (/encargado/*) y además opera una caja como un cajero
+ * (/cajero/*). No tiene catálogo, precios, personal, QR, cupones ni configuración.
+ */
+export const navEncargado: ItemNav[] = [
+  { href: "/encargado/panel", titulo: "Inicio", icono: LayoutDashboard, fase: 13 },
+  { href: "/cajero/venta", titulo: "Venta", icono: ShoppingCart, fase: 4 },
+  { href: "/encargado/reportes", titulo: "Reportes de venta", icono: BarChart3, fase: 13 },
+  { href: "/encargado/gastos", titulo: "Gastos de la sucursal", icono: ReceiptText, fase: 13 },
+  { href: "/cajero/bodega", titulo: "Inventario", icono: Boxes, fase: 3 },
+  { href: "/encargado/transferencias", titulo: "Transferencias", icono: Truck, fase: 13 },
+  { href: "/encargado/cajas", titulo: "Cajas", icono: Wallet, fase: 13 },
+  { href: "/cajero/gastos", titulo: "Registrar gasto", icono: HandCoins, fase: 4 },
+  { href: "/cajero/cierre", titulo: "Cierre de caja", icono: ClipboardCheck, fase: 4 },
+];
+
+/** Pestañas inferiores del encargado en el celular (el resto, en el menú lateral). */
+export const navEncargadoInferior: ItemNav[] = [
+  { href: "/encargado/panel", titulo: "Inicio", icono: LayoutDashboard, fase: 13 },
+  { href: "/cajero/venta", titulo: "Venta", icono: ShoppingCart, fase: 4 },
+  { href: "/cajero/bodega", titulo: "Inventario", icono: Boxes, fase: 3 },
+  { href: "/encargado/cajas", titulo: "Cajas", icono: Wallet, fase: 13 },
 ];

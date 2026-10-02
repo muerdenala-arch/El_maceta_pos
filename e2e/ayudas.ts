@@ -3,6 +3,7 @@ import { expect, type Page } from "@playwright/test";
 /** Credenciales de prueba: vienen de .env.local (SEED_*) a través de playwright.config.ts. */
 export const CAJERO = { usuario: process.env.E2E_CAJERO_USUARIO ?? "", pin: process.env.E2E_CAJERO_PIN ?? "" };
 export const ADMIN = { usuario: process.env.E2E_ADMIN_USUARIO ?? "", pin: process.env.E2E_ADMIN_PIN ?? "" };
+export const ENCARGADO = { usuario: process.env.E2E_ENCARGADO_USUARIO ?? "", pin: process.env.E2E_ENCARGADO_PIN ?? "" };
 
 /** Escribe el PIN con el teclado físico (el teclado en pantalla escucha keydown en la ventana). */
 export async function escribirPin(page: Page, pin: string) {
@@ -39,6 +40,11 @@ export async function ingresarCajero(page: Page, { abrirSiHaceFalta = true } = {
 export async function ingresarAdmin(page: Page) {
   await login(page, ADMIN);
   await page.waitForURL("**/admin/dashboard");
+}
+
+export async function ingresarEncargado(page: Page) {
+  await login(page, ENCARGADO);
+  await page.waitForURL("**/encargado/panel");
 }
 
 /** Agrega al carrito el primer producto con stock (botón principal de la tarjeta). */

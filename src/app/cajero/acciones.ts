@@ -26,12 +26,13 @@ import {
   type DatosGasto,
   type DatosVenta,
 } from "@/lib/validaciones/caja";
+import { ROLES_CAJA } from "@/lib/auth/constantes";
 
 // ---------------------------------------------------------------- Apertura
 
 export async function abrirCaja(entrada: DatosApertura): Promise<Resultado> {
   return conPermiso(async () => {
-    const sesion = await autorizar("cajero");
+    const sesion = await autorizar(...ROLES_CAJA);
     if (!sesion.sucursalId) return fallo("No tienes una sucursal asignada");
     const v = esquemaApertura.safeParse(entrada);
     if (!v.success) return falloValidacion(v.error);
@@ -62,7 +63,7 @@ export type { VentaRealizada } from "@/lib/caja/registro";
  */
 export async function registrarVenta(entrada: DatosVenta): Promise<Resultado<VentaRealizada>> {
   return conPermiso(async () => {
-    const sesion = await autorizar("cajero");
+    const sesion = await autorizar(...ROLES_CAJA);
     const v = esquemaVenta.safeParse(entrada);
     if (!v.success) return falloValidacion(v.error);
     return registrarVentaEnLinea(sesion, v.data);
@@ -72,7 +73,7 @@ export async function registrarVenta(entrada: DatosVenta): Promise<Resultado<Ven
 /** Comprobante para reimprimir/reenviar: el cajero solo sus ventas del día; el admin, cualquiera. */
 export async function verComprobante(ventaId: number): Promise<Resultado<DatosComprobante>> {
   return conPermiso(async () => {
-    const sesion = await autorizar("cajero", "admin");
+    const sesion = await autorizar(...ROLES_CAJA, "admin");
     const id = Number(ventaId);
     if (!Number.isInteger(id) || id <= 0 || !(await puedeVerVenta(sesion, id))) return fallo("No puedes ver este comprobante");
     const datos = await obtenerComprobante({ ventaId: id });
@@ -86,7 +87,7 @@ export async function verComprobante(ventaId: number): Promise<Resultado<DatosCo
  */
 export async function consultarCupon(codigo: string): Promise<Resultado<CuponVenta>> {
   return conPermiso(async () => {
-    const sesion = await autorizar("cajero");
+    const sesion = await autorizar(...ROLES_CAJA);
     if (!sesion.sucursalId) return fallo("No tienes una sucursal asignada");
     const limpio = String(codigo ?? "").trim().toUpperCase();
     if (!/^[A-Z0-9-]{3,40}$/.test(limpio)) return fallo("Código inválido");
@@ -99,7 +100,7 @@ export type ClienteEncontrado = { id: number; nombre: string | null; telefono: s
 
 /** Búsqueda de clientes ya registrados por nombre o teléfono (mínimo 2 caracteres). */
 export async function buscarClientes(consulta: string): Promise<ClienteEncontrado[]> {
-  await autorizar("cajero", "admin");
+  await autorizar(...ROLES_CAJA, "admin");
   const q = String(consulta ?? "").trim().slice(0, 60);
   if (q.length < 2) return [];
   const digitos = q.replace(/\D/g, "");
@@ -119,7 +120,7 @@ export async function buscarClientes(consulta: string): Promise<ClienteEncontrad
 
 export async function registrarGasto(entrada: DatosGasto): Promise<Resultado> {
   return conPermiso(async () => {
-    const sesion = await autorizar("cajero");
+    const sesion = await autorizar(...ROLES_CAJA);
     const v = esquemaGasto.safeParse(entrada);
     if (!v.success) return falloValidacion(v.error);
     const caja = await cajaAbiertaDe(sesion.uid);
@@ -155,7 +156,7 @@ export type CierreRealizado = {
 /** Cierra la caja con el efectivo contado. Una vez cerrada no se modifica; si no cuadra, alerta al admin. */
 export async function cerrarCaja(entrada: DatosCierre): Promise<Resultado<CierreRealizado>> {
   return conPermiso(async () => {
-    const sesion = await autorizar("cajero");
+    const sesion = await autorizar(...ROLES_CAJA);
     const v = esquemaCierre.safeParse(entrada);
     if (!v.success) return falloValidacion(v.error);
     const contado = v.data.efectivoContado;

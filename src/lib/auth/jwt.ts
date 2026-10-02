@@ -7,7 +7,7 @@ import { z } from "zod";
 
 const esquemaCarga = z.object({
   uid: z.number().int().positive(),
-  rol: z.enum(["admin", "cajero"]),
+  rol: z.enum(["admin", "cajero", "encargado"]),
   sucursalId: z.number().int().positive().nullable(),
 });
 
@@ -20,6 +20,9 @@ function clave() {
   }
   return new TextEncoder().encode(secreto);
 }
+
+/** La misma clave firma las autorizaciones con PIN (lib/auth/autorizacion.ts), con otra audiencia. */
+export const claveJwt = clave;
 
 /** Duración máxima de la sesión en horas (SESION_HORAS, por defecto 12, máximo 7 días). */
 export function horasSesion() {

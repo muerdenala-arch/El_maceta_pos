@@ -24,7 +24,10 @@ export function BarraFiltros({
   campos,
   categorias = [],
   exportar,
+  sucursalFija = false,
 }: {
+  /** Encargado: su sucursal no se elige (el servidor la impone siempre). */
+  sucursalFija?: boolean;
   filtros: FiltrosReporte;
   hoy: string;
   opciones: OpcionesFiltros;
@@ -83,6 +86,7 @@ export function BarraFiltros({
           <Input type="date" value={filtros.hasta} min={filtros.desde} max={hoy} onChange={(e) => e.target.value && ir({ hasta: e.target.value })} className="h-10" />
         </label>
 
+        {!sucursalFija && (
         <Filtro etiqueta="Sucursal">
           <Select value={filtros.sucursalId ? String(filtros.sucursalId) : "todas"} onValueChange={(v) => ir({ sucursalId: v === "todas" ? null : Number(v) })}>
             <SelectTrigger className="h-10! w-full" aria-label="Sucursal">
@@ -98,6 +102,7 @@ export function BarraFiltros({
             </SelectContent>
           </Select>
         </Filtro>
+        )}
 
         {campos.includes("cajero") && (
           <Filtro etiqueta="Cajero">

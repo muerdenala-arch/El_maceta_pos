@@ -51,6 +51,8 @@ export type AccionAuditoria =
   | "venta_fraccionada_cambiada"
   | "combo_creado"
   | "combo_editado"
+  // Rol Encargado
+  | "autorizacion_fallida"
   // Módulo Eventos
   | "evento_creado"
   | "evento_iniciado"

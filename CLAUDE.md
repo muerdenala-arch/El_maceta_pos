@@ -3,7 +3,7 @@
 # El Maseta — Sistema de gestión de suplementos
 
 PWA (celular y PC) para vender suplementos en varias sucursales con bodega central, roles
-**Administrador** y **Cajero**, comprobantes (impresión 58/80 mm/carta, PDF, WhatsApp) y ventas
+**Administrador**, **Encargado** de sucursal y **Cajero**, comprobantes (impresión 58/80 mm/carta, PDF, WhatsApp) y ventas
 sin internet. La especificación completa es `Plan_de_trabajo_Sistema_Suplementos.pdf` (del dueño);
 este archivo resume lo esencial. **Ante cualquier ambigüedad, preguntar al dueño antes de asumir.**
 
@@ -368,6 +368,35 @@ Credenciales de prueba locales: en `.env.local` (`SEED_*`), nunca en el código 
 - La cantidad que motivó la alerta lleva `data-en-alerta` y va en rojo. Usado en Inventario, Bodega (stock y vencimientos)
   y Auditoría → Cajas. Pruebas: `test/campanita.integracion.test.ts`, `e2e/revision-campanita.spec.ts`.
 
+## Rol Encargado (encargado de sucursal)
+
+- Tercer rol (`rolEnum`, `Rol` en `lib/auth/constantes.ts`; `ROLES_CAJA = cajero + encargado`, `NOMBRES_ROL`). Siempre con una
+  sucursal. Lo crea el administrador desde Personal. Inicio: `/encargado/panel`.
+- Rutas (`lib/auth/rutas.ts`): `/admin` y `/api/admin` solo admin; `/encargado` y `/api/encargado` solo encargado; `/cajero`,
+  `/api/cajero` y `/api/sync` cajero **y** encargado (opera una caja igual que un cajero: `autorizar(...ROLES_CAJA)`).
+- Pantallas `/encargado/*` (panel, reportes, gastos, transferencias, cajas): todas empiezan con `requerirEncargado()`
+  (`lib/encargado.ts`) y consultan con **su** `sucursal.id`, nunca con uno de la URL (`?sucursal=` se ignora). Reutilizan los
+  componentes del admin con `sucursalFija` (BarraFiltros), `sinCostos` (productos; los costos se ponen en "0" antes de pasar
+  al cliente), `soloLectura` (gastos) y `listarCajasAuditadas` (`lib/caja/auditadas.ts`). Sin costos, ganancia ni exportación.
+- Inventario del encargado = `/cajero/bodega` (stock de su sucursal + bodega, "Pedir" reposición), con `?resaltar=ID`.
+- Campanita: solo `TIPOS_ENCARGADO` (stock) de su sucursal, con su propio leído (`alertas.leida_encargado`) y destino
+  `/cajero/bodega?resaltar=ID`. `listarAlertasPendientes(limite, sesion)` / `resumenAlertas(sesion)` filtran según la sesión.
+- Transferencias: `recibirTransferencia` admite al encargado solo si el destino es su sucursal (otra → "no existe"); cancelar, solo admin.
+- **Autorización con PIN** en la pantalla de quien vende (`pedirAutorizacion`, `lib/auth/autorizacion-acciones.ts` +
+  `<DialogoAutorizacion>`): vale el PIN del encargado de esa sucursal o de un administrador; devuelve un permiso firmado de 10 min
+  (`lib/auth/autorizacion.ts`, misma clave JWT, otra audiencia) atado a quien lo pidió, la sucursal, el propósito y la referencia
+  (UUID del cobro + porcentaje, o id de la venta). 5 PIN incorrectos → 15 min sin autorizaciones para ese usuario
+  (`intentos_ingreso`, origen `autorizacion:<uid>`), auditoría `autorizacion_fallida`. Requiere conexión.
+- Descuento manual (decidido con el dueño): dos máximos en Configuración (`descuento_manual_maximo` del cajero y
+  `descuento_manual_maximo_encargado`). `limitesDescuento`/`nivelDescuento` (`lib/caja/descuento-manual.ts`, probado): quien vende da
+  hasta su máximo sin PIN; por encima, PIN del encargado (hasta el máximo del encargado) o de un administrador (cualquier %).
+  `ventas.descuento_autorizado_por` + auditoría `descuento_manual` con `autorizadoPor`. Sin conexión solo vale el máximo propio.
+- Anulación en sucursal (`anularVentaEnSucursal`, `app/cajero/ventas/acciones.ts`; núcleo común `anularVentaConStock` en
+  `lib/caja/anulacion.ts`): **solo con la caja de la venta aún abierta** (después, solo el admin); el encargado anula cualquier
+  venta de su sucursal; el cajero, solo las suyas y con PIN. Auditoría `venta_anulada` con `rol` y `autorizadoPor`.
+- Pruebas: `encargado.integracion.test.ts`, el barrido de permisos (lista exacta de acciones del encargado), `rutas.test.ts` y
+  `e2e/revision-encargado.spec.ts` (usuario `SEED_ENCARGADO_*` de .env.local).
+
 ## Botón atrás por niveles
 
 - `lib/navegacion/niveles.ts` (`padreDe`, probado): apartados del menú → inicio del rol; pantallas internas → un nivel arriba.
@@ -379,6 +408,7 @@ Credenciales de prueba locales: en `.env.local` (`SEED_*`), nunca en el código 
 
 - **Permisos en el servidor**: `proxy.ts` protege rutas por rol y *además* cada server action /
   route handler verifica sesión y rol. Nunca confiar solo en la interfaz.
+- Encargado: solo su sucursal, sin costos; nunca catálogo, precios, personal, QR, cupones ni configuración (ver "Rol Encargado").
 - Cajero: una sola sucursal; solo apertura, venta, sus comprobantes del día, consulta de stock,
   gastos, cierre y cerrar sesión. **Nunca** ve costos, reportes globales, configuración ni personal.
 - Montos en `NUMERIC(12,2)` (helper `dinero()` en el schema); nunca `float`. Operar con

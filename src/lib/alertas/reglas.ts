@@ -27,6 +27,12 @@ export function alertaDeStock(cantidad: number, minimo: number): "agotado" | "st
 /** Tipos que se resuelven solos al corregirse la causa (el resto se marca como revisado a mano). */
 export const TIPOS_AUTOMATICOS: TipoAlerta[] = ["stock_bajo", "agotado", "por_vencer", "stock_negativo", "evento_por_finalizar"];
 
+/** Alertas que recibe el encargado en su campanita: las de stock de su sucursal. */
+export const TIPOS_ENCARGADO: TipoAlerta[] = ["stock_bajo", "agotado", "stock_negativo"];
+
+/** Para el encargado, la alerta de stock lleva al inventario de su sucursal, con el producto resaltado. */
+export const destinoAlertaEncargado = (productoId: number | null) => (productoId ? `/cajero/bodega?resaltar=${productoId}` : "/cajero/bodega");
+
 type AlertaDestino = {
   tipo: TipoAlerta;
   productoId: number | null;

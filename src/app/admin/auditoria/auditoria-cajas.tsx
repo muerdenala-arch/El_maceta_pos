@@ -4,28 +4,13 @@ import { AlertTriangle, CheckCircle2, Clock } from "lucide-react";
 import { useState } from "react";
 import { useResaltado } from "@/components/alertas/use-resaltado";
 import { Badge } from "@/components/ui/badge";
+import type { CajaAuditada } from "@/lib/caja/auditadas";
 import { aCentavos, sumar } from "@/lib/dinero";
 import { formatoBs } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 import { FiltroFechas } from "./filtro-fechas";
 import { Buscador, Resaltar, SinResultados } from "@/components/busqueda/buscador";
 import { coincide } from "@/lib/busqueda";
-
-export type CajaAuditada = {
-  id: number;
-  cajero: string;
-  sucursal: string;
-  estado: "abierta" | "cerrada";
-  apertura: string;
-  cierre: string | null;
-  montoInicial: string;
-  ventasEfectivo: string;
-  ventasQr: string;
-  gastos: string;
-  esperado: string;
-  contado: string | null;
-  diferencia: string | null;
-};
 
 const fechaHora = (iso: string) =>
   new Date(iso).toLocaleString("es-BO", { timeZone: "America/La_Paz", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });

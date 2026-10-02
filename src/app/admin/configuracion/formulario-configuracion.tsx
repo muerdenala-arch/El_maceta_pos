@@ -144,7 +144,7 @@ export function FormularioConfiguracion({ inicial }: { inicial: Datos }) {
           </section>
 
           <section className="space-y-4 rounded-3xl border bg-card p-5 shadow-sm sm:p-6">
-            <h2 className="text-lg font-extrabold">Descuento manual del cajero</h2>
+            <h2 className="text-lg font-extrabold">Descuento manual</h2>
             <Campo
               etiqueta="Máximo que puede descontar el cajero"
               error={guardar.campos.descuentoManualMaximo}
@@ -156,6 +156,24 @@ export function FormularioConfiguracion({ inicial }: { inicial: Datos }) {
                     {...p}
                     value={d.descuentoManualMaximo ?? "0"}
                     onChange={(e) => poner("descuentoManualMaximo", e.target.value.replace(/[^\d.,]/g, "").slice(0, 6))}
+                    inputMode="decimal"
+                    className="cifras border-0 bg-transparent text-lg font-bold shadow-none focus-visible:ring-0 dark:bg-transparent"
+                  />
+                  <span className="pr-3 font-bold text-muted-foreground">%</span>
+                </div>
+              )}
+            </Campo>
+            <Campo
+              etiqueta="Máximo que puede dar o autorizar el encargado"
+              error={guardar.campos.descuentoManualMaximoEncargado}
+              ayuda="Por encima del máximo del cajero, el encargado de la sucursal autoriza con su PIN en la pantalla del cajero, hasta este porcentaje. Un administrador puede autorizar cualquier descuento con su PIN."
+            >
+              {(p) => (
+                <div className="flex max-w-32 items-center rounded-md border focus-within:ring-3 focus-within:ring-ring/50">
+                  <Input
+                    {...p}
+                    value={d.descuentoManualMaximoEncargado ?? "0"}
+                    onChange={(e) => poner("descuentoManualMaximoEncargado", e.target.value.replace(/[^\d.,]/g, "").slice(0, 6))}
                     inputMode="decimal"
                     className="cifras border-0 bg-transparent text-lg font-bold shadow-none focus-visible:ring-0 dark:bg-transparent"
                   />

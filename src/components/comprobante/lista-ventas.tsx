@@ -36,6 +36,7 @@ const fechaHora = (iso: string) =>
 export function ListaVentas({
   ventas,
   admin,
+  anulacion,
   ventaInicial = null,
   conFecha = false,
   consulta = "",
@@ -47,6 +48,8 @@ export function ListaVentas({
   ventas: VentaResumida[];
   /** Permite confirmar pagos QR y anular ventas desde el comprobante. */
   admin?: boolean;
+  /** En la sucursal: el encargado anula directamente; el cajero, con PIN de autorización. */
+  anulacion?: "encargado" | "cajero";
   /** ?venta=ID: abre ese comprobante al entrar (desde una alerta), aunque sea de otro día. */
   ventaInicial?: number | null;
   /** Muestra día y hora (listas de varios días). */
@@ -113,7 +116,7 @@ export function ListaVentas({
           </li>
         )}
       </ul>
-      {abierta !== null && <DialogoComprobante ventaId={abierta} admin={admin} onCerrar={() => setAbierta(null)} />}
+      {abierta !== null && <DialogoComprobante ventaId={abierta} admin={admin} anulacion={anulacion} onCerrar={() => setAbierta(null)} />}
     </>
   );
 }

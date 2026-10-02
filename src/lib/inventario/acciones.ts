@@ -196,13 +196,16 @@ export async function crearTransferencia(entrada: DatosTransferencia): Promise<R
 async function cerrarTransferencia(entrada: { id: number }, accion: "recibir" | "cancelar"): Promise<Resultado> {
   return conPermiso(() =>
     conStock(async () => {
-      const sesion = await autorizar("admin");
+      // Recibir: el administrador, o el encargado de la sucursal de destino. Cancelar: solo el administrador.
+      const sesion = accion === "recibir" ? await autorizar("admin", "encargado") : await autorizar("admin");
       const id = idPositivo.parse(entrada.id);
 
       const ok = await db.transaction(async (tx) => {
         // Bloquea la fila: dos clics simultáneos no pueden recibirla dos veces.
         const [t] = await tx.select().from(transferencias).where(eq(transferencias.id, id)).for("update");
-        if (!t || t.estado !== "enviada") return false;
+        // Para el encargado, una transferencia de otra sucursal "no existe".
+        if (!t || (sesion.rol !== "admin" && t.destinoId !== sesion.sucursalId)) return null;
+        if (t.estado !== "enviada") return false;
         const ubicacionId = accion === "recibir" ? t.destinoId : t.origenId;
         const [otra] = await tx
           .select({ nombre: sucursales.nombre })
@@ -229,10 +232,11 @@ async function cerrarTransferencia(entrada: { id: number }, accion: "recibir" | 
         return true;
       });
 
+      if (ok === null) return fallo("La transferencia no existe");
       if (!ok) return fallo("Esta transferencia ya fue recibida o cancelada");
       await registrarAuditoria(accion === "recibir" ? "transferencia_recibida" : "transferencia_cancelada", {
         usuarioId: sesion.uid,
-        detalle: { id },
+        detalle: { id, rol: sesion.rol },
       });
       refresh();
       return exito();

@@ -22,6 +22,8 @@
 - **Bodega**: ver el stock de tu sucursal y de la bodega central; **Pedir** si falta algo.
 - **Gastos**: registra cada gasto con su categoría y, si puedes, foto del comprobante.
 - **Ventas del día**: para reimprimir o reenviar un comprobante.
+- **Anular una venta** (solo con tu caja abierta): ábrela en Ventas del día → Anular venta → motivo → el **encargado** escribe su PIN.
+- **Descuento manual**: hasta tu máximo lo das tú, con motivo. Si necesitas más, toca "Autorizar con PIN" y el encargado escribe el suyo.
 - Si no usas la app **15 minutos**, o la cierras y la vuelves a abrir, te pide el PIN. El carrito no se pierde.
 - ↻ actualiza los datos sin cerrar tu sesión.
 

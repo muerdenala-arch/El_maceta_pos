@@ -4,6 +4,7 @@ import { Check, PackageSearch, Send, Truck, Warehouse } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Buscador, Resaltar, SinResultados } from "@/components/busqueda/buscador";
 import { coincide } from "@/lib/busqueda";
+import { useResaltado } from "@/components/alertas/use-resaltado";
 import { CantidadStock } from "@/components/inventario/cantidad-stock";
 import { desglosar, esFraccionado, minimoEnUnidades, nombreEnvase, textoStock } from "@/lib/inventario/fraccion";
 import { Campo } from "@/components/formularios/campo";
@@ -19,6 +20,8 @@ import { cn } from "@/lib/utils";
 import { solicitarReposicion } from "./acciones";
 
 type Props = {
+  /** Producto al que se llega desde una alerta de la campanita (encargado). */
+  resaltar?: number | null;
   sucursal: { id: number; nombre: string };
   bodegaId: number | null;
   productos: ProductoInventario[];
@@ -28,9 +31,17 @@ type Props = {
   solicitados: Record<number, string>;
 };
 
-export function ConsultaBodega({ sucursal, bodegaId, productos, stock, enCamino, solicitados }: Props) {
+export function ConsultaBodega({ sucursal, bodegaId, productos, stock, enCamino, solicitados, resaltar = null }: Props) {
   const [busqueda, setBusqueda] = useState("");
   const [soloBajo, setSoloBajo] = useState(false);
+  const resaltado = useResaltado<HTMLLIElement>(resaltar);
+  // Al llegar desde una alerta se quitan los filtros que podrían ocultar el producto.
+  const [llegada, setLlegada] = useState(resaltado.clave);
+  if (llegada !== resaltado.clave) {
+    setLlegada(resaltado.clave);
+    setBusqueda("");
+    setSoloBajo(false);
+  }
   const [pidiendo, setPidiendo] = useState<ProductoInventario | null>(null);
 
   const aqui = (p: number) => stock[`${p}:${sucursal.id}`] ?? 0;
@@ -64,7 +75,11 @@ export function ConsultaBodega({ sucursal, bodegaId, productos, stock, enCamino,
           const c = aqui(p.id);
           const llegando = enCamino[`${p.id}:${sucursal.id}`] ?? 0;
           return (
-            <li key={p.id} className="flex flex-wrap items-center gap-3 rounded-3xl border bg-card p-3 shadow-sm sm:px-4">
+            <li
+              key={p.id}
+              ref={p.id === resaltar ? resaltado.ref : undefined}
+              className={cn("flex flex-wrap items-center gap-3 rounded-3xl border bg-card p-3 shadow-sm sm:px-4", resaltado.activo && p.id === resaltar && "fila-resaltada")}
+            >
               <Miniatura url={p.fotoUrl} className="size-14 rounded-2xl" />
               <div className="min-w-0 flex-1 basis-40">
                 <p className="font-bold leading-snug">

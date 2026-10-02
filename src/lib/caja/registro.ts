@@ -2,7 +2,7 @@ import "server-only";
 import { randomBytes } from "node:crypto";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { alertas, cajas, clientes, configuracion, detalleVenta, gastos, productos, sucursales, ventas, ventasCombos } from "@/db/schema";
+import { alertas, cajas, clientes, configuracion, detalleVenta, gastos, productos, sucursales, usuarios, ventas, ventasCombos } from "@/db/schema";
 import { esViolacionUnica, exito, fallo, type Resultado } from "@/lib/acciones/resultado";
 import type { Sesion } from "@/lib/auth/sesion";
 import { cambio, normalizarTelefono } from "@/lib/caja/calculos";
@@ -21,6 +21,8 @@ import { registrarAuditoria } from "@/lib/auditoria";
 import type { LineaConDescuento } from "@/lib/promociones/motor";
 import type { DatosGastoOffline, DatosVentaOffline, esquemaVenta } from "@/lib/validaciones/caja";
 import type { z } from "zod";
+import { verificarAutorizacion } from "@/lib/auth/autorizacion";
+import { limitesDescuento } from "@/lib/caja/descuento-manual";
 
 export type VentaRealizada = {
   ventaId: number;
@@ -76,6 +78,8 @@ type NuevaVenta = {
   desglose: { promociones: string; combos: string; cupon: string; manual: string };
   /** Descuento manual del cajero (porcentaje y motivo). */
   manual?: { porcentaje: string; motivo: string } | null;
+  /** Encargado o administrador que autorizó con su PIN el descuento manual. */
+  autorizadoPor?: number | null;
   total: string;
   metodoPago: "efectivo" | "qr";
   montoRecibido: string | null;
@@ -128,6 +132,7 @@ async function insertarVenta(tx: Tx, n: NuevaVenta) {
       descuentoManual: n.desglose.manual,
       porcentajeDescuentoManual: n.manual?.porcentaje ?? null,
       motivoDescuentoManual: n.manual?.motivo ?? null,
+      descuentoAutorizadoPor: n.autorizadoPor ?? null,
       total: n.total,
       cuponId: n.cuponId,
       metodoPago: n.metodoPago,
@@ -230,19 +235,62 @@ async function catalogoDe(tx: Tx, ids: number[]) {
 
 const minuscula = (t: string) => t.charAt(0).toLowerCase() + t.slice(1);
 
-async function maximoDescuentoManual(tx: Tx) {
-  const [conf] = await tx.select({ maximo: configuracion.descuentoManualMaximo }).from(configuracion).where(eq(configuracion.id, 1));
-  return Number(conf?.maximo ?? 0);
+/**
+ * Descuento manual: lo que puede dar por su cuenta quien vende (el cajero, su máximo; el encargado, el suyo) y lo
+ * máximo que puede autorizar un encargado. Un administrador puede autorizar cualquier porcentaje.
+ */
+async function limitesDescuentoManual(tx: Tx, rol: Sesion["rol"]) {
+  const [conf] = await tx
+    .select({ cajero: configuracion.descuentoManualMaximo, encargado: configuracion.descuentoManualMaximoEncargado })
+    .from(configuracion)
+    .where(eq(configuracion.id, 1));
+  return limitesDescuento(conf?.cajero ?? "0", conf?.encargado ?? "0", rol);
+}
+
+/** Valida el descuento manual de una venta en línea. Devuelve quién lo autorizó con su PIN (null = no hizo falta). */
+async function validarDescuentoManual(tx: Tx, sesion: Sesion, sucursalId: number, d: z.output<typeof esquemaVenta>): Promise<number | null> {
+  if (!d.descuentoManual) return null;
+  const porcentaje = Number(d.descuentoManual.porcentaje);
+  const limites = await limitesDescuentoManual(tx, sesion.rol);
+  const pct = (n: number) => `${n.toLocaleString("es-BO")} %`;
+  if (porcentaje <= limites.propio) return null;
+  const quien = await verificarAutorizacion(d.autorizacion, { para: sesion.uid, sucursalId, proposito: "descuento", ref: d.uuid }, tx);
+  if (!quien) {
+    if (d.autorizacion) throw new ErrorStock("La autorización venció o no corresponde a esta venta. Pide el PIN otra vez.");
+    if (limites.encargado <= 0) throw new ErrorStock("El descuento manual no está habilitado. Pídeselo al administrador.");
+    throw new ErrorStock(
+      limites.propio > 0
+        ? `Un descuento mayor a ${pct(limites.propio)} necesita el PIN del encargado o de un administrador`
+        : "El descuento manual necesita el PIN del encargado o de un administrador",
+    );
+  }
+  if (quien.porcentaje === null || Number(quien.porcentaje) !== porcentaje) throw new ErrorStock("Se autorizó otro porcentaje de descuento. Pide el PIN otra vez.");
+  if (quien.rol !== "admin" && porcentaje > limites.encargado) {
+    throw new ErrorStock(limites.encargado > 0 ? `El encargado puede autorizar hasta ${pct(limites.encargado)}` : "El encargado no puede autorizar descuentos manuales");
+  }
+  return quien.id;
 }
 
 /** Los descuentos manuales son una acción sensible: quedan en auditoría con su motivo (fuera de la transacción). */
 async function auditarDescuentoManual(usuarioId: number, ventaId: number) {
   const [v] = await db
-    .select({ numero: ventas.numeroComprobante, monto: ventas.descuentoManual, porcentaje: ventas.porcentajeDescuentoManual, motivo: ventas.motivoDescuentoManual, total: ventas.total })
+    .select({
+      numero: ventas.numeroComprobante,
+      monto: ventas.descuentoManual,
+      porcentaje: ventas.porcentajeDescuentoManual,
+      motivo: ventas.motivoDescuentoManual,
+      total: ventas.total,
+      autorizadoPorId: ventas.descuentoAutorizadoPor,
+      autorizadoPor: usuarios.nombre,
+    })
     .from(ventas)
+    .leftJoin(usuarios, eq(usuarios.id, ventas.descuentoAutorizadoPor))
     .where(eq(ventas.id, ventaId));
   if (!v || aCentavos(v.monto) <= 0n) return;
-  await registrarAuditoria("descuento_manual", { usuarioId, detalle: { ventaId, venta: v.numero, porcentaje: v.porcentaje, monto: v.monto, total: v.total, motivo: v.motivo } });
+  await registrarAuditoria("descuento_manual", {
+    usuarioId,
+    detalle: { ventaId, venta: v.numero, porcentaje: v.porcentaje, monto: v.monto, total: v.total, motivo: v.motivo, autorizadoPor: v.autorizadoPor, autorizadoPorId: v.autorizadoPorId },
+  });
 }
 
 /** Precio de la BD para la línea: el de la unidad suelta o el del envase completo. */
@@ -285,11 +333,7 @@ export async function registrarVentaEnLinea(sesion: Sesion, d: z.output<typeof e
         if (!hallado.ok) throw new ErrorStock(hallado.error);
         cupon = hallado.cupon;
       }
-      if (d.descuentoManual) {
-        const maximo = await maximoDescuentoManual(tx);
-        if (maximo <= 0) throw new ErrorStock("El descuento manual no está habilitado. Pídeselo al administrador.");
-        if (Number(d.descuentoManual.porcentaje) > maximo) throw new ErrorStock(`El descuento manual máximo es ${maximo.toLocaleString("es-BO")} %`);
-      }
+      const autorizadoPor = await validarDescuentoManual(tx, sesion, caja.sucursalId, d);
 
       const calculo = calcularVenta({
         lineas: lineasCarrito,
@@ -325,6 +369,7 @@ export async function registrarVentaEnLinea(sesion: Sesion, d: z.output<typeof e
         descuento: calculo.descuento,
         desglose: { promociones: calculo.descuentoPromociones, combos: calculo.descuentoCombos, cupon: calculo.descuentoCupon, manual: calculo.descuentoManual },
         manual: d.descuentoManual && Number(calculo.descuentoManual) > 0 ? d.descuentoManual : null,
+        autorizadoPor: d.descuentoManual && Number(calculo.descuentoManual) > 0 ? autorizadoPor : null,
         total: calculo.total,
         metodoPago: d.metodoPago,
         montoRecibido: d.metodoPago === "efectivo" ? d.montoRecibido : null,
@@ -420,7 +465,8 @@ export async function registrarVentaOffline(sesion: Sesion, d: DatosVentaOffline
         promociones: await promocionesAutomaticas(caja.sucursalId, tx, fecha),
         manualPorcentaje: d.descuentoManual?.porcentaje,
       });
-      const maximoManual = d.descuentoManual ? await maximoDescuentoManual(tx) : 0;
+      // Sin conexión no hay PIN de autorización: vale solo lo que quien vende puede dar por su cuenta.
+      const maximoManual = d.descuentoManual ? (await limitesDescuentoManual(tx, sesion.rol)).propio : 0;
 
       const venta = await insertarVenta(tx, {
         uuid: d.uuid,

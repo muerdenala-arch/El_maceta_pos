@@ -9,12 +9,14 @@ import { baseComprobante } from "@/lib/comprobante/consulta";
 import { promocionesAutomaticas } from "@/lib/promociones/consultas";
 import { combosPos } from "@/lib/combos/consultas";
 import { hoyEnBolivia, instanteActual } from "@/lib/formato";
+import { limitesDescuento } from "@/lib/caja/descuento-manual";
 import { PuntoDeVenta } from "./punto-de-venta";
+import { ROLES_CAJA } from "@/lib/auth/constantes";
 
 export const metadata: Metadata = { title: "Venta" };
 
 export default async function PaginaVenta() {
-  const sesion = await requerirSesion("cajero");
+  const sesion = await requerirSesion(...ROLES_CAJA);
   // Sin caja abierta no se vende: lleva a la apertura.
   const caja = await requerirCajaAbierta(sesion);
   await connection();
@@ -24,8 +26,13 @@ export default async function PaginaVenta() {
     promocionesAutomaticas(caja.sucursalId),
     baseComprobante(caja.sucursalId),
     combosPos(hoyEnBolivia()),
-    db.select({ maximo: configuracion.descuentoManualMaximo }).from(configuracion).where(eq(configuracion.id, 1)),
+    db
+      .select({ cajero: configuracion.descuentoManualMaximo, encargado: configuracion.descuentoManualMaximoEncargado })
+      .from(configuracion)
+      .where(eq(configuracion.id, 1)),
   ]);
+
+  const limites = limitesDescuento(conf?.cajero ?? "0", conf?.encargado ?? "0", sesion.rol);
 
   return (
     <PuntoDeVenta
@@ -35,7 +42,9 @@ export default async function PaginaVenta() {
         cajaId: caja.id,
         sucursalId: caja.sucursalId,
         baseComprobante: base,
-        descuentoManualMaximo: conf?.maximo ?? "0",
+        // Lo que puede dar por su cuenta quien vende, y hasta dónde llega con el PIN del encargado.
+        descuentoManualMaximo: String(limites.propio),
+        descuentoManualConPin: String(limites.encargado),
         // Momento de estos datos: la copia local más nueva (p. ej. con ventas sin conexión) gana.
         generadoEn: instanteActual(),
       }}

@@ -21,7 +21,7 @@ export async function listarSucursalesActivas(): Promise<OpcionSucursal[]> {
  * el admin elige una o "todas" (null) con el selector de la barra lateral.
  */
 export async function obtenerSucursalVista(sesion: Sesion): Promise<number | null> {
-  if (sesion.rol === "cajero") return sesion.sucursalId;
+  if (sesion.rol !== "admin") return sesion.sucursalId;
   const valor = Number((await cookies()).get(COOKIE_SUCURSAL_VISTA)?.value);
   return Number.isInteger(valor) && valor > 0 ? valor : null;
 }

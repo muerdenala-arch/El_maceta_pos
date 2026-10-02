@@ -5,12 +5,14 @@ import { alertas } from "@/db/schema";
 import { requerirSesion } from "@/lib/auth/sesion";
 import { listarProductosInventario, listarUbicaciones, mapaEnCamino, mapaStock } from "@/lib/inventario/consultas";
 import { ConsultaBodega } from "./consulta-bodega";
+import { ROLES_CAJA } from "@/lib/auth/constantes";
 
 export const metadata: Metadata = { title: "Bodega" };
 
 /** Consulta de stock para el cajero: su sucursal y la bodega central (solo lectura, sin costos). */
-export default async function PaginaBodegaCajero() {
-  const sesion = await requerirSesion("cajero");
+export default async function PaginaBodegaCajero(props: PageProps<"/cajero/bodega">) {
+  const resaltar = Number((await props.searchParams).resaltar) || null;
+  const sesion = await requerirSesion(...ROLES_CAJA);
   const ubicaciones = await listarUbicaciones();
   const miSucursal = ubicaciones.find((u) => u.id === sesion.sucursalId);
   const bodega = ubicaciones.find((u) => u.tipo === "bodega");
@@ -30,6 +32,7 @@ export default async function PaginaBodegaCajero() {
 
   return (
     <ConsultaBodega
+      resaltar={resaltar}
       sucursal={miSucursal}
       bodegaId={bodega?.id ?? null}
       productos={productos.filter((p) => p.activo)}

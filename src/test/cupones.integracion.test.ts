@@ -240,7 +240,7 @@ describe("descuento manual del cajero", () => {
 
     await configurar("5");
     const mucho = await venta({ lineas: carrito(), descuentoManual: { porcentaje: "6", motivo: "Cliente frecuente" } });
-    expect(mucho).toEqual({ ok: false, error: "El descuento manual máximo es 5 %" });
+    expect(mucho).toEqual({ ok: false, error: "Un descuento mayor a 5 % necesita el PIN del encargado o de un administrador" });
     expect((await venta({ lineas: carrito(), descuentoManual: { porcentaje: "5", motivo: "" } })).ok).toBe(false);
   });
 

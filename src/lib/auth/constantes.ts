@@ -18,4 +18,7 @@ export const CLAVE_DESBLOQUEO = "maseta:desbloqueado";
 /** Último usuario que ingresó en este dispositivo (solo el nombre de usuario, nunca el PIN). */
 export const CLAVE_ULTIMO_USUARIO = "maseta:ultimo-usuario";
 
-export type Rol = "admin" | "cajero";
+export type Rol = "admin" | "cajero" | "encargado";
+/** Roles que operan una caja (abren caja, venden, registran gastos, cierran): el cajero y el encargado de sucursal. */
+export const ROLES_CAJA = ["cajero", "encargado"] as const satisfies readonly Rol[];
+export const NOMBRES_ROL: Record<Rol, string> = { admin: "Administrador", encargado: "Encargado", cajero: "Cajero" };

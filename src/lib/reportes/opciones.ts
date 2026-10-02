@@ -1,5 +1,5 @@
 import "server-only";
-import { asc, eq } from "drizzle-orm";
+import { asc, ne } from "drizzle-orm";
 import { db } from "@/db";
 import { productos, usuarios } from "@/db/schema";
 import type { ProductoLigero } from "@/components/inventario/selector-producto";
@@ -18,7 +18,7 @@ export async function opcionesFiltros({ conProductos = true } = {}): Promise<Opc
     db
       .select({ id: usuarios.id, nombre: usuarios.nombre, sucursalId: usuarios.sucursalId, activo: usuarios.activo })
       .from(usuarios)
-      .where(eq(usuarios.rol, "cajero"))
+      .where(ne(usuarios.rol, "admin"))
       .orderBy(asc(usuarios.nombre)),
     conProductos
       ? db

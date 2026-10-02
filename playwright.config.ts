@@ -13,6 +13,8 @@ process.env.E2E_CAJERO_USUARIO ??= process.env.SEED_CAJERO_USUARIO;
 process.env.E2E_CAJERO_PIN ??= process.env.SEED_CAJERO_PIN;
 process.env.E2E_ADMIN_USUARIO ??= process.env.SEED_ADMIN_USUARIO;
 process.env.E2E_ADMIN_PIN ??= process.env.SEED_ADMIN_PIN;
+process.env.E2E_ENCARGADO_USUARIO ??= process.env.SEED_ENCARGADO_USUARIO;
+process.env.E2E_ENCARGADO_PIN ??= process.env.SEED_ENCARGADO_PIN;
 
 export default defineConfig({
   testDir: "./e2e",

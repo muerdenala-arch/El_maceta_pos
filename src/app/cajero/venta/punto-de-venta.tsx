@@ -521,6 +521,7 @@ export function PuntoDeVenta({
           promociones={promociones}
           categoriaDe={(id) => porId.get(id)?.categoriaId ?? null}
           descuentoManualMaximo={Number(instantanea?.descuentoManualMaximo ?? contexto.descuentoManualMaximo ?? 0)}
+          descuentoManualConPin={Number(instantanea?.descuentoManualConPin ?? contexto.descuentoManualConPin ?? 0)}
           instantanea={instantanea}
           qrs={qrs}
           onCerrar={() => setCobrando(false)}

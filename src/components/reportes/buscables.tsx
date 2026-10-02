@@ -18,7 +18,7 @@ export function VentasConBuscador(props: Omit<React.ComponentProps<typeof ListaV
   );
 }
 
-export function ProductosConBuscador({ filas }: { filas: VentasProducto[] }) {
+export function ProductosConBuscador({ filas, sinCostos }: { filas: VentasProducto[]; sinCostos?: boolean }) {
   const [busqueda, setBusqueda] = useState("");
   const visibles = filas.filter((p) => coincide(busqueda, [p.nombre, p.marca, p.sabor, p.presentacion]));
   return (
@@ -27,7 +27,7 @@ export function ProductosConBuscador({ filas }: { filas: VentasProducto[] }) {
       {filas.length > 0 && visibles.length === 0 ? (
         <SinResultados consulta={busqueda} onLimpiar={() => setBusqueda("")} />
       ) : (
-        <TablaProductos filas={visibles} consulta={busqueda} />
+        <TablaProductos filas={visibles} consulta={busqueda} sinCostos={sinCostos} />
       )}
     </div>
   );

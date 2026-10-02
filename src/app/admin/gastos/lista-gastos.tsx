@@ -24,7 +24,7 @@ const fechaHora = (iso: string) =>
   new Date(iso).toLocaleString("es-BO", { timeZone: "America/La_Paz", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
 
 /** Gastos con su foto; los de una caja todavía abierta se pueden anular (con motivo). */
-export function ListaGastos({ gastos, conFecha }: { gastos: GastoListado[]; conFecha: boolean }) {
+export function ListaGastos({ gastos, conFecha, soloLectura }: { gastos: GastoListado[]; conFecha: boolean; /** Encargado: consulta sin anular. */ soloLectura?: boolean }) {
   const [anulando, setAnulando] = useState<Gasto | null>(null);
   const [busqueda, setBusqueda] = useState("");
   const visibles = gastos.filter((g) => coincide(busqueda, [g.categoria, g.descripcion, g.cajero, g.sucursal, g.monto, g.anulado ? "Anulado" : null, g.motivoAnulacion]));
@@ -60,7 +60,7 @@ export function ListaGastos({ gastos, conFecha }: { gastos: GastoListado[]; conF
               {g.anulado && g.motivoAnulacion && <p className="text-sm text-destructive">Motivo: {g.motivoAnulacion}</p>}
             </div>
             <span className={cn("cifras font-display text-xl font-extrabold", g.anulado && "line-through")}>{formatoBs(g.monto)}</span>
-            {!g.anulado && g.cajaAbierta && (
+            {!soloLectura && !g.anulado && g.cajaAbierta && (
               <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => setAnulando(g)}>
                 <Ban className="size-4" /> Anular
               </Button>

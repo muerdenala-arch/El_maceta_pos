@@ -24,6 +24,8 @@ export type Instantanea = {
   combos?: ComboPos[];
   /** Máximo descuento manual del cajero, en % ("0" = no puede). Las copias antiguas no lo traen. */
   descuentoManualMaximo?: string;
+  /** Hasta qué % puede autorizar el encargado con su PIN (con conexión). */
+  descuentoManualConPin?: string;
   /** Datos del negocio y la sucursal para imprimir comprobantes sin conexión. */
   baseComprobante: Pick<DatosComprobante, "negocio" | "sucursal">;
   /** ms: momento en que el servidor generó estos datos (o de la última venta local). */

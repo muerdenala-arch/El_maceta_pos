@@ -1,7 +1,7 @@
 /**
  * Base de datos de las pruebas de punta a punta (.pglite-e2e), creada desde cero en cada corrida:
  * nunca se prueba sobre datos reales (sección 10 del plan) y el resultado no depende de corridas anteriores.
- * Usuario y PIN de prueba: SEED_ADMIN_* y SEED_CAJERO_* de .env.local (nunca en el código).
+ * Usuario y PIN de prueba: SEED_ADMIN_*, SEED_CAJERO_* y (opcional) SEED_ENCARGADO_* de .env.local (nunca en el código).
  */
 import { config } from "dotenv";
 config({ path: ".env.local" });
@@ -31,10 +31,13 @@ async function main() {
   const [bodega] = await db.insert(s.sucursales).values({ nombre: "Bodega central", tipo: "bodega" }).returning();
   const [principal] = await db.insert(s.sucursales).values({ nombre: "Sucursal principal", tipo: "sucursal" }).returning();
 
-  const usuario = async (nombre: string, u: string, pin: string, rol: "admin" | "cajero", sucursalId: number | null) =>
+  const usuario = async (nombre: string, u: string, pin: string, rol: "admin" | "cajero" | "encargado", sucursalId: number | null) =>
     (await db.insert(s.usuarios).values({ nombre, usuario: u.trim().toLowerCase(), pinHash: await bcrypt.hash(pin, 10), rol, sucursalId }).returning())[0];
   const admin = await usuario("Administrador", process.env.SEED_ADMIN_USUARIO!, process.env.SEED_ADMIN_PIN!, "admin", null);
   await usuario("Cajero de prueba", process.env.SEED_CAJERO_USUARIO!, process.env.SEED_CAJERO_PIN!, "cajero", principal.id);
+  if (process.env.SEED_ENCARGADO_PIN) {
+    await usuario("Encargada de prueba", process.env.SEED_ENCARGADO_USUARIO ?? "encargado", process.env.SEED_ENCARGADO_PIN, "encargado", principal.id);
+  }
 
   const imagen = async (carpeta: "productos" | "qr") => {
     const nombre = `${randomUUID()}.png`;

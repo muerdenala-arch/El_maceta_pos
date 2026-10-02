@@ -17,7 +17,7 @@ import * as schema from "@/db/schema";
 import { ErrorAutorizacion } from "@/lib/auth/sesion";
 import { comoUsuario, prepararBase, type Base } from "./base";
 
-type Rol = "admin" | "cajero";
+type Rol = "admin" | "cajero" | "encargado";
 
 /** Quién puede usar cada acción. `publica` = no requiere sesión (login, desbloqueo, salir). */
 const PERMITIDOS: Record<string, Rol[] | "publica"> = {
@@ -45,14 +45,15 @@ const PERMITIDOS: Record<string, Rol[] | "publica"> = {
   guardarSucursal: ["admin"],
   cambiarEstadoSucursal: ["admin"],
   cambiarSucursalVista: ["admin"],
-  obtenerAlertas: ["admin"],
-  marcarAlertaLeida: ["admin"],
-  marcarTodasLeidas: ["admin"],
+  // Campanita: el encargado solo ve y marca las de stock de su sucursal (encargado.integracion.test.ts)
+  obtenerAlertas: ["admin", "encargado"],
+  marcarAlertaLeida: ["admin", "encargado"],
+  marcarTodasLeidas: ["admin", "encargado"],
   marcarAlertaRevisada: ["admin"],
   registrarIngreso: ["admin"],
   ajustarStock: ["admin"],
   crearTransferencia: ["admin"],
-  recibirTransferencia: ["admin"],
+  recibirTransferencia: ["admin", "encargado"], // el encargado, solo las que llegan a su sucursal
   cancelarTransferencia: ["admin"],
   resolverSolicitud: ["admin"],
   // Módulo Eventos (solo administrador)
@@ -73,17 +74,19 @@ const PERMITIDOS: Record<string, Rol[] | "publica"> = {
   registrarCombate: ["admin"],
   registrarAusencia: ["admin"],
   corregirCombate: ["admin"],
-  // Cajero
-  abrirCaja: ["cajero"],
-  registrarVenta: ["cajero"],
-  consultarCupon: ["cajero"],
-  registrarGasto: ["cajero"],
-  cerrarCaja: ["cajero"],
-  solicitarReposicion: ["cajero"],
-  // Ambos
-  verComprobante: ["cajero", "admin"],
-  buscarClientes: ["cajero", "admin"],
-  subirImagen: ["cajero", "admin"], // según la carpeta; con "qr" (abajo) solo admin
+  // Quien opera una caja: cajero y encargado
+  abrirCaja: ["cajero", "encargado"],
+  registrarVenta: ["cajero", "encargado"],
+  consultarCupon: ["cajero", "encargado"],
+  registrarGasto: ["cajero", "encargado"],
+  cerrarCaja: ["cajero", "encargado"],
+  solicitarReposicion: ["cajero", "encargado"],
+  pedirAutorizacion: ["cajero", "encargado"],
+  anularVentaEnSucursal: ["cajero", "encargado"], // el cajero, solo con el PIN del encargado o de un administrador
+  // Todos
+  verComprobante: ["cajero", "encargado", "admin"],
+  buscarClientes: ["cajero", "encargado", "admin"],
+  subirImagen: ["cajero", "encargado", "admin"], // según la carpeta; con "qr" (abajo) solo admin
   // Sin sesión
   iniciarSesion: "publica",
   desbloquear: "publica",
@@ -156,14 +159,40 @@ describe("server actions", () => {
     expect(await conteos()).toEqual(antes);
   });
 
-  for (const rol of ["cajero", "admin"] as const) {
+  it("el encargado no tiene ninguna acción de catálogo, precios, personal, QR, cupones, configuración ni eventos", () => {
+    const delEncargado = Object.entries(PERMITIDOS)
+      .filter(([, roles]) => roles !== "publica" && roles.includes("encargado"))
+      .map(([n]) => n)
+      .sort();
+    expect(delEncargado).toEqual(
+      [
+        "abrirCaja",
+        "anularVentaEnSucursal",
+        "buscarClientes",
+        "cerrarCaja",
+        "consultarCupon",
+        "marcarAlertaLeida",
+        "marcarTodasLeidas",
+        "obtenerAlertas",
+        "pedirAutorizacion",
+        "recibirTransferencia",
+        "registrarGasto",
+        "registrarVenta",
+        "solicitarReposicion",
+        "subirImagen",
+        "verComprobante",
+      ].sort(),
+    );
+  });
+
+  for (const rol of ["cajero", "encargado", "admin"] as const) {
     it(`como ${rol}, las acciones de otro rol se rechazan y no modifican la BD`, async () => {
-      await comoUsuario(rol === "cajero" ? b.cajeroNorte : b.admin);
+      await comoUsuario(rol === "cajero" ? b.cajeroNorte : rol === "encargado" ? b.encargadoNorte : b.admin);
       const antes = await conteos();
       const ejecutadas: string[] = [];
       for (const [nombre, fn] of acciones) {
         const permitidos = PERMITIDOS[nombre];
-        const soloAdminPorCarpeta = nombre === "subirImagen" && rol === "cajero"; // carpeta "qr"
+        const soloAdminPorCarpeta = nombre === "subirImagen" && rol !== "admin"; // carpeta "qr"
         if (permitidos === "publica" || (permitidos.includes(rol) && !soloAdminPorCarpeta)) continue;
         if (!(await rechazada(fn, argumento(nombre)))) ejecutadas.push(nombre);
       }
@@ -177,10 +206,12 @@ describe("rutas del API", () => {
   const exportacion = () => exportar(new NextRequest("http://localhost/api/admin/exportar?reporte=ventas&formato=xlsx"));
   const sync = () => sincronizar(new Request("http://localhost/api/sync", { method: "POST", body: JSON.stringify({ operaciones: [] }) }));
 
-  it("exportar reportes: 401 sin sesión, 403 para el cajero, 200 para el admin", async () => {
+  it("exportar reportes: 401 sin sesión, 403 para el cajero y el encargado, 200 para el admin", async () => {
     await comoUsuario(null);
     expect((await exportacion()).status).toBe(401);
     await comoUsuario(b.cajeroNorte);
+    expect((await exportacion()).status).toBe(403);
+    await comoUsuario(b.encargadoNorte);
     expect((await exportacion()).status).toBe(403);
     await comoUsuario(b.admin);
     expect((await exportacion()).status).toBe(200);

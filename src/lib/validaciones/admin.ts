@@ -23,14 +23,14 @@ export const esquemaNombreUsuario = z
 
 const baseUsuario = z.object({
   nombre: textoRequerido(120, "Ingresa el nombre"),
-  rol: z.enum(["admin", "cajero"]),
+  rol: z.enum(["admin", "cajero", "encargado"]),
   sucursalId: idPositivo.nullable(),
 });
 
-/** Un cajero debe tener sucursal; un administrador no (ve todas). */
+/** Un cajero o un encargado deben tener sucursal; un administrador no (ve todas). */
 const reglaSucursal = <T extends { rol: string; sucursalId: number | null }>(d: T, ctx: z.RefinementCtx) => {
-  if (d.rol === "cajero" && d.sucursalId === null) {
-    ctx.addIssue({ code: "custom", path: ["sucursalId"], message: "Asigna una sucursal al cajero" });
+  if (d.rol !== "admin" && d.sucursalId === null) {
+    ctx.addIssue({ code: "custom", path: ["sucursalId"], message: d.rol === "encargado" ? "Asigna una sucursal al encargado" : "Asigna una sucursal al cajero" });
   }
 };
 
@@ -103,6 +103,14 @@ export const esquemaConfiguracion = z.object({
   logoUrl: urlImagen,
   /** Máximo descuento manual del cajero, en % (0 = no puede dar descuentos manuales). */
   descuentoManualMaximo: z
+    .string()
+    .trim()
+    .optional()
+    .default("0")
+    .transform((s) => (s === "" ? "0" : s.replace(",", ".")))
+    .refine((s) => /^\d{1,3}(\.\d{1,2})?$/.test(s) && Number(s) <= 100, "Entre 0 y 100 %"),
+  /** Máximo que puede dar o autorizar el encargado de sucursal, en %. */
+  descuentoManualMaximoEncargado: z
     .string()
     .trim()
     .optional()

@@ -12,9 +12,9 @@ import { firmarSesion } from "@/lib/auth/jwt";
 import { cambiarStock } from "@/lib/inventario/stock";
 
 /** PIN de cada usuario de prueba (distintos: se entra solo con el PIN). Solo existen en esta base en memoria. */
-export const PINES = { admin: "4826", ana: "5937", beto: "604812" } as const;
+export const PINES = { admin: "4826", ana: "5937", beto: "604812", elsa: "7159", saul: "830471" } as const;
 
-export type Usuario = { id: number; rol: "admin" | "cajero"; sucursalId: number | null };
+export type Usuario = { id: number; rol: "admin" | "cajero" | "encargado"; sucursalId: number | null };
 
 export type Base = Awaited<ReturnType<typeof prepararBase>>;
 
@@ -26,7 +26,7 @@ export async function prepararBase() {
   const [norte] = await db.insert(s.sucursales).values({ nombre: "Sucursal Norte", tipo: "sucursal" }).returning();
   const [sur] = await db.insert(s.sucursales).values({ nombre: "Sucursal Sur", tipo: "sucursal" }).returning();
 
-  const usuario = async (nombre: string, u: keyof typeof PINES, rol: "admin" | "cajero", sucursalId: number | null): Promise<Usuario> => {
+  const usuario = async (nombre: string, u: keyof typeof PINES, rol: Usuario["rol"], sucursalId: number | null): Promise<Usuario> => {
     const pinHash = await bcrypt.hash(PINES[u], 4);
     const [f] = await db.insert(s.usuarios).values({ nombre, usuario: u, rol, sucursalId, pinHash }).returning();
     return { id: f.id, rol, sucursalId };
@@ -34,6 +34,8 @@ export async function prepararBase() {
   const admin = await usuario("Admin Prueba", "admin", "admin", null);
   const cajeroNorte = await usuario("Ana Norte", "ana", "cajero", norte.id);
   const cajeroSur = await usuario("Beto Sur", "beto", "cajero", sur.id);
+  const encargadoNorte = await usuario("Elsa Encargada Norte", "elsa", "encargado", norte.id);
+  const encargadoSur = await usuario("Saúl Encargado Sur", "saul", "encargado", sur.id);
 
   const [categoria] = await db.insert(s.categorias).values({ nombre: "Proteínas" }).returning();
   const [proteina] = await db
@@ -57,7 +59,7 @@ export async function prepararBase() {
     }
   });
 
-  return { bodega, norte, sur, admin, cajeroNorte, cajeroSur, proteina, creatina };
+  return { bodega, norte, sur, admin, cajeroNorte, cajeroSur, encargadoNorte, encargadoSur, proteina, creatina };
 }
 
 const galletas = () => (globalThis as unknown as { __pruebas: { galletas: Map<string, string> } }).__pruebas.galletas;

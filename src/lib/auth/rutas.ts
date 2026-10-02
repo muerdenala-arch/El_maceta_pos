@@ -2,7 +2,7 @@
  * Reglas de acceso por ruta (usadas por proxy.ts). Función pura para poder probarla.
  * Es la primera barrera; cada página y cada acción del servidor vuelve a verificar la sesión.
  */
-import type { Rol } from "./constantes";
+import { ROLES_CAJA, type Rol } from "./constantes";
 
 export type Decision =
   | { tipo: "seguir" }
@@ -11,7 +11,7 @@ export type Decision =
   | { tipo: "prohibido" };
 
 export function inicioSegunRol(rol: Rol) {
-  return rol === "admin" ? "/admin/dashboard" : "/cajero/venta";
+  return rol === "admin" ? "/admin/dashboard" : rol === "encargado" ? "/encargado/panel" : "/cajero/venta";
 }
 
 const bajo = (ruta: string, prefijo: string) => ruta === prefijo || ruta.startsWith(`${prefijo}/`);
@@ -34,14 +34,17 @@ export function decidirAcceso(ruta: string, sesion: { rol: Rol } | null): Decisi
 
   if (ruta === "/") return { tipo: "redirigir", destino: inicioSegunRol(sesion.rol) };
 
-  const requerido: Rol | null =
+  // /admin: solo administrador. /encargado: solo encargado. /cajero: quien opera una caja (cajero y encargado).
+  const permitidos: readonly Rol[] | null =
     bajo(ruta, "/admin") || bajo(ruta, "/api/admin")
-      ? "admin"
-      : bajo(ruta, "/cajero") || bajo(ruta, "/api/cajero")
-        ? "cajero"
-        : null;
+      ? ["admin"]
+      : bajo(ruta, "/encargado") || bajo(ruta, "/api/encargado")
+        ? ["encargado"]
+        : bajo(ruta, "/cajero") || bajo(ruta, "/api/cajero")
+          ? ROLES_CAJA
+          : null;
 
-  if (requerido && sesion.rol !== requerido) {
+  if (permitidos && !permitidos.includes(sesion.rol)) {
     return esApi ? { tipo: "prohibido" } : { tipo: "redirigir", destino: inicioSegunRol(sesion.rol) };
   }
   return { tipo: "seguir" };

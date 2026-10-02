@@ -35,7 +35,7 @@ const peso = (nombre: string) => numeric(nombre, { precision: 5, scale: 2 });
 
 // ---------- Enums ----------
 
-export const rolEnum = pgEnum("rol", ["admin", "cajero"]);
+export const rolEnum = pgEnum("rol", ["admin", "cajero", "encargado"]);
 export const tipoUbicacionEnum = pgEnum("tipo_ubicacion", ["sucursal", "bodega"]);
 export const tamanoImpresionEnum = pgEnum("tamano_impresion", ["58mm", "80mm", "carta"]);
 export const tipoMovimientoEnum = pgEnum("tipo_movimiento", [
@@ -341,6 +341,8 @@ export const ventas = pgTable(
     /** Descuento manual del cajero: porcentaje aplicado y motivo (obligatorio). */
     porcentajeDescuentoManual: numeric("porcentaje_descuento_manual", { precision: 5, scale: 2 }),
     motivoDescuentoManual: text("motivo_descuento_manual"),
+    /** Encargado o administrador que autorizó con su PIN un descuento manual mayor al máximo del cajero. */
+    descuentoAutorizadoPor: integer("descuento_autorizado_por").references(() => usuarios.id),
     total: dinero("total").notNull(),
     metodoPago: metodoPagoEnum("metodo_pago").notNull(),
     montoRecibido: dinero("monto_recibido"),
@@ -521,6 +523,8 @@ export const configuracion = pgTable("configuracion", {
   codigoPais: varchar("codigo_pais", { length: 4 }).notNull().default("591"),
   /** Máximo descuento manual que puede dar el cajero, en % sobre el total (0 = no puede). */
   descuentoManualMaximo: numeric("descuento_manual_maximo", { precision: 5, scale: 2 }).notNull().default("0"),
+  /** Máximo que puede autorizar el encargado de la sucursal (con su PIN en la pantalla del cajero), en %. */
+  descuentoManualMaximoEncargado: numeric("descuento_manual_maximo_encargado", { precision: 5, scale: 2 }).notNull().default("0"),
 });
 
 // ---------- Alertas y auditoría ----------
@@ -537,6 +541,8 @@ export const alertas = pgTable(
     eventoId: integer("evento_id").references(() => eventos.id),
     mensaje: text("mensaje").notNull(),
     leida: boolean("leida").notNull().default(false),
+    /** Leída por el encargado de la sucursal (su campanita es independiente de la del administrador). */
+    leidaEncargado: boolean("leida_encargado").notNull().default(false),
     resuelta: boolean("resuelta").notNull().default(false),
     fecha: timestamp("fecha", { withTimezone: true }).notNull().defaultNow(),
   },
