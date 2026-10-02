@@ -71,6 +71,13 @@
       "when": 1790925367025,
       "tag": "0009_venta_fraccionada",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1790928042391,
+      "tag": "0010_combos",
+      "breakpoints": true
     }
   ]
 }

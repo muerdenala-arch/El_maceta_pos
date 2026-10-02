@@ -6,7 +6,7 @@
  */
 import { jsPDF, type jsPDF as JsPdf } from "jspdf";
 import { formatoBs } from "@/lib/formato";
-import { fechaHoraComprobante, numeroComprobante, type DatosComprobante, type TamanoImpresion, cantidadLinea } from "./datos";
+import { fechaHoraComprobante, numeroComprobante, type DatosComprobante, type TamanoImpresion, cantidadLinea, lineasImprimibles } from "./datos";
 
 type Imagen = { dataUrl: string; ancho: number; alto: number };
 
@@ -100,7 +100,7 @@ function dibujarTermica(doc: JsPdf, d: DatosComprobante, ancho: number, logo: Im
   if (d.venta.cliente?.telefono) izquierda(`Cel.: ${d.venta.cliente.telefono}`);
   separador();
 
-  for (const l of d.venta.lineas) {
+  for (const l of lineasImprimibles(d.venta)) {
     izquierda(l.nombre, base, true);
     if (l.detalle) izquierda(l.detalle, base - 1);
     fila(`${cantidadLinea(l)} x ${bs(l.precioUnitario)}`, bs(l.subtotal));
@@ -179,7 +179,7 @@ function dibujarCarta(doc: JsPdf, d: DatosComprobante, logo: Imagen | null) {
   };
   encabezado();
 
-  for (const l of d.venta.lineas) {
+  for (const l of lineasImprimibles(d.venta)) {
     doc.setFont("helvetica", "bold").setFontSize(10);
     const nombre = doc.splitTextToSize(l.nombre, col.cant - m - 18) as string[];
     doc.setFont("helvetica", "normal").setFontSize(8.5);

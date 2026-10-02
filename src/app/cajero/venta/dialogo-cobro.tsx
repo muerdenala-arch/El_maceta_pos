@@ -9,6 +9,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Input } from "@/components/ui/input";
 import { cambio, montosSugeridos } from "@/lib/caja/calculos";
 import type { QrCobro } from "@/lib/caja/consultas";
+import type { CotizacionCombos } from "@/lib/combos/calculo";
+import { sumar } from "@/lib/dinero";
 import { formatoBs } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 import { aplicarPromociones, type LineaCarrito, type Promocion } from "@/lib/promociones/motor";
@@ -19,6 +21,8 @@ import { buscarClientes, consultarCupon, registrarVenta, type ClienteEncontrado,
 
 type Props = {
   lineas: LineaCarrito[];
+  /** Combos del carrito, ya cotizados (el servidor los vuelve a cotizar con los precios de la BD). */
+  combos: CotizacionCombos;
   promociones: Promocion[];
   /** Copia local: permite vender sin conexión. */
   instantanea: Instantanea | null;
@@ -28,7 +32,7 @@ type Props = {
   onError: () => void;
 };
 
-export function DialogoCobro({ lineas, promociones, instantanea, qrs, onCerrar, onExito, onError }: Props) {
+export function DialogoCobro({ lineas, combos, promociones, instantanea, qrs, onCerrar, onExito, onError }: Props) {
   // Un UUID por intento de cobro: si se pulsa dos veces o se reintenta, el servidor no duplica la venta.
   const [uuid] = useState(nuevoUuid);
   const [metodo, setMetodo] = useState<"efectivo" | "qr">("efectivo");
@@ -47,7 +51,9 @@ export function DialogoCobro({ lineas, promociones, instantanea, qrs, onCerrar, 
 
   // Mismo motor que el servidor: el total mostrado es el que se cobrará.
   const resultado = aplicarPromociones(lineas, cupon ? [...promociones, cupon] : promociones);
-  const total = resultado.total;
+  // Promociones y cupón solo sobre los productos sueltos; los combos ya traen su descuento.
+  const total = sumar(resultado.total, combos.total);
+  const ahorro = sumar(resultado.descuento, combos.descuento);
   const cuponAplicado = resultado.aplicadas.find((a) => a.cuponId);
 
   async function aplicarCupon() {
@@ -96,6 +102,7 @@ export function DialogoCobro({ lineas, promociones, instantanea, qrs, onCerrar, 
       uuid,
       instantanea,
       promo: resultado,
+      combos,
       metodoPago: metodo,
       montoRecibido: metodo === "efectivo" ? recibidoNormalizado : null,
       cambio: metodo === "efectivo" ? vuelto : null,
@@ -113,6 +120,7 @@ export function DialogoCobro({ lineas, promociones, instantanea, qrs, onCerrar, 
         const r = await registrarVenta({
           uuid,
           lineas: lineas.map((l) => ({ productoId: l.productoId, cantidad: l.cantidad, fraccion: !!l.fraccion })),
+          combos: combos.combos.map((c) => ({ comboId: c.comboId, cantidad: c.cantidad })),
           cuponCodigo: cupon ? codigo : "",
           metodoPago: metodo,
           montoRecibido: metodo === "efectivo" ? recibidoNormalizado : null,
@@ -138,9 +146,7 @@ export function DialogoCobro({ lineas, promociones, instantanea, qrs, onCerrar, 
           <DialogTitle className="font-display text-xl font-extrabold">Cobrar</DialogTitle>
           <DialogDescription>
             Total a cobrar <span className="cifras ml-1 font-display text-2xl font-extrabold text-foreground">{formatoBs(total)}</span>
-            {Number(resultado.descuento) > 0 && (
-              <span className="cifras ml-2 text-sm font-semibold text-exito">(ahorra {formatoBs(resultado.descuento)})</span>
-            )}
+            {Number(ahorro) > 0 && <span className="cifras ml-2 text-sm font-semibold text-exito">(ahorra {formatoBs(ahorro)})</span>}
           </DialogDescription>
         </DialogHeader>
 

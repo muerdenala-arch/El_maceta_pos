@@ -1,14 +1,16 @@
 "use client";
 
 /* eslint-disable @next/next/no-img-element -- fotos propias, ya comprimidas */
-import { Minus, Package, Plus, ReceiptText, ShoppingCart, Tag, Trash2, ZoomIn } from "lucide-react";
+import { Gift, Minus, Package, Plus, ReceiptText, ShoppingCart, Tag, Trash2, ZoomIn } from "lucide-react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "motion/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Buscador, Resaltar, SinResultados } from "@/components/busqueda/buscador";
 import { coincide } from "@/lib/busqueda";
-import { esFraccionado, nombreEnvase, nombreUnidad, stockCorto, textoStock, unidadesPedidas } from "@/lib/inventario/fraccion";
+import { combosDisponibles, cotizar, precioCombo, type ComboPos, type ComboVendido, type ItemCombo } from "@/lib/combos/calculo";
+import { aCentavos, deCentavos, sumar } from "@/lib/dinero";
+import { esFraccionado, nombreEnvase, nombreUnidad, stockCorto, textoCantidadVendida, textoStock, unidadesPedidas } from "@/lib/inventario/fraccion";
 import { DialogoFraccion } from "./dialogo-fraccion";
 import { Marquesina } from "@/components/texto/marquesina";
 import { toast } from "sonner";
@@ -29,6 +31,10 @@ import { VentaExitosa } from "./venta-exitosa";
 
 /** `fraccion`: unidades sueltas (cápsulas…) de un producto fraccionado; si no, envases completos. */
 type Linea = { productoId: number; cantidad: number; fraccion?: boolean };
+type PedidoCombo = { comboId: number; cantidad: number };
+/** "1 Whey Gold" / "30 cápsulas Omega 3": un producto del combo. */
+const textoItemCombo = (i: ItemCombo, p: ProductoPos | undefined) =>
+  `${i.fraccion && p ? textoCantidadVendida(i.cantidad, p.unidadFraccion ?? "capsula") : i.cantidad} ${p?.nombre ?? "producto"}`;
 const mismaLinea = (l: Linea, productoId: number, fraccion: boolean) => l.productoId === productoId && !!l.fraccion === fraccion;
 const precioLinea = (p: ProductoPos, fraccion?: boolean) => (fraccion ? (p.precioUnidad ?? p.precioVenta) : p.precioVenta);
 
@@ -42,23 +48,29 @@ export function PuntoDeVenta({
   productos: productosServidor,
   qrs: qrsServidor,
   promociones: promocionesServidor,
+  combos: combosServidor,
 }: {
   contexto: ContextoPos;
   productos: ProductoPos[];
   qrs: QrCobro[];
   /** Promociones automáticas vigentes en la sucursal (el servidor las recalcula al cobrar). */
   promociones: Promocion[];
+  /** Combos vigentes (el servidor los vuelve a cotizar al cobrar). */
+  combos: ComboPos[];
 }) {
   const router = useRouter();
   const cajaId = contexto.cajaId;
   // Datos del servidor o, si es más reciente (ventas sin conexión), la copia local del dispositivo.
-  const { instantanea, productos, qrs, promociones } = useInstantanea(contexto, {
+  const { instantanea, productos, qrs, promociones, combos } = useInstantanea(contexto, {
     productos: productosServidor,
     qrs: qrsServidor,
     promociones: promocionesServidor,
+    combos: combosServidor,
   });
   const claveCarrito = `maseta:carrito:${cajaId}`;
+  const claveCombos = `maseta:combos:${cajaId}`;
   const [carrito, setCarrito] = useState<Linea[]>([]);
+  const [pedidosCombo, setPedidosCombo] = useState<PedidoCombo[]>([]);
   const [busqueda, setBusqueda] = useState("");
   const [categoria, setCategoria] = useState<string | null>(null);
   const [zoom, setZoom] = useState<ProductoPos | null>(null);
@@ -82,17 +94,29 @@ export function PuntoDeVenta({
       const guardado = JSON.parse(leerAlmacen("local", claveCarrito) ?? "[]") as Linea[];
       // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage solo existe en el cliente
       setCarrito(guardado.filter((l) => porId.has(l.productoId) && l.cantidad > 0 && (!l.fraccion || esFraccionado(porId.get(l.productoId)!))));
+      const guardados = JSON.parse(leerAlmacen("local", claveCombos) ?? "[]") as PedidoCombo[];
+      setPedidosCombo(guardados.filter((c) => c.cantidad > 0 && combos.some((x) => x.id === c.comboId)));
     } catch {
       /* carrito dañado: se empieza vacío */
     }
     setCargado(true);
-  }, [claveCarrito, porId]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- los combos solo importan al leer el carrito guardado
+  }, [claveCarrito, claveCombos, porId]);
   useEffect(() => {
-    if (cargado) escribirAlmacen("local", claveCarrito, carrito.length ? JSON.stringify(carrito) : null);
-  }, [carrito, claveCarrito, cargado]);
+    if (!cargado) return;
+    escribirAlmacen("local", claveCarrito, carrito.length ? JSON.stringify(carrito) : null);
+    escribirAlmacen("local", claveCombos, pedidosCombo.length ? JSON.stringify(pedidosCombo) : null);
+  }, [carrito, pedidosCombo, claveCarrito, claveCombos, cargado]);
 
-  /** ¿Alcanza el stock si el carrito queda así? Se valida el total en unidades de stock (envases × unidades + sueltas). */
-  const alcanza = (p: ProductoPos, lineas: Linea[]) => unidadesPedidas(lineas, p) <= p.stock;
+  // Combos del carrito cotizados con los precios actuales (sus productos, como líneas con el descuento repartido).
+  const cotizacion = useMemo(() => cotizar(pedidosCombo, combos, porId), [pedidosCombo, combos, porId]);
+
+  /**
+   * ¿Alcanza el stock si el carrito queda así? Se valida el total en unidades de stock (envases × unidades + sueltas),
+   * contando también lo que consumen los combos.
+   */
+  const alcanza = (p: ProductoPos, lineas: Linea[], pedidos: PedidoCombo[] = pedidosCombo) =>
+    unidadesPedidas([...lineas, ...(pedidos === pedidosCombo ? cotizacion.lineas : cotizar(pedidos, combos, porId).lineas)], p) <= p.stock;
   const avisarSinStock = (p: ProductoPos) =>
     toast.warning(p.stock <= 0 ? `${p.nombre} está agotado` : `Solo hay ${textoStock(p.stock, p)} de ${p.nombre}`);
 
@@ -103,6 +127,24 @@ export function PuntoDeVenta({
     if (!alcanza(p, siguiente)) return void avisarSinStock(p);
     setCarrito(siguiente);
   };
+  /** Deja el combo en esa cantidad (0 = lo quita), si alcanza el stock de todos sus productos. */
+  const cambiarCombo = (combo: ComboPos, cantidad: number) => {
+    const sin = pedidosCombo.filter((c) => c.comboId !== combo.id);
+    if (cantidad <= 0) return setPedidosCombo(sin);
+    const siguiente = pedidosCombo.some((c) => c.comboId === combo.id) ? pedidosCombo.map((c) => (c.comboId === combo.id ? { ...c, cantidad } : c)) : [...pedidosCombo, { comboId: combo.id, cantidad }];
+    const falta = combo.items.map((i) => porId.get(i.productoId)).find((p) => !p || !alcanza(p, carrito, siguiente));
+    if (falta !== undefined || combo.items.length === 0) {
+      return void toast.warning(falta ? `No alcanza el stock de ${falta.nombre} para ${cantidad > 1 ? "otro " : "el "}combo` : "Este combo no está disponible");
+    }
+    setPedidosCombo(siguiente);
+  };
+  /** Cuántos combos más se pueden agregar con el stock que queda libre (0 = no disponible). */
+  const combosLibres = (combo: ComboPos) =>
+    combosDisponibles(combo.items, porId, (id) => {
+      const p = porId.get(id);
+      return p ? p.stock - unidadesPedidas([...carrito, ...cotizacion.lineas], p) : 0;
+    });
+
   /** Tocar un producto: si es fraccionado se pregunta "frasco completo o por cápsulas"; si no, va directo al carrito. */
   const elegir = (p: ProductoPos) => (esFraccionado(p) ? setFraccionando(p) : agregar(p));
   const cambiarCantidad = (productoId: number, fraccion: boolean, cantidad: number) => {
@@ -157,9 +199,22 @@ export function PuntoDeVenta({
     precioUnitario: precioLinea(l.producto, l.fraccion),
     ...(l.fraccion && { fraccion: true }),
   }));
-  const totales = aplicarPromociones(lineasCarrito, promociones);
-  // Para el contador del carrito: cada envase cuenta uno; un grupo de unidades sueltas, uno.
-  const unidades = lineas.reduce((s, l) => s + (l.fraccion ? 1 : l.cantidad), 0);
+  // Promociones solo sobre los productos sueltos; los combos ya traen su descuento.
+  const promos = aplicarPromociones(lineasCarrito, promociones);
+  const totales = {
+    ...promos,
+    subtotal: sumar(promos.subtotal, cotizacion.subtotal),
+    descuento: sumar(promos.descuento, cotizacion.descuento),
+    total: sumar(promos.total, cotizacion.total),
+  };
+  const combosEnCarrito = pedidosCombo.flatMap((pedido) => {
+    const combo = combos.find((c) => c.id === pedido.comboId);
+    const cotizado = cotizacion.combos.find((c) => c.comboId === pedido.comboId);
+    return combo && cotizado ? [{ combo, cotizado }] : [];
+  });
+  const combosVisibles = categoria ? [] : combos.filter((c) => coincide(busqueda, [c.nombre, c.descripcion, "combo", ...c.items.map((i) => porId.get(i.productoId)?.nombre)]));
+  // Para el contador del carrito: cada envase cuenta uno; un grupo de unidades sueltas, uno; cada combo, uno.
+  const unidades = lineas.reduce((s, l) => s + (l.fraccion ? 1 : l.cantidad), 0) + cotizacion.combos.reduce((s, c) => s + c.cantidad, 0);
 
   if (realizada) {
     return (
@@ -180,7 +235,14 @@ export function PuntoDeVenta({
       unidades={unidades}
       onCantidad={cambiarCantidad}
       puedeSumar={(l) => alcanza(l.producto, carrito.map((x) => (mismaLinea(x, l.productoId, !!l.fraccion) ? { ...x, cantidad: x.cantidad + 1 } : x)))}
-      onVaciar={() => setCarrito([])}
+      combos={combosEnCarrito}
+      nombreProducto={(id) => porId.get(id)}
+      onCombo={cambiarCombo}
+      puedeSumarCombo={(c) => combosLibres(c) > 0}
+      onVaciar={() => {
+        setCarrito([]);
+        setPedidosCombo([]);
+      }}
       onCobrar={() => {
         setVerCarrito(false);
         setCobrando(true);
@@ -237,6 +299,65 @@ export function PuntoDeVenta({
               </button>
             ))}
           </div>
+        )}
+
+        {combosVisibles.length > 0 && (
+          <section className="mt-4" aria-label="Combos">
+            <h2 className="mb-2 flex items-center gap-2 text-sm font-extrabold tracking-wide text-muted-foreground uppercase">
+              <Gift className="size-4 text-primary" /> Combos
+            </h2>
+            <ul className="grid grid-cols-[repeat(auto-fill,minmax(min(100%,17rem),1fr))] gap-3">
+              {combosVisibles.map((c) => {
+                const precio = precioCombo(
+                  c.items.flatMap((i) => (porId.has(i.productoId) ? [{ precio: precioLinea(porId.get(i.productoId)!, i.fraccion), cantidad: i.cantidad }] : [])),
+                  c.tipoDescuento,
+                  c.valorDescuento,
+                );
+                const enCarrito = pedidosCombo.find((x) => x.comboId === c.id)?.cantidad ?? 0;
+                const puedeAgregar = combosLibres(c) > 0;
+                // Si ya está en el carrito sigue "disponible" aunque no alcance para otro más.
+                const disponible = puedeAgregar || enCarrito > 0;
+                return (
+                  <li key={c.id}>
+                    <button
+                      type="button"
+                      disabled={!puedeAgregar}
+                      onClick={() => cambiarCombo(c, enCarrito + 1)}
+                      data-desplazar
+                      className={cn(
+                        "relative flex w-full items-stretch gap-3 overflow-hidden rounded-3xl border bg-card p-2.5 text-left shadow-sm transition-colors hover:bg-accent/60 active:bg-accent disabled:cursor-not-allowed",
+                        !disponible && "opacity-55",
+                      )}
+                    >
+                      <span className="relative flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl bg-ficha-rosa text-ficha-rosa-foreground">
+                        {c.fotoUrl ? <img src={c.fotoUrl} alt="" loading="lazy" className="size-full object-cover" /> : <Gift className="size-8" />}
+                        {enCarrito > 0 && (
+                          <span className="cifras absolute right-1 bottom-1 flex size-7 items-center justify-center rounded-full bg-primary font-display text-sm font-extrabold text-primary-foreground shadow">
+                            {enCarrito}
+                          </span>
+                        )}
+                      </span>
+                      <span className="flex min-w-0 flex-1 flex-col">
+                        <Marquesina siempre titulo={c.nombre} className="leading-snug font-bold">
+                          <Resaltar texto={c.nombre} consulta={busqueda} />
+                        </Marquesina>
+                        <span className="line-clamp-2 text-xs text-muted-foreground">{c.items.map((i) => textoItemCombo(i, porId.get(i.productoId))).join(" + ")}</span>
+                        <span className="mt-auto flex flex-wrap items-baseline gap-x-2 pt-1">
+                          <span className="cifras font-display text-lg font-extrabold">{formatoBs(precio.final)}</span>
+                          {Number(precio.descuento) > 0 && <span className="cifras text-xs text-muted-foreground line-through">{formatoBs(precio.normal)}</span>}
+                          {!disponible ? (
+                            <Badge variant="destructive">No disponible</Badge>
+                          ) : (
+                            Number(precio.descuento) > 0 && <span className="cifras text-xs font-bold text-exito">Ahorras {formatoBs(precio.descuento)}</span>
+                          )}
+                        </span>
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
         )}
 
         <ul className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
@@ -310,7 +431,7 @@ export function PuntoDeVenta({
               </li>
             );
           })}
-          {visibles.length === 0 && (
+          {visibles.length === 0 && combosVisibles.length === 0 && (
             <li className="col-span-full">
               {busqueda.trim() ? (
                 <SinResultados consulta={busqueda} onLimpiar={() => setBusqueda("")} />
@@ -384,7 +505,7 @@ export function PuntoDeVenta({
       {fraccionando && (
         <DialogoFraccion
           producto={porId.get(fraccionando.id) ?? fraccionando}
-          disponible={Math.max(0, (porId.get(fraccionando.id) ?? fraccionando).stock - unidadesPedidas(carrito, fraccionando))}
+          disponible={Math.max(0, (porId.get(fraccionando.id) ?? fraccionando).stock - unidadesPedidas([...carrito, ...cotizacion.lineas], fraccionando))}
           onCerrar={() => setFraccionando(null)}
           onAgregar={(cantidad, fraccion) => {
             agregar(porId.get(fraccionando.id) ?? fraccionando, cantidad, fraccion);
@@ -396,6 +517,7 @@ export function PuntoDeVenta({
       {cobrando && (
         <DialogoCobro
           lineas={lineasCarrito}
+          combos={cotizacion}
           promociones={promociones}
           instantanea={instantanea}
           qrs={qrs}
@@ -404,10 +526,11 @@ export function PuntoDeVenta({
           onExito={(venta) => {
             setCobrando(false);
             setCarrito([]);
+            setPedidosCombo([]);
             setRealizada(venta);
             if ("offline" in venta) return; // la copia local ya descontó el stock
             // En línea: se descuenta también de la copia local hasta que llegue el stock del servidor.
-            descontarStockLocal(`pos:${contexto.usuarioId}`, lineasCarrito).catch(() => {});
+            descontarStockLocal(`pos:${contexto.usuarioId}`, [...lineasCarrito, ...cotizacion.lineas]).catch(() => {});
             router.refresh();
           }}
         />
@@ -422,9 +545,17 @@ function PanelCarrito({
   unidades,
   onCantidad,
   puedeSumar,
+  combos,
+  nombreProducto,
+  onCombo,
+  puedeSumarCombo,
   onVaciar,
   onCobrar,
 }: {
+  combos: { combo: ComboPos; cotizado: ComboVendido }[];
+  nombreProducto: (id: number) => ProductoPos | undefined;
+  onCombo: (combo: ComboPos, cantidad: number) => void;
+  puedeSumarCombo: (combo: ComboPos) => boolean;
   lineas: (Linea & { producto: ProductoPos })[];
   resultado: ResultadoPromociones;
   unidades: number;
@@ -441,7 +572,7 @@ function PanelCarrito({
           <ShoppingCart className="size-5 text-primary" /> Carrito
           {unidades > 0 && <span className="cifras rounded-full bg-primary px-2 text-sm text-primary-foreground">{unidades}</span>}
         </h2>
-        {lineas.length > 0 && (
+        {lineas.length + combos.length > 0 && (
           <Button variant="ghost" size="sm" className="text-muted-foreground" onClick={onVaciar}>
             <Trash2 className="size-4" /> Vaciar
           </Button>
@@ -450,6 +581,50 @@ function PanelCarrito({
 
       <ul className="flex-1 space-y-2 overflow-y-auto p-3">
         <AnimatePresence initial={false}>
+          {combos.map(({ combo, cotizado }) => {
+            const normal = deCentavos(aCentavos(cotizado.precioNormal) * BigInt(cotizado.cantidad));
+            const final = deCentavos(aCentavos(cotizado.precioFinal) * BigInt(cotizado.cantidad));
+            return (
+              <motion.li
+                key={`combo:${combo.id}`}
+                layout
+                initial={{ opacity: 0, x: 16 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -16 }}
+                transition={{ duration: 0.18 }}
+                className="flex items-center gap-3 rounded-2xl bg-ficha-rosa/40 p-2.5"
+                data-desplazar
+              >
+                <span className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-ficha-rosa text-ficha-rosa-foreground">
+                  {combo.fotoUrl ? <img src={combo.fotoUrl} alt="" className="size-full object-cover" /> : <Gift className="size-5" />}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <Marquesina className="text-sm font-bold">{combo.nombre}</Marquesina>
+                  <p className="line-clamp-2 text-xs text-muted-foreground">{combo.items.map((i) => textoItemCombo(i, nombreProducto(i.productoId))).join(" + ")}</p>
+                  <div className="mt-1 flex items-center gap-1">
+                    <button type="button" onClick={() => onCombo(combo, cotizado.cantidad - 1)} aria-label={`Quitar un combo ${combo.nombre}`} className="flex size-8 items-center justify-center rounded-lg border bg-background hover:bg-accent">
+                      {cotizado.cantidad === 1 ? <Trash2 className="size-3.5" /> : <Minus className="size-3.5" />}
+                    </button>
+                    <span className="cifras min-w-8 text-center font-display font-extrabold">{cotizado.cantidad}</span>
+                    <button
+                      type="button"
+                      onClick={() => onCombo(combo, cotizado.cantidad + 1)}
+                      disabled={!puedeSumarCombo(combo)}
+                      aria-label={`Agregar un combo ${combo.nombre}`}
+                      className="flex size-8 items-center justify-center rounded-lg border bg-background hover:bg-accent disabled:opacity-40"
+                    >
+                      <Plus className="size-3.5" />
+                    </button>
+                    <span className="ml-1 text-xs font-semibold text-muted-foreground">combo{cotizado.cantidad === 1 ? "" : "s"}</span>
+                  </div>
+                </div>
+                <span className="flex flex-col items-end">
+                  {normal !== final && <span className="cifras text-xs text-muted-foreground line-through">{formatoBs(normal)}</span>}
+                  <span className={cn("cifras font-display font-extrabold", normal !== final && "text-exito")}>{formatoBs(final)}</span>
+                </span>
+              </motion.li>
+            );
+          })}
           {lineas.map((l, i) => {
             const conPromo = resultado.lineas[i];
             const tieneDescuento = !!conPromo && Number(conPromo.descuento) > 0;
@@ -506,7 +681,7 @@ function PanelCarrito({
             );
           })}
         </AnimatePresence>
-        {lineas.length === 0 && (
+        {lineas.length + combos.length === 0 && (
           <li className="flex h-full min-h-40 flex-col items-center justify-center gap-2 text-center text-sm text-muted-foreground">
             <ShoppingCart className="size-10 opacity-40" />
             Toca un producto o escanea su código
@@ -529,7 +704,7 @@ function PanelCarrito({
           <span className="font-semibold text-muted-foreground">Total</span>
           <span className="cifras font-display text-3xl font-extrabold">{formatoBs(resultado.total)}</span>
         </div>
-        <Button size="lg" className="h-14 w-full rounded-2xl text-lg font-bold" disabled={lineas.length === 0} onClick={onCobrar}>
+        <Button size="lg" className="h-14 w-full rounded-2xl text-lg font-bold" disabled={lineas.length + combos.length === 0} onClick={onCobrar}>
           Cobrar
         </Button>
       </div>

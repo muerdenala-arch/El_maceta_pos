@@ -1,6 +1,7 @@
 /** Validaciones de la Fase 4 (caja, ventas, gastos, QR): mismas en cliente y servidor. */
 import { z } from "zod";
 import { idPositivo, monto, textoOpcional, textoRequerido, urlImagen } from "./comunes";
+import { esquemaComboPedido } from "./combos";
 import { cantidad } from "./inventario";
 
 export const CATEGORIAS_GASTO = ["Transporte", "Limpieza", "Alimentación", "Servicios", "Insumos", "Otros"] as const;
@@ -15,9 +16,15 @@ export const esquemaVenta = z
     lineas: z
       // `fraccion`: unidades sueltas (cápsulas…) en vez del envase completo. Un producto puede ir de las dos formas.
       .array(z.object({ productoId: idPositivo, cantidad, fraccion: z.boolean().optional().default(false) }))
-      .min(1, "El carrito está vacío")
       .max(200)
       .refine((ls) => new Set(ls.map((l) => `${l.productoId}:${l.fraccion}`)).size === ls.length, "Producto repetido en el carrito"),
+    /** Combos de productos (el servidor los cotiza con los precios de la BD). */
+    combos: z
+      .array(esquemaComboPedido)
+      .max(50)
+      .optional()
+      .default([])
+      .refine((cs) => new Set(cs.map((c) => c.comboId)).size === cs.length, "Combo repetido en el carrito"),
     metodoPago: z.enum(["efectivo", "qr"]),
     montoRecibido: monto("Monto recibido inválido").nullable(),
     clienteNombre: textoOpcional(120),
@@ -25,6 +32,7 @@ export const esquemaVenta = z
     /** Código de cupón (opcional); se valida y consume en el servidor. */
     cuponCodigo: textoOpcional(40).transform((c) => c?.toUpperCase() ?? null),
   })
+  .refine((d) => d.lineas.length + d.combos.length > 0, { path: ["lineas"], message: "El carrito está vacío" })
   .refine((d) => d.metodoPago !== "efectivo" || d.montoRecibido !== null, {
     path: ["montoRecibido"],
     message: "Ingresa el monto recibido",
@@ -75,15 +83,24 @@ export const esquemaVentaOffline = z
           descuento: monto(),
           promocionId: idPositivo.nullable(),
           fraccion: z.boolean().optional().default(false),
+          /** Posición en `combos` del combo al que pertenece la línea (null = producto suelto). */
+          combo: z.number().int().min(0).max(49).nullable().optional().default(null),
         }),
       )
       .min(1)
-      .max(200),
+      .max(400),
+    /** Combos vendidos, con el nombre y los precios que se cobraron en el dispositivo. */
+    combos: z
+      .array(z.object({ comboId: idPositivo, nombre: textoRequerido(120), cantidad, precioNormal: monto(), precioFinal: monto() }))
+      .max(50)
+      .optional()
+      .default([]),
     metodoPago: z.enum(["efectivo", "qr"]),
     montoRecibido: monto().nullable(),
     clienteNombre: textoOpcional(120),
     clienteTelefono: textoOpcional(30),
   })
+  .refine((d) => d.lineas.every((l) => l.combo === null || l.combo < d.combos.length), { path: ["lineas"], message: "Línea de un combo inexistente" })
   .refine((d) => d.metodoPago !== "efectivo" || d.montoRecibido !== null, { path: ["montoRecibido"], message: "Falta el monto recibido" });
 export type DatosVentaOffline = z.output<typeof esquemaVentaOffline>;
 

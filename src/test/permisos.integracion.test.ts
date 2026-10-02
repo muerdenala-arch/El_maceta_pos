@@ -34,6 +34,8 @@ const PERMITIDOS: Record<string, Rol[] | "publica"> = {
   restablecerPin: ["admin"],
   desbloquearUsuario: ["admin"],
   guardarPromocion: ["admin"],
+  guardarCombo: ["admin"],
+  cambiarEstadoCombo: ["admin"],
   crearCupon: ["admin"],
   eliminarCupon: ["admin"],
   guardarQr: ["admin"],

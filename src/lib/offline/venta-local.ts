@@ -4,7 +4,9 @@
  */
 "use client";
 
+import type { CotizacionCombos } from "@/lib/combos/calculo";
 import type { DatosComprobante } from "@/lib/comprobante/datos";
+import { aCentavos, deCentavos, sumar } from "@/lib/dinero";
 import type { ResultadoPromociones } from "@/lib/promociones/motor";
 import { unidadesPedidas } from "@/lib/inventario/fraccion";
 import { baseLocal, type Instantanea } from "./base";
@@ -25,6 +27,8 @@ export async function registrarVentaLocal(p: {
   uuid: string;
   instantanea: Instantanea;
   promo: ResultadoPromociones;
+  /** Combos del carrito ya cotizados con los precios de la copia local. */
+  combos: CotizacionCombos;
   metodoPago: "efectivo" | "qr";
   montoRecibido: string | null;
   cambio: string | null;
@@ -34,6 +38,9 @@ export async function registrarVentaLocal(p: {
   const base = baseLocal();
   const ahora = Date.now();
   const nombres = new Map(p.instantanea.productos.map((x) => [x.id, x]));
+  const subtotal = sumar(p.promo.subtotal, p.combos.subtotal);
+  const descuento = sumar(p.promo.descuento, p.combos.descuento);
+  const total = sumar(p.promo.total, p.combos.total);
 
   const comprobante: DatosComprobante = {
     ...p.instantanea.baseComprobante,
@@ -56,9 +63,22 @@ export async function registrarVentaLocal(p: {
           promocion: l.promocion,
         };
       }),
-      subtotal: p.promo.subtotal,
-      descuento: p.promo.descuento,
-      total: p.promo.total,
+      combos: p.combos.combos.map((c, indice) => {
+        const bruto = aCentavos(c.precioNormal) * BigInt(c.cantidad);
+        return {
+          nombre: c.nombre,
+          cantidad: c.cantidad,
+          precioNormal: c.precioNormal,
+          subtotal: deCentavos(bruto),
+          descuento: deCentavos(bruto - aCentavos(c.precioFinal) * BigInt(c.cantidad)),
+          productos: p.combos.lineas
+            .filter((l) => l.combo === indice)
+            .map((l) => ({ nombre: nombres.get(l.productoId)?.nombre ?? "Producto", cantidad: l.cantidad, unidad: l.fraccion ? (nombres.get(l.productoId)?.unidadFraccion ?? "capsula") : null })),
+        };
+      }),
+      subtotal,
+      descuento,
+      total,
       metodoPago: p.metodoPago,
       estadoPago: p.metodoPago === "qr" ? "qr_por_confirmar" : "pagado",
       montoRecibido: p.montoRecibido,
@@ -83,14 +103,20 @@ export async function registrarVentaLocal(p: {
         uuid: p.uuid,
         cajaId: p.instantanea.cajaId,
         fecha: ahora,
-        lineas: p.promo.lineas.map((l) => ({
-          productoId: l.productoId,
-          cantidad: l.cantidad,
-          precioUnitario: l.precioUnitario,
-          descuento: l.descuento,
-          promocionId: l.promocionId,
-          fraccion: !!l.fraccion,
-        })),
+        lineas: [
+          ...p.promo.lineas.map((l) => ({
+            productoId: l.productoId,
+            cantidad: l.cantidad,
+            precioUnitario: l.precioUnitario,
+            descuento: l.descuento,
+            promocionId: l.promocionId,
+            fraccion: !!l.fraccion,
+            combo: null,
+          })),
+          // Los productos de cada combo, con su parte del descuento.
+          ...p.combos.lineas,
+        ],
+        combos: p.combos.combos,
         metodoPago: p.metodoPago,
         montoRecibido: p.montoRecibido,
         clienteNombre: p.clienteNombre || null,
@@ -98,13 +124,13 @@ export async function registrarVentaLocal(p: {
       },
     });
     await base.ventasLocales.put({ uuid: p.uuid, usuarioId: p.instantanea.usuarioId, creado: ahora, comprobante, sincronizada: false });
-    await descontarStockLocal(p.instantanea.clave, p.promo.lineas);
+    await descontarStockLocal(p.instantanea.clave, [...p.promo.lineas, ...p.combos.lineas]);
   });
 
   return {
     ventaId: 0,
     numero: 0,
-    total: p.promo.total,
+    total,
     metodoPago: p.metodoPago,
     montoRecibido: p.montoRecibido,
     cambio: p.cambio,

@@ -1,7 +1,7 @@
 import "server-only";
 import { and, asc, eq, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { clientes, configuracion, cupones, detalleVenta, productos, promociones, sucursales, usuarios, ventas } from "@/db/schema";
+import { clientes, configuracion, cupones, detalleVenta, productos, promociones, sucursales, usuarios, ventas, ventasCombos } from "@/db/schema";
 import type { Sesion } from "@/lib/auth/sesion";
 import { aCentavos, deCentavos } from "@/lib/dinero";
 import { hoyEnBolivia, ZONA_HORARIA } from "@/lib/formato";
@@ -49,6 +49,7 @@ export async function obtenerComprobante(filtro: { ventaId: number } | { token: 
         presentacion: productos.presentacion,
         cantidad: detalleVenta.cantidad,
         unidad: detalleVenta.unidadFraccion,
+        ventaComboId: detalleVenta.ventaComboId,
         precioUnitario: detalleVenta.precioUnitario,
         descuento: detalleVenta.descuento,
         promocion: promociones.nombre,
@@ -82,7 +83,19 @@ export async function obtenerComprobante(filtro: { ventaId: number } | { token: 
       fecha: v.fecha.toISOString(),
       cajero: v.cajero,
       cliente: v.clienteNombre || v.clienteTelefono ? { nombre: v.clienteNombre, telefono: v.clienteTelefono } : null,
-      lineas: lineas.map((l) => ({
+      combos: (await db.select().from(ventasCombos).where(eq(ventasCombos.ventaId, v.id)).orderBy(asc(ventasCombos.id))).map((c) => {
+        const subtotal = aCentavos(c.precioNormal) * BigInt(c.cantidad);
+        return {
+          nombre: c.nombre,
+          cantidad: c.cantidad,
+          precioNormal: c.precioNormal,
+          subtotal: deCentavos(subtotal),
+          descuento: deCentavos(subtotal - aCentavos(c.precioFinal) * BigInt(c.cantidad)),
+          productos: lineas.filter((l) => l.ventaComboId === c.id).map((l) => ({ nombre: l.nombre, cantidad: l.cantidad, unidad: l.unidad })),
+        };
+      }),
+      // Los productos de un combo se muestran dentro de su combo, no como líneas sueltas.
+      lineas: lineas.filter((l) => l.ventaComboId === null).map((l) => ({
         nombre: l.nombre,
         detalle: [l.marca, l.sabor, l.presentacion].filter(Boolean).join(" · ") || null,
         cantidad: l.cantidad,

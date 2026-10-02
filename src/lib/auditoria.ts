@@ -47,6 +47,8 @@ export type AccionAuditoria =
   | "pago_qr_confirmado"
   | "productos_importados"
   | "venta_fraccionada_cambiada"
+  | "combo_creado"
+  | "combo_editado"
   // Módulo Eventos
   | "evento_creado"
   | "evento_iniciado"

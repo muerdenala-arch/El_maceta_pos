@@ -42,6 +42,18 @@ export type DatosComprobante = {
       /** Nombre de la promoción aplicada a la línea. */
       promocion: string | null;
     }[];
+    /** Combos vendidos: precio normal (bruto), descuento del combo y el detalle de sus productos. */
+    combos?: {
+      nombre: string;
+      cantidad: number;
+      /** Precio normal de un combo (suma de sus productos). */
+      precioNormal: string;
+      /** Precio normal × cantidad. */
+      subtotal: string;
+      /** Descuento total del combo en esta venta. */
+      descuento: string;
+      productos: { nombre: string; cantidad: number; unidad?: string | null }[];
+    }[];
     subtotal: string;
     descuento: string;
     total: string;
@@ -62,6 +74,27 @@ export type DatosComprobante = {
 
 /** Cantidad de una línea como se imprime: "2" (envases) o "30 cápsulas" (unidades sueltas). */
 export const cantidadLinea = (l: { cantidad: number; unidad?: string | null }) => textoCantidadVendida(l.cantidad, l.unidad ?? null);
+
+/**
+ * Lo que se imprime en el cuerpo del comprobante: los productos sueltos y, después, cada combo como una línea más
+ * (su nombre, el detalle de sus productos, su precio normal y el descuento del combo debajo).
+ */
+export function lineasImprimibles(venta: Pick<DatosComprobante["venta"], "lineas" | "combos">): DatosComprobante["venta"]["lineas"] {
+  return [
+    ...venta.lineas,
+    ...(venta.combos ?? []).map((c) => ({
+      // Sin repetir la palabra si el nombre ya la trae ("Combo Volumen").
+      nombre: /^combo/i.test(c.nombre.trim()) ? c.nombre : `Combo ${c.nombre}`,
+      detalle: c.productos.map((p) => `${cantidadLinea(p)} ${p.nombre}`).join(" + "),
+      cantidad: c.cantidad,
+      unidad: null,
+      precioUnitario: c.precioNormal,
+      descuento: c.descuento,
+      subtotal: c.subtotal,
+      promocion: Number(c.descuento) > 0 ? "Descuento del combo" : null,
+    })),
+  ];
+}
 
 /** "Comprobante N.º 000123" */
 export const numeroComprobante = (n: number) => String(n).padStart(6, "0");

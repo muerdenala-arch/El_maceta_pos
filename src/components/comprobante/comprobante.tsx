@@ -1,5 +1,5 @@
 /* eslint-disable @next/next/no-img-element -- logo propio */
-import { fechaHoraComprobante, numeroComprobante, type DatosComprobante, type TamanoImpresion, cantidadLinea } from "@/lib/comprobante/datos";
+import { fechaHoraComprobante, numeroComprobante, type DatosComprobante, type TamanoImpresion, cantidadLinea, lineasImprimibles } from "@/lib/comprobante/datos";
 import { formatoBs } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 
@@ -69,7 +69,7 @@ export function Comprobante({ datos, tamano }: { datos: DatosComprobante; tamano
 
       {termica ? (
         <ul className="space-y-1">
-          {venta.lineas.map((l, i) => (
+          {lineasImprimibles(venta).map((l, i) => (
             <li key={i}>
               <p className="font-bold">{l.nombre}</p>
               {l.detalle && <p className="text-[0.9em]">{l.detalle}</p>}
@@ -99,7 +99,7 @@ export function Comprobante({ datos, tamano }: { datos: DatosComprobante; tamano
             </tr>
           </thead>
           <tbody>
-            {venta.lineas.map((l, i) => (
+            {lineasImprimibles(venta).map((l, i) => (
               <tr key={i} className="border-b border-neutral-300 align-top">
                 <td className="py-1">
                   <span className="font-semibold">{l.nombre}</span>

@@ -4,6 +4,7 @@
  */
 import Dexie, { type Table } from "dexie";
 import type { ProductoPos, QrCobro } from "@/lib/caja/consultas";
+import type { ComboPos } from "@/lib/combos/calculo";
 import type { DatosComprobante } from "@/lib/comprobante/datos";
 import type { Promocion } from "@/lib/promociones/motor";
 import type { DatosGastoOffline, DatosVentaOffline } from "@/lib/validaciones/caja";
@@ -19,6 +20,8 @@ export type Instantanea = {
   productos: ProductoPos[];
   qrs: QrCobro[];
   promociones: Promocion[];
+  /** Combos vigentes (las copias guardadas antes de que existieran no lo traen). */
+  combos?: ComboPos[];
   /** Datos del negocio y la sucursal para imprimir comprobantes sin conexión. */
   baseComprobante: Pick<DatosComprobante, "negocio" | "sucursal">;
   /** ms: momento en que el servidor generó estos datos (o de la última venta local). */

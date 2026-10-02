@@ -9,6 +9,7 @@
  */
 import { sql } from "drizzle-orm";
 import {
+  type AnyPgColumn,
   boolean,
   check,
   date,
@@ -377,7 +378,8 @@ export const detalleVenta = pgTable(
     /** Venta por unidad suelta: `cantidad` y los precios son por cápsula/sobre, no por envase. */
     fraccion: boolean("fraccion").notNull().default(false),
     /** Unidad suelta vendida (capsula, sobre…), tal como era al vender. Nulo si se vendió el envase. */
-    unidadFraccion: varchar("unidad_fraccion", { length: 20 }),
+    unidadFraccion: varchar("unidad_fraccion", { length: 20 }),    /** Si la línea salió dentro de un combo: el combo vendido al que pertenece. */
+    ventaComboId: integer("venta_combo_id").references((): AnyPgColumn => ventasCombos.id),
   },
   (t) => [
     index("detalle_venta_venta_idx").on(t.ventaId),
@@ -652,4 +654,69 @@ export const combates = pgTable(
     terminadoEn: timestamp("terminado_en", { withTimezone: true }),
   },
   (t) => [uniqueIndex("combates_evento_clave_uq").on(t.eventoId, t.clave), index("combates_evento_idx").on(t.eventoId)],
+);
+
+// ---------- Combos de productos ----------
+
+/**
+ * Combo: varios productos que se venden juntos con un descuento (proteína + creatina…). Su precio se calcula
+ * siempre con los precios vigentes de sus productos (ver lib/combos/calculo.ts). No confundir con la promoción
+ * "combo NxM" (2x1) de `promociones`.
+ */
+export const combos = pgTable(
+  "combos",
+  {
+    id: serial("id").primaryKey(),
+    nombre: varchar("nombre", { length: 120 }).notNull(),
+    descripcion: text("descripcion"),
+    fotoUrl: text("foto_url"),
+    /** porcentaje | monto (Bs fijos sobre el precio normal). */
+    tipoDescuento: varchar("tipo_descuento", { length: 12 }).notNull().default("porcentaje"),
+    valorDescuento: dinero("valor_descuento").notNull().default("0"),
+    /** Vigencia opcional, en días de Bolivia; ambas fechas inclusivas. */
+    fechaInicio: date("fecha_inicio"),
+    fechaFin: date("fecha_fin"),
+    activo: boolean("activo").notNull().default(true),
+    creadoEn: creadoEn(),
+  },
+  (t) => [
+    check("combos_descuento_ck", sql`${t.tipoDescuento} in ('porcentaje', 'monto') and ${t.valorDescuento} >= 0`),
+    check("combos_vigencia_ck", sql`${t.fechaInicio} is null or ${t.fechaFin} is null or ${t.fechaFin} >= ${t.fechaInicio}`),
+  ],
+);
+
+export const comboItems = pgTable(
+  "combo_items",
+  {
+    id: serial("id").primaryKey(),
+    comboId: integer("combo_id")
+      .notNull()
+      .references(() => combos.id, { onDelete: "cascade" }),
+    productoId: integer("producto_id")
+      .notNull()
+      .references(() => productos.id),
+    cantidad: integer("cantidad").notNull(),
+    /** Unidades sueltas (cápsulas…) de un producto fraccionado, en vez de envases completos. */
+    fraccion: boolean("fraccion").notNull().default(false),
+  },
+  (t) => [uniqueIndex("combo_items_uq").on(t.comboId, t.productoId, t.fraccion), check("combo_items_cantidad_ck", sql`${t.cantidad} between 1 and 10000`)],
+);
+
+/** Un combo vendido dentro de una venta: sus líneas de `detalle_venta` apuntan aquí (`venta_combo_id`). */
+export const ventasCombos = pgTable(
+  "ventas_combos",
+  {
+    id: serial("id").primaryKey(),
+    ventaId: integer("venta_id")
+      .notNull()
+      .references(() => ventas.id),
+    comboId: integer("combo_id").references(() => combos.id, { onDelete: "set null" }),
+    /** Nombre del combo al vender (el comprobante no cambia si luego se renombra). */
+    nombre: varchar("nombre", { length: 120 }).notNull(),
+    cantidad: integer("cantidad").notNull(),
+    /** Por combo: suma de sus productos y precio cobrado. */
+    precioNormal: dinero("precio_normal").notNull(),
+    precioFinal: dinero("precio_final").notNull(),
+  },
+  (t) => [index("ventas_combos_venta_idx").on(t.ventaId)],
 );

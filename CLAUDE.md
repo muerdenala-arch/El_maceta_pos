@@ -280,6 +280,30 @@ Credenciales de prueba locales: en `.env.local` (`SEED_*`), nunca en el código 
 - Límite conocido: el historial de movimientos muestra la cantidad cruda (en unidades sueltas desde que el producto es fraccionado).
 - Pruebas: `fraccion.test.ts`, `test/fraccionada.integracion.test.ts`, `e2e/revision-fraccionada.spec.ts`.
 
+## Combos de productos
+
+- Menú "Combos" (solo admin): `app/admin/combos` (lista con buscador, activar/desactivar, formulario con buscador de productos,
+  cantidades —también por unidades sueltas si el producto es fraccionado—, descuento % o Bs y cálculo en vivo; avisa si el precio
+  final queda bajo el costo). Los combos no se borran. No confundir con la promoción "combo NxM" (2x1) de Promociones.
+- Tablas `combos`, `combo_items` y `ventas_combos` + `detalle_venta.venta_combo_id` (migración 0010). Vigencia opcional en días de
+  Bolivia, **ambas fechas inclusivas** (`date`, no timestamp).
+- **El precio no se guarda: se calcula siempre** con los precios vigentes de sus productos. Reglas puras y probadas en
+  `lib/combos/calculo.ts` (`precioCombo`, `repartirDescuento`, `combosDisponibles`, `cotizar`). `cotizar` es el mismo cálculo en el
+  punto de venta (vista previa y venta sin conexión) y en el servidor (`cotizarCombos` en `lib/combos/consultas.ts`, que antes valida
+  que el combo esté vigente y sus productos activos).
+- Venta: el combo se guarda como una fila en `ventas_combos` (nombre y precios al vender) y **una línea de `detalle_venta` por
+  producto**, con el descuento del combo repartido al centavo → stock, anulación, costos y reportes por producto funcionan sin
+  cambios. `esquemaVenta.combos = [{comboId, cantidad}]`; el carrito puede ser solo combos.
+- **Promociones y cupones no tocan las líneas de un combo** (solo los productos sueltos). Si falta stock de un producto, el combo
+  sale "No disponible" en el punto de venta y el servidor rechaza la venta completa.
+- Comprobante: `lineasImprimibles(venta)` (`lib/comprobante/datos.ts`) agrega cada combo como una línea con el detalle de sus
+  productos y "Descuento del combo"; lo usan pantalla, impresión y PDF.
+- Sin conexión: la copia local (`Instantanea.combos`) y la venta en cola llevan `combos` + líneas con `combo` = su posición; al
+  sincronizar se compara con lo que cobraría la BD (alerta `revision_offline` si difiere).
+- Pruebas: `combos/calculo.test.ts`, `comprobante/combos.test.ts`, `test/combos.integracion.test.ts`, `e2e/revision-combos.spec.ts`.
+- **Ojo al parchear con scripts**: un `` dentro de una cadena normal de Python es un carácter de retroceso invisible (pasó en una
+  expresión regular); usar cadenas crudas o revisar caracteres de control.
+
 ## Buscador único
 
 - **Toda lista o tabla nueva usa `<Buscador>`** (`components/busqueda/buscador.tsx`): filtra al escribir (espera de 200 ms, sin

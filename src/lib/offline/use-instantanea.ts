@@ -3,17 +3,19 @@
 import { useLiveQuery } from "dexie-react-hooks";
 import { useEffect } from "react";
 import type { ProductoPos, QrCobro } from "@/lib/caja/consultas";
+import type { ComboPos } from "@/lib/combos/calculo";
+import { unidadesPedidas } from "@/lib/inventario/fraccion";
 import type { Promocion } from "@/lib/promociones/motor";
 import { baseLocal, type Instantanea } from "./base";
 
-export type ContextoPos = Omit<Instantanea, "clave" | "productos" | "qrs" | "promociones" | "actualizado"> & { generadoEn: number };
+export type ContextoPos = Omit<Instantanea, "clave" | "productos" | "qrs" | "promociones" | "combos" | "actualizado"> & { generadoEn: number };
 
 /**
  * Copia local del punto de venta:
  * - con datos nuevos del servidor, los guarda restando lo vendido sin conexión que aún no se envió;
  * - si la copia local es más reciente (ventas sin conexión después de cargar), se usa la local.
  */
-export function useInstantanea(ctx: ContextoPos, servidor: { productos: ProductoPos[]; qrs: QrCobro[]; promociones: Promocion[] }) {
+export function useInstantanea(ctx: ContextoPos, servidor: { productos: ProductoPos[]; qrs: QrCobro[]; promociones: Promocion[]; combos: ComboPos[] }) {
   const clave = `pos:${ctx.usuarioId}`;
 
   useEffect(() => {
@@ -27,11 +29,9 @@ export function useInstantanea(ctx: ContextoPos, servidor: { productos: Producto
           .equals(ctx.usuarioId)
           .filter((o) => o.tipo === "venta" && o.estado === "pendiente")
           .toArray();
-        const sinEnviar = new Map<number, number>();
-        for (const op of pendientes) {
-          if (op.tipo !== "venta") continue;
-          for (const l of op.datos.lineas) sinEnviar.set(l.productoId, (sinEnviar.get(l.productoId) ?? 0) + l.cantidad);
-        }
+        // En unidades de stock: un envase de un producto fraccionado descuenta todas sus unidades sueltas.
+        const vendidas = pendientes.flatMap((op) => (op.tipo === "venta" ? op.datos.lineas : []));
+        const sinEnviar = new Map(servidor.productos.map((p) => [p.id, unidadesPedidas(vendidas, p)]));
         const { generadoEn, ...resto } = ctx;
         await base.instantaneas.put({
           ...resto,
@@ -39,6 +39,7 @@ export function useInstantanea(ctx: ContextoPos, servidor: { productos: Producto
           productos: servidor.productos.map((p) => ({ ...p, stock: p.stock - (sinEnviar.get(p.id) ?? 0) })),
           qrs: servidor.qrs,
           promociones: servidor.promociones,
+          combos: servidor.combos,
           actualizado: generadoEn,
         });
       } catch {
@@ -62,5 +63,6 @@ export function useInstantanea(ctx: ContextoPos, servidor: { productos: Producto
     productos: vigente?.productos ?? servidor.productos,
     qrs: vigente?.qrs ?? servidor.qrs,
     promociones: vigente?.promociones ?? servidor.promociones,
+    combos: vigente?.combos ?? servidor.combos,
   };
 }

@@ -4,7 +4,8 @@ import { requerirSesion } from "@/lib/auth/sesion";
 import { productosPos, qrsDeSucursal, requerirCajaAbierta } from "@/lib/caja/consultas";
 import { baseComprobante } from "@/lib/comprobante/consulta";
 import { promocionesAutomaticas } from "@/lib/promociones/consultas";
-import { instanteActual } from "@/lib/formato";
+import { combosPos } from "@/lib/combos/consultas";
+import { hoyEnBolivia, instanteActual } from "@/lib/formato";
 import { PuntoDeVenta } from "./punto-de-venta";
 
 export const metadata: Metadata = { title: "Venta" };
@@ -14,11 +15,12 @@ export default async function PaginaVenta() {
   // Sin caja abierta no se vende: lleva a la apertura.
   const caja = await requerirCajaAbierta(sesion);
   await connection();
-  const [productos, qrs, promociones, base] = await Promise.all([
+  const [productos, qrs, promociones, base, combos] = await Promise.all([
     productosPos(caja.sucursalId),
     qrsDeSucursal(caja.sucursalId),
     promocionesAutomaticas(caja.sucursalId),
     baseComprobante(caja.sucursalId),
+    combosPos(hoyEnBolivia()),
   ]);
 
   return (
@@ -35,6 +37,7 @@ export default async function PaginaVenta() {
       productos={productos}
       qrs={qrs}
       promociones={promociones}
+      combos={combos}
     />
   );
 }

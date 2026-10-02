@@ -2,15 +2,17 @@ import "server-only";
 import { randomBytes } from "node:crypto";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { alertas, cajas, clientes, configuracion, detalleVenta, gastos, productos, sucursales, ventas } from "@/db/schema";
+import { alertas, cajas, clientes, configuracion, detalleVenta, gastos, productos, sucursales, ventas, ventasCombos } from "@/db/schema";
 import { esViolacionUnica, exito, fallo, type Resultado } from "@/lib/acciones/resultado";
 import type { Sesion } from "@/lib/auth/sesion";
 import { cambio, normalizarTelefono } from "@/lib/caja/calculos";
 import { cajaAbiertaDe } from "@/lib/caja/consultas";
 import { obtenerComprobante } from "@/lib/comprobante/consulta";
 import type { DatosComprobante } from "@/lib/comprobante/datos";
-import { aCentavos, deCentavos } from "@/lib/dinero";
-import { formatoBs } from "@/lib/formato";
+import type { ComboVendido } from "@/lib/combos/calculo";
+import { cotizarCombos } from "@/lib/combos/consultas";
+import { aCentavos, deCentavos, sumar } from "@/lib/dinero";
+import { formatoBs, hoyEnBolivia } from "@/lib/formato";
 import { esFraccionado, unidadesDeLinea } from "@/lib/inventario/fraccion";
 import { cambiarStock, ErrorStock, type Tx } from "@/lib/inventario/stock";
 import { promocionesAutomaticas, validarCuponEn } from "@/lib/promociones/consultas";
@@ -46,7 +48,11 @@ export async function ventaExistente(uuid: string, cajeroId: number): Promise<Ve
   return v ? { ...v, comprobante: await obtenerComprobante({ ventaId: v.ventaId }) } : null;
 }
 
-type LineaFinal = Pick<LineaConDescuento, "productoId" | "cantidad" | "precioUnitario" | "descuento" | "promocionId"> & { fraccion?: boolean };
+type LineaFinal = Pick<LineaConDescuento, "productoId" | "cantidad" | "precioUnitario" | "descuento" | "promocionId"> & {
+  fraccion?: boolean;
+  /** Posición en `combos` del combo al que pertenece (null = producto suelto). */
+  combo?: number | null;
+};
 type Catalogo = Awaited<ReturnType<typeof catalogoDe>>;
 
 type NuevaVenta = {
@@ -57,6 +63,8 @@ type NuevaVenta = {
   lineas: LineaFinal[];
   /** Productos de las líneas (para pasar de envases o unidades sueltas a unidades de stock). */
   catalogo: Catalogo;
+  /** Combos vendidos; sus productos van en `lineas` con `combo` = su posición aquí. */
+  combos?: ComboVendido[];
   subtotal: string;
   descuento: string;
   total: string;
@@ -119,9 +127,14 @@ async function insertarVenta(tx: Tx, n: NuevaVenta) {
     })
     .returning();
 
+  const idsCombo = n.combos?.length
+    ? (await tx.insert(ventasCombos).values(n.combos.map((c) => ({ ventaId: nueva.id, ...c }))).returning({ id: ventasCombos.id })).map((c) => c.id)
+    : [];
+
   await tx.insert(detalleVenta).values(
     n.lineas.map((l) => ({
       ventaId: nueva.id,
+      ventaComboId: l.combo === null || l.combo === undefined ? null : idsCombo[l.combo],
       productoId: l.productoId,
       cantidad: l.cantidad,
       precioUnitario: l.precioUnitario,
@@ -215,7 +228,9 @@ export async function registrarVentaEnLinea(sesion: Sesion, d: z.output<typeof e
 
   try {
     const venta = await db.transaction(async (tx) => {
-      const porId = await catalogoDe(tx, d.lineas.map((l) => l.productoId));
+      // Combos: cotizados con los precios de la BD; sus productos entran como líneas con el descuento repartido.
+      const combos = await cotizarCombos(tx, d.combos, hoyEnBolivia());
+      const porId = await catalogoDe(tx, [...d.lineas, ...combos.lineas].map((l) => l.productoId));
       if (d.lineas.some((l) => !porId.get(l.productoId)?.activo)) {
         throw new ErrorStock("Algún producto del carrito ya no está disponible. Actualiza la pantalla.");
       }
@@ -235,7 +250,14 @@ export async function registrarVentaEnLinea(sesion: Sesion, d: z.output<typeof e
         if (!cupon.ok) throw new ErrorStock(cupon.error);
         candidatas.push(cupon.promocion);
       }
-      const promo = aplicarPromociones(lineasCarrito, candidatas);
+      // Las promociones y el cupón solo tocan los productos sueltos: el combo ya trae su descuento.
+      const sueltos = aplicarPromociones(lineasCarrito, candidatas);
+      const promo = {
+        ...sueltos,
+        subtotal: sumar(sueltos.subtotal, combos.subtotal),
+        descuento: sumar(sueltos.descuento, combos.descuento),
+        total: sumar(sueltos.total, combos.total),
+      };
       // El cupón solo se gasta si realmente dio el descuento (si otra promoción era mejor, no se usa).
       const cuponUsado = promo.aplicadas.find((a) => a.cuponId)?.cuponId ?? null;
       if (cuponUsado && d.cuponCodigo) {
@@ -254,8 +276,9 @@ export async function registrarVentaEnLinea(sesion: Sesion, d: z.output<typeof e
         sucursalId: caja.sucursalId,
         cajaId: caja.id,
         cajeroId: sesion.uid,
-        lineas: promo.lineas,
+        lineas: [...promo.lineas, ...combos.lineas],
         catalogo: porId,
+        combos: combos.combos,
         subtotal: promo.subtotal,
         descuento: promo.descuento,
         total: promo.total,
@@ -325,8 +348,14 @@ export async function registrarVentaOffline(sesion: Sesion, d: DatosVentaOffline
       if (d.lineas.some((l) => !porId.has(l.productoId))) throw new ErrorStock("Algún producto de la venta ya no existe");
 
       // Lo que la BD habría cobrado en ese momento, para detectar diferencias.
+      let combosEsperados = "0.00";
+      try {
+        combosEsperados = (await cotizarCombos(tx, d.combos.map((c) => ({ comboId: c.comboId, cantidad: c.cantidad })), hoyEnBolivia(fecha))).total;
+      } catch (e) {
+        if (!(e instanceof ErrorStock)) throw e; // combo ya no vigente: la venta se registra y saltará la alerta de revisión
+      }
       const esperado = aplicarPromociones(
-        d.lineas.map((l) => ({
+        d.lineas.filter((l) => l.combo === null).map((l) => ({
           productoId: l.productoId,
           cantidad: l.cantidad,
           fraccion: l.fraccion,
@@ -343,6 +372,7 @@ export async function registrarVentaOffline(sesion: Sesion, d: DatosVentaOffline
         cajeroId: sesion.uid,
         lineas: d.lineas,
         catalogo: porId,
+        combos: d.combos,
         subtotal: deCentavos(subtotal),
         descuento: deCentavos(descuento),
         total,
@@ -355,12 +385,13 @@ export async function registrarVentaOffline(sesion: Sesion, d: DatosVentaOffline
         offline: { fecha },
       });
 
-      if (aCentavos(esperado.total) !== aCentavos(total)) {
+      const totalEsperado = sumar(esperado.total, combosEsperados);
+      if (aCentavos(totalEsperado) !== aCentavos(total)) {
         await tx.insert(alertas).values({
           tipo: "revision_offline",
           ventaId: venta.id,
           sucursalId: caja.sucursalId,
-          mensaje: `Venta #${venta.numeroComprobante} sin conexión cobrada en ${formatoBs(total)}; con los precios y promociones actuales serían ${formatoBs(esperado.total)}.`,
+          mensaje: `Venta #${venta.numeroComprobante} sin conexión cobrada en ${formatoBs(total)}; con los precios y promociones actuales serían ${formatoBs(totalEsperado)}.`,
         });
       }
       return venta;
