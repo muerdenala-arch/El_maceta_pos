@@ -4,6 +4,8 @@ import { Check, PackageSearch, Send, Truck, Warehouse } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Buscador, Resaltar, SinResultados } from "@/components/busqueda/buscador";
 import { coincide } from "@/lib/busqueda";
+import { CantidadStock } from "@/components/inventario/cantidad-stock";
+import { desglosar, esFraccionado, minimoEnUnidades, nombreEnvase, textoStock } from "@/lib/inventario/fraccion";
 import { Campo } from "@/components/formularios/campo";
 import { DialogoFormulario } from "@/components/formularios/dialogo-formulario";
 import { EncabezadoPagina } from "@/components/formularios/encabezado-pagina";
@@ -33,7 +35,8 @@ export function ConsultaBodega({ sucursal, bodegaId, productos, stock, enCamino,
 
   const aqui = (p: number) => stock[`${p}:${sucursal.id}`] ?? 0;
   const enBodega = (p: number) => (bodegaId ? (stock[`${p}:${bodegaId}`] ?? 0) : 0);
-  const esBajo = (p: ProductoInventario) => aqui(p.id) <= 0 || (p.stockMinimo > 0 && aqui(p.id) < p.stockMinimo);
+  // El mínimo se define en envases; el stock de un producto fraccionado está en unidades sueltas.
+  const esBajo = (p: ProductoInventario) => aqui(p.id) <= 0 || (p.stockMinimo > 0 && aqui(p.id) < minimoEnUnidades(p));
 
   const visibles = useMemo(() => {
     return productos.filter(
@@ -72,7 +75,7 @@ export function ConsultaBodega({ sucursal, bodegaId, productos, stock, enCamino,
                 </p>
                 {llegando > 0 && (
                   <p className="mt-0.5 flex items-center gap-1 text-xs font-semibold text-exito">
-                    <Truck className="size-3.5" /> {llegando} en camino
+                    <Truck className="size-3.5" /> {textoStock(llegando, p)} en camino
                   </p>
                 )}
               </div>
@@ -80,12 +83,14 @@ export function ConsultaBodega({ sucursal, bodegaId, productos, stock, enCamino,
                 <div className="text-center">
                   <p className="text-[11px] font-bold text-muted-foreground uppercase">Aquí</p>
                   <p className={cn("cifras font-display text-2xl font-extrabold", c <= 0 ? "text-destructive" : esBajo(p) && "text-aviso-foreground dark:text-aviso")}>
-                    {c}
+                    <CantidadStock unidades={c} producto={p} className="items-center" />
                   </p>
                 </div>
                 <div className="text-center">
                   <p className="text-[11px] font-bold text-muted-foreground uppercase">Bodega</p>
-                  <p className="cifras font-display text-2xl font-extrabold text-muted-foreground">{enBodega(p.id)}</p>
+                  <p className="cifras font-display text-2xl font-extrabold text-muted-foreground">
+                    <CantidadStock unidades={enBodega(p.id)} producto={p} className="items-center" />
+                  </p>
                 </div>
                 {solicitados[p.id] ? (
                   <span className="flex w-28 items-center justify-center gap-1 rounded-full bg-ficha-verde px-3 py-2 text-xs font-bold text-ficha-verde-foreground" title={solicitados[p.id]}>
@@ -114,7 +119,7 @@ export function ConsultaBodega({ sucursal, bodegaId, productos, stock, enCamino,
         )}
       </ul>
 
-      {pidiendo && <DialogoSolicitud producto={pidiendo} sugerido={Math.max(1, pidiendo.stockMinimo * 2 - aqui(pidiendo.id))} onCerrar={() => setPidiendo(null)} />}
+      {pidiendo && <DialogoSolicitud producto={pidiendo} sugerido={Math.max(1, pidiendo.stockMinimo * 2 - desglosar(aqui(pidiendo.id), pidiendo).envases)} onCerrar={() => setPidiendo(null)} />}
     </div>
   );
 }
@@ -134,7 +139,7 @@ function DialogoSolicitud({ producto, sugerido, onCerrar }: { producto: Producto
       textoGuardar="Enviar solicitud"
       onGuardar={() => enviar.ejecutar({ productoId: producto.id, cantidad, nota })}
     >
-      <Campo etiqueta="Cantidad que necesitas" error={enviar.campos.cantidad}>
+      <Campo etiqueta={esFraccionado(producto) ? `Cantidad que necesitas (${nombreEnvase(producto, 2)} completos)` : "Cantidad que necesitas"} error={enviar.campos.cantidad}>
         {(p) => (
           <Input
             {...p}

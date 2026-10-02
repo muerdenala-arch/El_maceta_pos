@@ -23,6 +23,7 @@ import { Buscador, Resaltar, SinResultados } from "@/components/busqueda/buscado
 import { coincide } from "@/lib/busqueda";
 import { Marquesina } from "@/components/texto/marquesina";
 import { Textarea } from "@/components/ui/textarea";
+import { CLAVES_UNIDAD, UNIDADES_FRACCION, type UnidadFraccion } from "@/lib/inventario/fraccion";
 import type { DatosProducto } from "@/lib/validaciones/admin";
 import { eliminarCategoria, guardarCategoria, guardarProducto } from "./acciones";
 
@@ -38,6 +39,10 @@ type Producto = {
   precioCosto: string;
   codigoBarras: string | null;
   fotoUrl: string | null;
+  fraccionado: boolean;
+  unidadFraccion: string | null;
+  unidadesPorEnvase: number | null;
+  precioUnidad: string | null;
   stockMinimo: number;
   activo: boolean;
 };
@@ -238,6 +243,10 @@ function FormularioProducto({
     stockMinimo: producto?.stockMinimo ?? 0,
     fotoUrl: producto?.fotoUrl ?? null,
     activo: producto?.activo ?? true,
+    fraccionado: producto?.fraccionado ?? false,
+    unidadFraccion: (producto?.unidadFraccion as UnidadFraccion | null) ?? "capsula",
+    unidadesPorEnvase: producto?.unidadesPorEnvase ?? "",
+    precioUnidad: producto?.precioUnidad ?? "",
   }));
   const guardar = useAccion(guardarProducto, {
     mensajeExito: producto ? "Producto actualizado" : "Producto creado",
@@ -252,6 +261,11 @@ function FormularioProducto({
     onChange: (e: React.ChangeEvent<HTMLInputElement>) => poner(campo, e.target.value),
   });
   const m = margen(String(d.precioVenta), String(d.precioCosto));
+  // Venta fraccionada: lo que rinde el envase vendido por unidades sueltas.
+  const palabras = UNIDADES_FRACCION[(d.unidadFraccion as UnidadFraccion) ?? "capsula"] ?? UNIDADES_FRACCION.capsula;
+  const porEnvase = Number(d.unidadesPorEnvase) || 0;
+  const precioSuelto = Number(String(d.precioUnidad ?? "").replace(",", "."));
+  const rindeSuelto = d.fraccionado && porEnvase >= 2 && precioSuelto > 0 ? (porEnvase * precioSuelto).toFixed(2) : null;
 
   return (
     <DialogoFormulario
@@ -344,7 +358,11 @@ function FormularioProducto({
             </div>
           )}
         </Campo>
-        <Campo etiqueta="Stock mínimo" error={guardar.campos.stockMinimo} ayuda="Aviso de stock bajo por debajo de esta cantidad">
+        <Campo
+          etiqueta={d.fraccionado ? `Stock mínimo (${palabras.envases})` : "Stock mínimo"}
+          error={guardar.campos.stockMinimo}
+          ayuda={d.fraccionado ? `Aviso de stock bajo por debajo de esta cantidad de ${palabras.envases}` : "Aviso de stock bajo por debajo de esta cantidad"}
+        >
           {(p) => (
             <Input
               {...p}
@@ -357,6 +375,73 @@ function FormularioProducto({
             />
           )}
         </Campo>
+      </div>
+
+      <div className={cn("space-y-4 rounded-2xl border p-4", guardar.campos.fraccionado && "border-destructive")}>
+        <label className="flex items-center justify-between gap-4">
+          <span>
+            <span className="block font-semibold">Se vende fraccionado</span>
+            <span className="block text-sm text-muted-foreground">Además del envase completo, se venden unidades sueltas (cápsulas, sobres…)</span>
+          </span>
+          <Switch checked={!!d.fraccionado} onCheckedChange={(v) => poner("fraccionado", v)} aria-label="Se vende fraccionado" />
+        </label>
+        {guardar.campos.fraccionado && <p className="text-sm text-destructive">{guardar.campos.fraccionado}</p>}
+        {d.fraccionado && (
+          <>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <Campo etiqueta="Unidad de fracción" error={guardar.campos.unidadFraccion}>
+                {(p) => (
+                  <Select value={(d.unidadFraccion as string) ?? "capsula"} onValueChange={(v) => poner("unidadFraccion", v as UnidadFraccion)}>
+                    <SelectTrigger {...p} className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {CLAVES_UNIDAD.map((u) => (
+                        <SelectItem key={u} value={u}>
+                          {UNIDADES_FRACCION[u].uno[0].toUpperCase() + UNIDADES_FRACCION[u].uno.slice(1)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </Campo>
+              <Campo etiqueta={`${palabras.varios[0].toUpperCase()}${palabras.varios.slice(1)} por ${palabras.envase}`} error={guardar.campos.unidadesPorEnvase}>
+                {(p) => (
+                  <Input
+                    {...p}
+                    inputMode="numeric"
+                    value={String(d.unidadesPorEnvase ?? "")}
+                    onChange={(e) => poner("unidadesPorEnvase", e.target.value.replace(/\D/g, "").slice(0, 5))}
+                    placeholder="Ej. 120"
+                    className="cifras"
+                  />
+                )}
+              </Campo>
+              <Campo etiqueta={`Precio por ${palabras.uno} (Bs)`} error={guardar.campos.precioUnidad}>
+                {(p) => (
+                  <Input
+                    {...p}
+                    inputMode="decimal"
+                    value={String(d.precioUnidad ?? "")}
+                    onChange={(e) => poner("precioUnidad", e.target.value)}
+                    placeholder="0,00"
+                    className="cifras font-bold"
+                  />
+                )}
+              </Campo>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              {rindeSuelto ? (
+                <>
+                  Vendido por {palabras.varios}, un {palabras.envase} rinde <strong className="cifras text-foreground">{formatoBs(rindeSuelto)}</strong> (completo:{" "}
+                  <span className="cifras">{formatoBs(String(d.precioVenta || "0").replace(",", "."))}</span>).{" "}
+                </>
+              ) : null}
+              El stock se cuenta en {palabras.varios}
+              {producto && !producto.fraccionado ? `: al guardar, el stock actual en ${palabras.envases} se convierte a ${palabras.varios}.` : "."}
+            </p>
+          </>
+        )}
       </div>
 
       <label className="flex items-center justify-between gap-4 rounded-2xl border p-4">

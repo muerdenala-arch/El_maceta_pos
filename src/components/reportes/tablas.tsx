@@ -4,6 +4,7 @@ import { Resaltar } from "@/components/busqueda/buscador";
 import { Button } from "@/components/ui/button";
 import { aCentavos } from "@/lib/dinero";
 import { formatoBs } from "@/lib/formato";
+import { textoCantidadVendida } from "@/lib/inventario/fraccion";
 import type { VentasCajero, VentasDia, VentasProducto } from "@/lib/reportes/ventas";
 import { cn } from "@/lib/utils";
 
@@ -73,7 +74,14 @@ export function TablaProductos({ filas, consulta = "" }: { filas: VentasProducto
                 </div>
               </div>
             </td>
-            <td className={cn(td, "font-bold")}>{p.unidades}</td>
+            <td className={cn(td, "font-bold")}>
+              {p.unidades}
+              {p.sueltas > 0 && (
+                <span className="block text-xs font-semibold text-muted-foreground" title={`Sueltas: ${formatoBs(p.netoSueltas)}`}>
+                  + {textoCantidadVendida(p.sueltas, p.unidadFraccion ?? "capsula")} · {formatoBs(p.netoSueltas)}
+                </span>
+              )}
+            </td>
             <td className={td}>{formatoBs(p.bruto)}</td>
             <td className={cn(td, aCentavos(p.descuento) > 0n && "text-destructive")}>{aCentavos(p.descuento) > 0n ? `−${formatoBs(p.descuento)}` : "—"}</td>
             <td className={cn(td, "font-display font-extrabold")}>{formatoBs(p.neto)}</td>

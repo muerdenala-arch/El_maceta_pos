@@ -20,6 +20,8 @@ import { esquemaCategoria, esquemaProducto, type DatosProducto } from "@/lib/val
 import { contextoImportacion } from "@/lib/importacion/contexto";
 import { leerPlanilla, normalizar } from "@/lib/importacion/productos";
 import { aplicarImportacion, unidadesDe } from "@/lib/importacion/aplicar";
+import { convertirStockPorFraccion } from "@/lib/inventario/conversion-fraccion";
+import { ErrorStock } from "@/lib/inventario/stock";
 import * as XLSX from "xlsx";
 
 const ERROR_CODIGO_REPETIDO = { codigoBarras: "Ya hay otro producto con este código de barras" };
@@ -52,12 +54,30 @@ export async function guardarProducto(entrada: DatosProducto & { id?: number }):
         const id = idPositivo.parse(entrada.id);
         const [antes] = await db.select().from(productos).where(eq(productos.id, id));
         if (!antes) return fallo("El producto ya no existe");
-        await db.update(productos).set(datos).where(eq(productos.id, id));
+        // Activar o quitar la venta fraccionada cambia la unidad del stock: todo o nada.
+        const conversion = await db.transaction(async (tx) => {
+          await tx.update(productos).set(datos).where(eq(productos.id, id));
+          return convertirStockPorFraccion(tx, id, antes, datos);
+        });
+        if (conversion || antes.unidadesPorEnvase !== datos.unidadesPorEnvase || antes.unidadFraccion !== datos.unidadFraccion) {
+          await registrarAuditoria("venta_fraccionada_cambiada", {
+            usuarioId: sesion.uid,
+            detalle: {
+              productoId: id,
+              producto: datos.nombre,
+              fraccionado: datos.fraccionado,
+              unidad: datos.unidadFraccion,
+              unidadesPorEnvase: datos.unidadesPorEnvase,
+              ...(conversion && { stock: conversion.sentido === "a_unidades" ? `× ${conversion.factor}` : `÷ ${conversion.factor}` }),
+            },
+          });
+        }
 
         // Los cambios de precio son acciones sensibles (sección 4.11 del plan).
         const cambioVenta = aCentavos(antes.precioVenta) !== aCentavos(datos.precioVenta);
         const cambioCosto = aCentavos(antes.precioCosto) !== aCentavos(datos.precioCosto);
-        if (cambioVenta || cambioCosto) {
+        const cambioUnidad = datos.fraccionado && antes.fraccionado && aCentavos(antes.precioUnidad ?? "0") !== aCentavos(datos.precioUnidad ?? "0");
+        if (cambioVenta || cambioCosto || cambioUnidad) {
           await registrarAuditoria("cambio_precio", {
             usuarioId: sesion.uid,
             detalle: {
@@ -65,6 +85,7 @@ export async function guardarProducto(entrada: DatosProducto & { id?: number }):
               producto: datos.nombre,
               ...(cambioVenta && { precioVenta: { antes: antes.precioVenta, despues: datos.precioVenta } }),
               ...(cambioCosto && { precioCosto: { antes: antes.precioCosto, despues: datos.precioCosto } }),
+              ...(cambioUnidad && { precioUnidad: { antes: antes.precioUnidad, despues: datos.precioUnidad } }),
             },
           });
         }
@@ -72,6 +93,7 @@ export async function guardarProducto(entrada: DatosProducto & { id?: number }):
       }
     } catch (e) {
       if (esViolacionUnica(e, "productos_codigo_barras_uq")) return fallo("Revisa los datos marcados", ERROR_CODIGO_REPETIDO);
+      if (e instanceof ErrorStock) return fallo(e.message, { fraccionado: e.message });
       throw e;
     }
     refresh();

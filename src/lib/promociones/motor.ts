@@ -11,6 +11,7 @@
  * - Monto fijo: Bs por unidad elegible, nunca más que el precio.
  * - Combo "lleva N paga M": se juntan las unidades elegibles; por cada N se regalan N−M,
  *   siempre las más baratas.
+ * - Las líneas vendidas por unidad suelta (venta fraccionada) no reciben promociones.
  */
 import { aCentavos, deCentavos } from "@/lib/dinero";
 
@@ -34,6 +35,8 @@ export type LineaCarrito = {
   categoriaId: number | null;
   cantidad: number;
   precioUnitario: string;
+  /** Venta por unidad suelta (cápsulas…): no participa en promociones (están pensadas para el envase completo). */
+  fraccion?: boolean;
 };
 
 export type LineaConDescuento = LineaCarrito & {
@@ -53,6 +56,7 @@ export type ResultadoPromociones = {
 };
 
 export function aplicaA(p: Promocion, l: LineaCarrito) {
+  if (l.fraccion) return false;
   if (p.alcance === "producto") return l.productoId === p.productoId;
   if (p.alcance === "categoria") return l.categoriaId !== null && l.categoriaId === p.categoriaId;
   return true; // todo / sucursal (la sucursal se filtra antes de llegar aquí)

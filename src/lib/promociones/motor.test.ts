@@ -104,3 +104,19 @@ it("describe el beneficio", () => {
   expect(describirBeneficio({ tipo: "combo", valor: "0", comboLleva: 2, comboPaga: 1 })).toBe("2x1");
   expect(describirBeneficio({ tipo: "porcentaje", valor: "12.5", comboLleva: null, comboPaga: null })).toBe("12,5 % de descuento");
 });
+
+it("las unidades sueltas (venta fraccionada) no reciben promociones; el envase del mismo producto sí", () => {
+  const diez: Promocion = { id: 90, nombre: "10 % en todo", tipo: "porcentaje", valor: "10", comboLleva: null, comboPaga: null, alcance: "todo", productoId: null, categoriaId: null };
+  const r = aplicarPromociones(
+    [
+      { productoId: 1, categoriaId: null, cantidad: 1, precioUnitario: "100.00" },
+      { productoId: 1, categoriaId: null, cantidad: 30, precioUnitario: "1.50", fraccion: true },
+    ],
+    [diez],
+  );
+  expect(r.lineas.map((l) => [l.descuento, l.promocionId, l.fraccion ?? false])).toEqual([
+    ["10.00", 90, false],
+    ["0.00", null, true],
+  ]);
+  expect(r.total).toBe("135.00");
+});

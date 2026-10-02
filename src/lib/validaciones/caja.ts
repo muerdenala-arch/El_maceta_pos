@@ -13,10 +13,11 @@ export const esquemaVenta = z
     /** UUID generado en el dispositivo: si se reenvía (doble clic, reintento), no se duplica la venta. */
     uuid: z.uuid("Identificador inválido"),
     lineas: z
-      .array(z.object({ productoId: idPositivo, cantidad }))
+      // `fraccion`: unidades sueltas (cápsulas…) en vez del envase completo. Un producto puede ir de las dos formas.
+      .array(z.object({ productoId: idPositivo, cantidad, fraccion: z.boolean().optional().default(false) }))
       .min(1, "El carrito está vacío")
       .max(200)
-      .refine((ls) => new Set(ls.map((l) => l.productoId)).size === ls.length, "Producto repetido en el carrito"),
+      .refine((ls) => new Set(ls.map((l) => `${l.productoId}:${l.fraccion}`)).size === ls.length, "Producto repetido en el carrito"),
     metodoPago: z.enum(["efectivo", "qr"]),
     montoRecibido: monto("Monto recibido inválido").nullable(),
     clienteNombre: textoOpcional(120),
@@ -73,6 +74,7 @@ export const esquemaVentaOffline = z
           precioUnitario: monto(),
           descuento: monto(),
           promocionId: idPositivo.nullable(),
+          fraccion: z.boolean().optional().default(false),
         }),
       )
       .min(1)

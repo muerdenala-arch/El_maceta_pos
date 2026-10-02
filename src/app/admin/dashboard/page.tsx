@@ -30,6 +30,7 @@ import { aParametros, type FiltrosReporte } from "@/lib/reportes/filtros";
 import { ventasPorProducto } from "@/lib/reportes/ventas";
 import { obtenerSucursalVista } from "@/lib/sucursal-vista";
 import { cn } from "@/lib/utils";
+import { textoCantidadVendida } from "@/lib/inventario/fraccion";
 
 export const metadata: Metadata = { title: "Inicio" };
 
@@ -153,7 +154,7 @@ export default async function PanelInicio(props: PageProps<"/admin/dashboard">) 
                 </div>
                 <div className="text-right">
                   <p className="cifras text-sm font-bold">{formatoBs(p.neto)}</p>
-                  <p className="cifras text-xs text-muted-foreground">{p.unidades} unid.</p>
+                  <p className="cifras text-xs text-muted-foreground">{p.unidades} unid.{p.sueltas > 0 && ` + ${textoCantidadVendida(p.sueltas, p.unidadFraccion ?? "capsula")}`}</p>
                 </div>
               </li>
             ))}

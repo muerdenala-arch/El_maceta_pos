@@ -1,6 +1,7 @@
 /** Validaciones de la Fase 2 (sucursales, personal, catálogo, configuración): mismas en cliente y servidor. */
 import { z } from "zod";
 import { esquemaPin } from "./auth";
+import { CLAVES_UNIDAD } from "@/lib/inventario/fraccion";
 import { idPositivo, monto, telefono, textoOpcional, textoRequerido, urlImagen } from "./comunes";
 
 export const TAMANOS_IMPRESION = ["58mm", "80mm", "carta"] as const;
@@ -47,7 +48,14 @@ export type DatosEditarUsuario = z.input<typeof esquemaEditarUsuario>;
 
 export const esquemaCategoria = z.object({ nombre: textoRequerido(80, "Ingresa el nombre") });
 
-export const esquemaProducto = z.object({
+const vacioANulo = <T extends z.ZodType>(esquema: T) =>
+  z
+    .union([z.literal(""), z.null(), esquema])
+    .optional()
+    .transform((v) => (v === "" || v === null || v === undefined ? null : (v as z.output<T>)));
+
+export const esquemaProducto = z
+  .object({
   nombre: textoRequerido(160, "Ingresa el nombre del producto"),
   marca: textoOpcional(80),
   categoriaId: idPositivo.nullable(),
@@ -67,7 +75,20 @@ export const esquemaProducto = z.object({
     .max(100000),
   fotoUrl: urlImagen,
   activo: z.boolean(),
-});
+  /** Venta fraccionada: envase completo o unidades sueltas (lib/inventario/fraccion.ts). */
+  fraccionado: z.boolean().optional().default(false),
+  unidadFraccion: vacioANulo(z.enum(CLAVES_UNIDAD, { message: "Elige la unidad" })),
+  unidadesPorEnvase: vacioANulo(z.coerce.number({ message: "Número inválido" }).int("Debe ser un número entero").min(2, "Mínimo 2 por envase").max(10000, "Máximo 10.000")),
+  precioUnidad: vacioANulo(monto("Precio inválido")),
+  })
+  .superRefine((d, ctx) => {
+    if (!d.fraccionado) return;
+    if (!d.unidadFraccion) ctx.addIssue({ code: "custom", path: ["unidadFraccion"], message: "Elige la unidad (cápsula, tableta, scoop o sobre)" });
+    if (!d.unidadesPorEnvase) ctx.addIssue({ code: "custom", path: ["unidadesPorEnvase"], message: "Indica cuántas unidades trae el envase" });
+    if (!d.precioUnidad || Number(d.precioUnidad) <= 0) ctx.addIssue({ code: "custom", path: ["precioUnidad"], message: "Ingresa el precio de la unidad suelta" });
+  })
+  // Si no es fraccionado, los datos de la fracción no se guardan.
+  .transform((d) => (d.fraccionado ? d : { ...d, unidadFraccion: null, unidadesPorEnvase: null, precioUnidad: null }));
 export type DatosProducto = z.input<typeof esquemaProducto>;
 
 export const esquemaConfiguracion = z.object({

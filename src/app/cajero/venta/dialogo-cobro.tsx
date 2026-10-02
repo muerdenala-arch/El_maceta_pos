@@ -112,7 +112,7 @@ export function DialogoCobro({ lineas, promociones, instantanea, qrs, onCerrar, 
       try {
         const r = await registrarVenta({
           uuid,
-          lineas: lineas.map((l) => ({ productoId: l.productoId, cantidad: l.cantidad })),
+          lineas: lineas.map((l) => ({ productoId: l.productoId, cantidad: l.cantidad, fraccion: !!l.fraccion })),
           cuponCodigo: cupon ? codigo : "",
           metodoPago: metodo,
           montoRecibido: metodo === "efectivo" ? recibidoNormalizado : null,

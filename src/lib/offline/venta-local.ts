@@ -6,6 +6,7 @@
 
 import type { DatosComprobante } from "@/lib/comprobante/datos";
 import type { ResultadoPromociones } from "@/lib/promociones/motor";
+import { unidadesPedidas } from "@/lib/inventario/fraccion";
 import { baseLocal, type Instantanea } from "./base";
 
 export type VentaLocalRealizada = {
@@ -48,6 +49,7 @@ export async function registrarVentaLocal(p: {
           nombre: prod?.nombre ?? "Producto",
           detalle: prod ? [prod.marca, prod.sabor, prod.presentacion].filter(Boolean).join(" · ") || null : null,
           cantidad: l.cantidad,
+          unidad: l.fraccion ? (prod?.unidadFraccion ?? "capsula") : null,
           precioUnitario: l.precioUnitario,
           descuento: l.descuento,
           subtotal: l.subtotal,
@@ -87,6 +89,7 @@ export async function registrarVentaLocal(p: {
           precioUnitario: l.precioUnitario,
           descuento: l.descuento,
           promocionId: l.promocionId,
+          fraccion: !!l.fraccion,
         })),
         metodoPago: p.metodoPago,
         montoRecibido: p.montoRecibido,
@@ -112,11 +115,16 @@ export async function registrarVentaLocal(p: {
 }
 
 /** Resta lo vendido de la copia local (también tras una venta en línea, hasta la próxima recarga). */
-export async function descontarStockLocal(clave: string, lineas: { productoId: number; cantidad: number }[]) {
+export async function descontarStockLocal(clave: string, lineas: { productoId: number; cantidad: number; fraccion?: boolean }[]) {
   const base = baseLocal();
   const inst = await base.instantaneas.get(clave);
   if (!inst) return;
-  const vendido = new Map(lineas.map((l) => [l.productoId, l.cantidad]));
+  // En unidades de stock: un envase de un producto fraccionado descuenta todas sus unidades sueltas.
+  const vendido = new Map<number, number>();
+  for (const pr of inst.productos) {
+    const unidades = unidadesPedidas(lineas, pr);
+    if (unidades > 0) vendido.set(pr.id, unidades);
+  }
   await base.instantaneas.put({
     ...inst,
     productos: inst.productos.map((pr) => (vendido.has(pr.id) ? { ...pr, stock: pr.stock - vendido.get(pr.id)! } : pr)),

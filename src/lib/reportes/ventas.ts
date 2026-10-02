@@ -43,6 +43,8 @@ export type ResumenVentas = {
   ventaLineas: string;
   costo: string;
   unidades: number;
+  /** Unidades sueltas vendidas (venta fraccionada). */
+  sueltas: number;
   gastos: string;
 };
 
@@ -65,7 +67,9 @@ export async function resumenVentas(f: FiltrosReporte): Promise<ResumenVentas> {
       .select({
         ventaLineas: sql<string>`coalesce(sum(${netoLinea}), 0)::text`,
         costo: sql<string>`coalesce(sum(${costoLinea}), 0)::text`,
-        unidades: sql<number>`coalesce(sum(${detalleVenta.cantidad}), 0)::int`,
+        // Envases (o unidades de productos normales); las unidades sueltas se cuentan aparte.
+        unidades: sql<number>`coalesce(sum(${detalleVenta.cantidad}) filter (where not ${detalleVenta.fraccion}), 0)::int`,
+        sueltas: sql<number>`coalesce(sum(${detalleVenta.cantidad}) filter (where ${detalleVenta.fraccion}), 0)::int`,
       })
       .from(detalleVenta)
       .innerJoin(ventas, eq(ventas.id, detalleVenta.ventaId))
@@ -113,7 +117,12 @@ export type VentasProducto = {
   marca: string | null;
   sabor: string | null;
   presentacion: string | null;
+  /** Envases completos vendidos (o unidades, si el producto no es fraccionado). */
   unidades: number;
+  /** Venta fraccionada: unidades sueltas vendidas, su unidad (capsula, sobre…) y lo que sumaron. */
+  sueltas: number;
+  unidadFraccion: string | null;
+  netoSueltas: string;
   bruto: string;
   descuento: string;
   neto: string;
@@ -130,7 +139,10 @@ export async function ventasPorProducto(f: FiltrosReporte, limite = 500): Promis
       marca: productos.marca,
       sabor: productos.sabor,
       presentacion: productos.presentacion,
-      unidades: sql<number>`sum(${detalleVenta.cantidad})::int`,
+      unidades: sql<number>`coalesce(sum(${detalleVenta.cantidad}) filter (where not ${detalleVenta.fraccion}), 0)::int`,
+      sueltas: sql<number>`coalesce(sum(${detalleVenta.cantidad}) filter (where ${detalleVenta.fraccion}), 0)::int`,
+      unidadFraccion: sql<string | null>`max(${detalleVenta.unidadFraccion})`,
+      netoSueltas: sql<string>`coalesce(sum(${netoLinea}) filter (where ${detalleVenta.fraccion}), 0)::text`,
       bruto: sql<string>`sum(${detalleVenta.cantidad} * ${detalleVenta.precioUnitario})::text`,
       descuento: sql<string>`sum(${detalleVenta.descuento})::text`,
       neto: sql<string>`sum(${netoLinea})::text`,
@@ -217,6 +229,8 @@ export type LineaExportada = {
   producto: string;
   detalleProducto: string;
   cantidad: number;
+  /** Unidad suelta vendida (capsula, sobre…) o null si fue el envase completo. */
+  unidad: string | null;
   precioUnitario: string;
   descuento: string;
   neto: string;
@@ -236,6 +250,7 @@ export async function lineasDeVentas(f: FiltrosReporte, limite: number): Promise
       producto: productos.nombre,
       detalleProducto: sql<string>`concat_ws(' · ', ${productos.marca}, ${productos.sabor}, ${productos.presentacion})`,
       cantidad: detalleVenta.cantidad,
+      unidad: detalleVenta.unidadFraccion,
       precioUnitario: detalleVenta.precioUnitario,
       descuento: detalleVenta.descuento,
       neto: sql<string>`${netoLinea}::text`,

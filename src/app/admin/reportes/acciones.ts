@@ -3,11 +3,12 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { refresh } from "next/cache";
 import { db } from "@/db";
-import { alertas, cupones, detalleVenta, ventas } from "@/db/schema";
+import { alertas, cupones, detalleVenta, productos, ventas } from "@/db/schema";
 import { conPermiso, exito, fallo, falloValidacion, type Resultado } from "@/lib/acciones/resultado";
 import { registrarAuditoria } from "@/lib/auditoria";
 import { autorizar } from "@/lib/auth/sesion";
 import { formatoBs } from "@/lib/formato";
+import { esFraccionado, unidadesDeLinea } from "@/lib/inventario/fraccion";
 import { cambiarStock } from "@/lib/inventario/stock";
 import { idPositivo } from "@/lib/validaciones/comunes";
 import { esquemaAnulacion, type DatosAnulacion } from "@/lib/validaciones/caja";
@@ -28,12 +29,25 @@ export async function anularVenta(entrada: DatosAnulacion): Promise<Resultado> {
       if (!actual || actual.estado === "anulada") return null;
       await tx.update(ventas).set({ estado: "anulada", motivoAnulacion: motivo }).where(eq(ventas.id, id));
 
-      const lineas = await tx.select().from(detalleVenta).where(eq(detalleVenta.ventaId, id));
+      const lineas = await tx
+        .select({
+          productoId: detalleVenta.productoId,
+          cantidad: detalleVenta.cantidad,
+          fraccion: detalleVenta.fraccion,
+          fraccionado: productos.fraccionado,
+          unidadFraccion: productos.unidadFraccion,
+          unidadesPorEnvase: productos.unidadesPorEnvase,
+        })
+        .from(detalleVenta)
+        .innerJoin(productos, eq(productos.id, detalleVenta.productoId))
+        .where(eq(detalleVenta.ventaId, id));
       for (const l of lineas) {
+        // Unidades sueltas de un producto que ya no es fraccionado: no hay forma de devolverlas como envase.
+        if (l.fraccion && !esFraccionado(l)) continue;
         await cambiarStock(tx, {
           productoId: l.productoId,
           ubicacionId: actual.sucursalId,
-          delta: l.cantidad,
+          delta: unidadesDeLinea(l, l),
           tipo: "anulacion",
           usuarioId: sesion.uid,
           motivo,

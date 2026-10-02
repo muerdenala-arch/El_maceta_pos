@@ -6,6 +6,7 @@ import { diasParaVencer } from "@/lib/inventario/lotes";
 import type { Tx } from "@/lib/inventario/stock";
 import { hoyEnBolivia } from "@/lib/formato";
 import { conciliarAlertasEventos } from "@/lib/eventos/alertas";
+import { esFraccionado, minimoEnUnidades, nombreEnvase, textoStock } from "@/lib/inventario/fraccion";
 import { alertaDeStock, DIAS_AVISO_VENCIMIENTO } from "./reglas";
 
 type Ejecutor = Db | Tx;
@@ -55,6 +56,9 @@ export async function conciliarAlertasStock(ejecutor: Ejecutor, filtro?: { produ
       minimo: productos.stockMinimo,
       producto: productos.nombre,
       ubicacion: sucursales.nombre,
+      fraccionado: productos.fraccionado,
+      unidadFraccion: productos.unidadFraccion,
+      unidadesPorEnvase: productos.unidadesPorEnvase,
     })
     .from(inventario)
     .innerJoin(productos, eq(productos.id, inventario.productoId))
@@ -69,8 +73,10 @@ export async function conciliarAlertasStock(ejecutor: Ejecutor, filtro?: { produ
 
   const deseadas: Deseada[] = [];
   for (const f of filas) {
-    const tipo = alertaDeStock(f.cantidad, f.minimo);
+    // El mínimo se define en envases; el stock de un producto fraccionado está en unidades sueltas.
+    const tipo = alertaDeStock(f.cantidad, minimoEnUnidades({ ...f, stockMinimo: f.minimo }));
     if (!tipo) continue;
+    const fraccion = esFraccionado(f);
     deseadas.push({
       tipo,
       productoId: f.productoId,
@@ -78,7 +84,7 @@ export async function conciliarAlertasStock(ejecutor: Ejecutor, filtro?: { produ
       mensaje:
         tipo === "agotado"
           ? `${f.producto} está agotado en ${f.ubicacion}`
-          : `${f.producto}: quedan ${f.cantidad} en ${f.ubicacion} (mínimo ${f.minimo})`,
+          : `${f.producto}: quedan ${fraccion ? textoStock(f.cantidad, f) : f.cantidad} en ${f.ubicacion} (mínimo ${f.minimo}${fraccion ? ` ${nombreEnvase(f, f.minimo)}` : ""})`,
     });
   }
   await conciliar(ejecutor, ["stock_bajo", "agotado"], deseadas, filtro);

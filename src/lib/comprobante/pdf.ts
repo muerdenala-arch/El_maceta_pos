@@ -6,7 +6,7 @@
  */
 import { jsPDF, type jsPDF as JsPdf } from "jspdf";
 import { formatoBs } from "@/lib/formato";
-import { fechaHoraComprobante, numeroComprobante, type DatosComprobante, type TamanoImpresion } from "./datos";
+import { fechaHoraComprobante, numeroComprobante, type DatosComprobante, type TamanoImpresion, cantidadLinea } from "./datos";
 
 type Imagen = { dataUrl: string; ancho: number; alto: number };
 
@@ -103,7 +103,7 @@ function dibujarTermica(doc: JsPdf, d: DatosComprobante, ancho: number, logo: Im
   for (const l of d.venta.lineas) {
     izquierda(l.nombre, base, true);
     if (l.detalle) izquierda(l.detalle, base - 1);
-    fila(`${l.cantidad} x ${bs(l.precioUnitario)}`, bs(l.subtotal));
+    fila(`${cantidadLinea(l)} x ${bs(l.precioUnitario)}`, bs(l.subtotal));
     if (Number(l.descuento) > 0) fila(recortar(l.promocion ?? "Descuento", ancho === 58 ? 22 : 30), menos(l.descuento));
     y += 0.8;
   }
@@ -191,7 +191,7 @@ function dibujarCarta(doc: JsPdf, d: DatosComprobante, logo: Imagen | null) {
       encabezado();
     }
     doc.setFont("helvetica", "bold").setFontSize(10).text(nombre, m, y);
-    doc.setFont("helvetica", "normal").text(String(l.cantidad), col.cant, y, { align: "right" });
+    doc.setFont("helvetica", "normal").text(cantidadLinea(l), col.cant, y, { align: "right" });
     doc.text(bs(l.precioUnitario), col.unit, y, { align: "right" });
     doc.text(bs(l.subtotal), col.sub, y, { align: "right" });
     if (Number(l.descuento) > 0) doc.setFontSize(8.5).text(`${recortar(l.promocion ?? "Desc.", 28)} ${menos(l.descuento)}`, col.sub, y + 4, { align: "right" }).setFontSize(10);

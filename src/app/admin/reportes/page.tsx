@@ -100,7 +100,8 @@ export default async function PaginaReporteVentas(props: PageProps<"/admin/repor
           <p>
             <span className="text-muted-foreground">{producto.nombre}:</span>{" "}
             <strong className="cifras">
-              {r.unidades} unidad{r.unidades === 1 ? "" : "es"} · {formatoBs(r.ventaLineas)}
+              {r.unidades} unidad{r.unidades === 1 ? "" : "es"}
+              {r.sueltas > 0 && ` + ${r.sueltas} suelta${r.sueltas === 1 ? "" : "s"}`} · {formatoBs(r.ventaLineas)}
             </strong>{" "}
             <span className="text-muted-foreground">(el total vendido incluye los demás productos de esas ventas)</span>
           </p>

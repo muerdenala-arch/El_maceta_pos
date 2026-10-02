@@ -6,11 +6,12 @@ import { db } from "@/db";
 import { alertas, productos } from "@/db/schema";
 import { conPermiso, exito, fallo, falloValidacion, type Resultado } from "@/lib/acciones/resultado";
 import { autorizar } from "@/lib/auth/sesion";
+import { esFraccionado, nombreEnvase, type Fraccionable } from "@/lib/inventario/fraccion";
 import { esquemaSolicitudReposicion, type DatosSolicitudReposicion } from "@/lib/validaciones/inventario";
 
 /** Formato fijo: el panel de bodega lee la cantidad del inicio del mensaje. No se exporta (sería una acción pública). */
-const mensajeSolicitud = (cantidad: number, nota: string | null) =>
-  `Solicita ${cantidad} unidad${cantidad === 1 ? "" : "es"}${nota ? ` — ${nota}` : ""}`;
+const mensajeSolicitud = (cantidad: number, nota: string | null, producto: Fraccionable) =>
+  `Solicita ${cantidad} ${esFraccionado(producto) ? nombreEnvase(producto, cantidad) : `unidad${cantidad === 1 ? "" : "es"}`}${nota ? ` — ${nota}` : ""}`;
 
 /**
  * El cajero pide mercadería para su sucursal: genera una alerta para el administrador.
@@ -25,12 +26,12 @@ export async function solicitarReposicion(entrada: DatosSolicitudReposicion): Pr
     const d = v.data;
 
     const [producto] = await db
-      .select({ id: productos.id })
+      .select({ id: productos.id, fraccionado: productos.fraccionado, unidadFraccion: productos.unidadFraccion, unidadesPorEnvase: productos.unidadesPorEnvase })
       .from(productos)
       .where(and(eq(productos.id, d.productoId), eq(productos.activo, true)));
     if (!producto) return fallo("El producto ya no está disponible");
 
-    const mensaje = mensajeSolicitud(d.cantidad, d.nota);
+    const mensaje = mensajeSolicitud(d.cantidad, d.nota, producto);
     const pendiente = and(
       eq(alertas.tipo, "solicitud_reposicion"),
       eq(alertas.productoId, d.productoId),

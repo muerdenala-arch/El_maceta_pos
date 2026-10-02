@@ -15,6 +15,7 @@ import {
 } from "@/db/schema";
 import { ZONA_HORARIA } from "@/lib/formato";
 import { condicionBusqueda } from "@/lib/busqueda-sql";
+import { textoStock } from "./fraccion";
 
 export type Ubicacion = { id: number; nombre: string; tipo: "sucursal" | "bodega" };
 
@@ -35,8 +36,13 @@ export type ProductoInventario = {
   presentacion: string | null;
   codigoBarras: string | null;
   fotoUrl: string | null;
+  /** En envases (frascos), también en los productos fraccionados. */
   stockMinimo: number;
   activo: boolean;
+  /** Venta fraccionada: el stock de estos productos está en unidades sueltas (lib/inventario/fraccion.ts). */
+  fraccionado: boolean;
+  unidadFraccion: string | null;
+  unidadesPorEnvase: number | null;
 };
 
 /** Productos activos y los inactivos que todavía tienen stock (sin precios: lo usa también el cajero). */
@@ -56,6 +62,9 @@ export async function listarProductosInventario(): Promise<ProductoInventario[]>
       fotoUrl: productos.fotoUrl,
       stockMinimo: productos.stockMinimo,
       activo: productos.activo,
+      fraccionado: productos.fraccionado,
+      unidadFraccion: productos.unidadFraccion,
+      unidadesPorEnvase: productos.unidadesPorEnvase,
     })
     .from(productos)
     .where(or(eq(productos.activo, true), inArray(productos.id, conStock)))
@@ -94,6 +103,8 @@ export type LoteVigente = {
   ubicacionId: number;
   ubicacion: string;
   cantidad: number;
+  /** Cantidad lista para mostrar ("2 frascos + 30 cápsulas (270 cápsulas en total)" o "12"). */
+  texto: string;
   vencimiento: string;
 };
 
@@ -109,13 +120,20 @@ export async function listarLotesConVencimiento(ubicacionId?: number): Promise<L
       ubicacion: sucursales.nombre,
       cantidad: lotes.cantidad,
       vencimiento: lotes.fechaVencimiento,
+      fraccionado: productos.fraccionado,
+      unidadFraccion: productos.unidadFraccion,
+      unidadesPorEnvase: productos.unidadesPorEnvase,
     })
     .from(lotes)
     .innerJoin(productos, eq(productos.id, lotes.productoId))
     .innerJoin(sucursales, eq(sucursales.id, lotes.ubicacionId))
     .where(and(gt(lotes.cantidad, 0), isNotNull(lotes.fechaVencimiento), ubicacionId ? eq(lotes.ubicacionId, ubicacionId) : undefined))
     .orderBy(asc(lotes.fechaVencimiento), asc(productos.nombre));
-  return filas as LoteVigente[];
+  return filas.map(({ fraccionado, unidadFraccion, unidadesPorEnvase, ...l }) => ({
+    ...l,
+    vencimiento: l.vencimiento!,
+    texto: textoStock(l.cantidad, { fraccionado, unidadFraccion, unidadesPorEnvase }),
+  }));
 }
 
 export type Transferencia = {
@@ -129,7 +147,8 @@ export type Transferencia = {
   recibe: string | null;
   enviadaEn: string;
   recibidaEn: string | null;
-  lineas: { producto: string; presentacion: string | null; cantidad: number }[];
+  /** `texto`: la cantidad lista para mostrar (envases y unidades sueltas si el producto es fraccionado). */
+  lineas: { producto: string; presentacion: string | null; cantidad: number; texto: string }[];
 };
 
 export async function listarTransferencias(opciones: { limite?: number; destinoId?: number } = {}): Promise<Transferencia[]> {
@@ -167,6 +186,9 @@ export async function listarTransferencias(opciones: { limite?: number; destinoI
       producto: productos.nombre,
       presentacion: productos.presentacion,
       cantidad: detalleTransferencia.cantidad,
+      fraccionado: productos.fraccionado,
+      unidadFraccion: productos.unidadFraccion,
+      unidadesPorEnvase: productos.unidadesPorEnvase,
     })
     .from(detalleTransferencia)
     .innerJoin(productos, eq(productos.id, detalleTransferencia.productoId))
@@ -179,7 +201,7 @@ export async function listarTransferencias(opciones: { limite?: number; destinoI
     recibidaEn: c.recibidaEn?.toISOString() ?? null,
     lineas: lineas
       .filter((l) => l.transferenciaId === c.id)
-      .map((l) => ({ producto: l.producto, presentacion: l.presentacion, cantidad: l.cantidad })),
+      .map((l) => ({ producto: l.producto, presentacion: l.presentacion, cantidad: l.cantidad, texto: textoStock(l.cantidad, l) })),
   }));
 }
 

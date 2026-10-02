@@ -1,5 +1,5 @@
 /* eslint-disable @next/next/no-img-element -- logo propio */
-import { fechaHoraComprobante, numeroComprobante, type DatosComprobante, type TamanoImpresion } from "@/lib/comprobante/datos";
+import { fechaHoraComprobante, numeroComprobante, type DatosComprobante, type TamanoImpresion, cantidadLinea } from "@/lib/comprobante/datos";
 import { formatoBs } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 
@@ -75,7 +75,7 @@ export function Comprobante({ datos, tamano }: { datos: DatosComprobante; tamano
               {l.detalle && <p className="text-[0.9em]">{l.detalle}</p>}
               <p className="flex justify-between gap-2">
                 <span>
-                  {l.cantidad} x {formatoBs(l.precioUnitario)}
+                  {cantidadLinea(l)} x {formatoBs(l.precioUnitario)}
                 </span>
                 <span>{formatoBs(l.subtotal)}</span>
               </p>
@@ -105,7 +105,7 @@ export function Comprobante({ datos, tamano }: { datos: DatosComprobante; tamano
                   <span className="font-semibold">{l.nombre}</span>
                   {l.detalle && <span className="block text-[0.9em] text-neutral-600">{l.detalle}</span>}
                 </td>
-                <td className="py-1 text-right">{l.cantidad}</td>
+                <td className="py-1 text-right">{cantidadLinea(l)}</td>
                 <td className="py-1 text-right">{formatoBs(l.precioUnitario)}</td>
                 <td className="py-1 text-right">
                   {formatoBs(l.subtotal)}

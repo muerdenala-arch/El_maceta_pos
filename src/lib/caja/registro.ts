@@ -11,6 +11,7 @@ import { obtenerComprobante } from "@/lib/comprobante/consulta";
 import type { DatosComprobante } from "@/lib/comprobante/datos";
 import { aCentavos, deCentavos } from "@/lib/dinero";
 import { formatoBs } from "@/lib/formato";
+import { esFraccionado, unidadesDeLinea } from "@/lib/inventario/fraccion";
 import { cambiarStock, ErrorStock, type Tx } from "@/lib/inventario/stock";
 import { promocionesAutomaticas, validarCuponEn } from "@/lib/promociones/consultas";
 import { aplicarPromociones, type LineaConDescuento } from "@/lib/promociones/motor";
@@ -45,7 +46,8 @@ export async function ventaExistente(uuid: string, cajeroId: number): Promise<Ve
   return v ? { ...v, comprobante: await obtenerComprobante({ ventaId: v.ventaId }) } : null;
 }
 
-type LineaFinal = Pick<LineaConDescuento, "productoId" | "cantidad" | "precioUnitario" | "descuento" | "promocionId">;
+type LineaFinal = Pick<LineaConDescuento, "productoId" | "cantidad" | "precioUnitario" | "descuento" | "promocionId"> & { fraccion?: boolean };
+type Catalogo = Awaited<ReturnType<typeof catalogoDe>>;
 
 type NuevaVenta = {
   uuid: string;
@@ -53,6 +55,8 @@ type NuevaVenta = {
   cajaId: number;
   cajeroId: number;
   lineas: LineaFinal[];
+  /** Productos de las líneas (para pasar de envases o unidades sueltas a unidades de stock). */
+  catalogo: Catalogo;
   subtotal: string;
   descuento: string;
   total: string;
@@ -123,7 +127,12 @@ async function insertarVenta(tx: Tx, n: NuevaVenta) {
       precioUnitario: l.precioUnitario,
       descuento: l.descuento,
       promocionId: l.promocionId,
-      costoUnitario: sql`(select ${productos.precioCosto} from ${productos} where ${productos.id} = ${l.productoId})`,
+      fraccion: !!l.fraccion,
+      unidadFraccion: l.fraccion ? (n.catalogo.get(l.productoId)?.unidadFraccion ?? "capsula") : null,
+      // Costo de lo vendido: el del envase, o su parte proporcional si se vendió por unidad suelta.
+      costoUnitario: l.fraccion
+        ? sql`(select round(${productos.precioCosto} / greatest(coalesce(${productos.unidadesPorEnvase}, 1), 1), 2) from ${productos} where ${productos.id} = ${l.productoId})`
+        : sql`(select ${productos.precioCosto} from ${productos} where ${productos.id} = ${l.productoId})`,
     })),
   );
 
@@ -131,7 +140,8 @@ async function insertarVenta(tx: Tx, n: NuevaVenta) {
     const { cantidadFinal } = await cambiarStock(tx, {
       productoId: l.productoId,
       ubicacionId: n.sucursalId,
-      delta: -l.cantidad,
+      // Un envase completo de un producto fraccionado descuenta todas sus unidades sueltas.
+      delta: -unidadesDeLinea(l, n.catalogo.get(l.productoId)!),
       tipo: "venta",
       usuarioId: n.cajeroId,
       referencia: `Venta #${siguiente}${n.offline ? " (sin conexión)" : ""}`,
@@ -173,11 +183,23 @@ const aResultado = (nueva: typeof ventas.$inferSelect): Omit<VentaRealizada, "co
 
 async function catalogoDe(tx: Tx, ids: number[]) {
   const catalogo = await tx
-    .select({ id: productos.id, precioVenta: productos.precioVenta, categoriaId: productos.categoriaId, activo: productos.activo })
+    .select({
+      id: productos.id,
+      precioVenta: productos.precioVenta,
+      categoriaId: productos.categoriaId,
+      activo: productos.activo,
+      fraccionado: productos.fraccionado,
+      unidadFraccion: productos.unidadFraccion,
+      unidadesPorEnvase: productos.unidadesPorEnvase,
+      precioUnidad: productos.precioUnidad,
+    })
     .from(productos)
     .where(inArray(productos.id, ids));
   return new Map(catalogo.map((p) => [p.id, p]));
 }
+
+/** Precio de la BD para la línea: el de la unidad suelta o el del envase completo. */
+const precioDe = (p: { precioVenta: string; precioUnidad: string | null }, fraccion?: boolean) => (fraccion ? (p.precioUnidad ?? p.precioVenta) : p.precioVenta);
 
 /**
  * Venta en línea: precios y promociones de la BD, cupón validado y consumido, stock suficiente.
@@ -197,9 +219,12 @@ export async function registrarVentaEnLinea(sesion: Sesion, d: z.output<typeof e
       if (d.lineas.some((l) => !porId.get(l.productoId)?.activo)) {
         throw new ErrorStock("Algún producto del carrito ya no está disponible. Actualiza la pantalla.");
       }
+      if (d.lineas.some((l) => l.fraccion && !esFraccionado(porId.get(l.productoId)!))) {
+        throw new ErrorStock("Algún producto del carrito ya no se vende por unidades sueltas. Actualiza la pantalla.");
+      }
       const lineasCarrito = d.lineas.map((l) => ({
         ...l,
-        precioUnitario: porId.get(l.productoId)!.precioVenta,
+        precioUnitario: precioDe(porId.get(l.productoId)!, l.fraccion),
         categoriaId: porId.get(l.productoId)!.categoriaId,
       }));
 
@@ -230,6 +255,7 @@ export async function registrarVentaEnLinea(sesion: Sesion, d: z.output<typeof e
         cajaId: caja.id,
         cajeroId: sesion.uid,
         lineas: promo.lineas,
+        catalogo: porId,
         subtotal: promo.subtotal,
         descuento: promo.descuento,
         total: promo.total,
@@ -303,7 +329,8 @@ export async function registrarVentaOffline(sesion: Sesion, d: DatosVentaOffline
         d.lineas.map((l) => ({
           productoId: l.productoId,
           cantidad: l.cantidad,
-          precioUnitario: porId.get(l.productoId)!.precioVenta,
+          fraccion: l.fraccion,
+          precioUnitario: precioDe(porId.get(l.productoId)!, l.fraccion),
           categoriaId: porId.get(l.productoId)!.categoriaId,
         })),
         await promocionesAutomaticas(caja.sucursalId, tx, fecha),
@@ -315,6 +342,7 @@ export async function registrarVentaOffline(sesion: Sesion, d: DatosVentaOffline
         cajaId: caja.id,
         cajeroId: sesion.uid,
         lineas: d.lineas,
+        catalogo: porId,
         subtotal: deCentavos(subtotal),
         descuento: deCentavos(descuento),
         total,

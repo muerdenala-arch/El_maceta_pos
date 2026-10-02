@@ -3,6 +3,7 @@
  * para armar el mensaje de WhatsApp. Probado en datos.test.ts.
  */
 import { formatoBs } from "@/lib/formato";
+import { textoCantidadVendida } from "@/lib/inventario/fraccion";
 
 export type TamanoImpresion = "58mm" | "80mm" | "carta";
 
@@ -32,6 +33,8 @@ export type DatosComprobante = {
       nombre: string;
       detalle: string | null;
       cantidad: number;
+      /** Unidad suelta vendida (capsula, sobre…); nulo o ausente = envase completo / producto normal. */
+      unidad?: string | null;
       precioUnitario: string;
       descuento: string;
       /** Precio × cantidad, antes del descuento de la línea. */
@@ -56,6 +59,9 @@ export type DatosComprobante = {
     codigoLocal?: string;
   };
 };
+
+/** Cantidad de una línea como se imprime: "2" (envases) o "30 cápsulas" (unidades sueltas). */
+export const cantidadLinea = (l: { cantidad: number; unidad?: string | null }) => textoCantidadVendida(l.cantidad, l.unidad ?? null);
 
 /** "Comprobante N.º 000123" */
 export const numeroComprobante = (n: number) => String(n).padStart(6, "0");

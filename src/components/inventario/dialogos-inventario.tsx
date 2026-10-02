@@ -10,7 +10,9 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { ajustarStock, crearTransferencia, registrarIngreso } from "@/lib/inventario/acciones";
+import { desglosar, envasesAUnidades, esFraccionado, nombreEnvase, nombreUnidad, textoStock } from "@/lib/inventario/fraccion";
 import { cn } from "@/lib/utils";
+import { CantidadStock, fraccionDe } from "./cantidad-stock";
 import { SelectorProducto, type ProductoLigero } from "./selector-producto";
 
 export type UbicacionLigera = { id: number; nombre: string; tipo: "sucursal" | "bodega" };
@@ -151,6 +153,15 @@ export function DialogoIngreso({
             >
               <Trash2 className="size-4" />
             </Button>
+            {esFraccionado(fraccionDe(productos.find((p) => p.id === l.productoId))) && (
+              <p className="col-span-full px-1 text-xs text-muted-foreground">
+                {(() => {
+                  const f = fraccionDe(productos.find((p) => p.id === l.productoId));
+                  const n = Number(l.cantidad) || 0;
+                  return `Cantidad en ${nombreEnvase(f, 2)} completos${n > 0 ? `: entran ${envasesAUnidades(n, f)} ${nombreUnidad(f, 2)}` : ""}`;
+                })()}
+              </p>
+            )}
             {(guardar.campos[`lineas.${i}.productoId`] || guardar.campos[`lineas.${i}.cantidad`]) && (
               <p className="col-span-full text-sm text-destructive">
                 {guardar.campos[`lineas.${i}.productoId`] ? "Elige un producto" : guardar.campos[`lineas.${i}.cantidad`]}
@@ -195,8 +206,15 @@ export function DialogoAjuste({
   const [motivo, setMotivo] = useState("");
   const guardar = useAccion(ajustarStock, { mensajeExito: "Stock ajustado", alExito: onCerrar });
 
+  // Producto fraccionado: se cuentan envases cerrados y unidades sueltas; al servidor va el total en unidades.
+  const fraccion = fraccionDe(productos.find((p) => p.id === productoId));
+  const fraccionado = esFraccionado(fraccion);
+  const [envases, setEnvases] = useState("");
+  const [sueltas, setSueltas] = useState("");
+  const contado = fraccionado ? (envases === "" && sueltas === "" ? "" : String(envasesAUnidades(Number(envases) || 0, fraccion) + (Number(sueltas) || 0))) : cantidadNueva;
+
   const actual = stockDe(stock, productoId, ubicacionId);
-  const diferencia = cantidadNueva === "" ? null : Number(cantidadNueva) - actual;
+  const diferencia = contado === "" ? null : Number(contado) - actual;
 
   return (
     <DialogoFormulario
@@ -210,7 +228,7 @@ export function DialogoAjuste({
         guardar.ejecutar({
           productoId: productoId ?? 0,
           ubicacionId: ubicacionId ?? 0,
-          cantidadNueva,
+          cantidadNueva: contado,
           fechaVencimiento: diferencia && diferencia > 0 ? fechaVencimiento : "",
           motivo,
         })
@@ -226,25 +244,40 @@ export function DialogoAjuste({
       <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-3 rounded-2xl bg-muted/60 p-4">
         <div>
           <p className="text-sm font-semibold">Stock actual</p>
-          <p className={cn("cifras font-display text-3xl font-extrabold", actual < 0 && "text-destructive")}>{actual}</p>
+          <p className={cn("cifras font-display text-3xl font-extrabold", actual < 0 && "text-destructive")}>
+            <CantidadStock unidades={actual} producto={fraccion} className="items-start" claseExtra="text-xs" />
+          </p>
         </div>
         <ArrowRight className="mb-2.5 size-5 text-muted-foreground" />
-        <Campo etiqueta="Cantidad contada" error={guardar.campos.cantidadNueva}>
-          {(p) => (
-            <Input
-              {...p}
-              inputMode="numeric"
-              value={cantidadNueva}
-              onChange={(e) => setCantidadNueva(soloEntero(e.target.value))}
-              className="cifras h-12 bg-background text-2xl font-bold"
-            />
-          )}
-        </Campo>
+        {fraccionado ? (
+          <div className="grid grid-cols-2 gap-2">
+            <Campo etiqueta={`${nombreEnvase(fraccion, 2)} cerrados`} error={guardar.campos.cantidadNueva}>
+              {(p) => <Input {...p} inputMode="numeric" value={envases} onChange={(e) => setEnvases(soloEntero(e.target.value))} className="cifras h-12 bg-background text-2xl font-bold" />}
+            </Campo>
+            <Campo etiqueta={`${nombreUnidad(fraccion, 2)} sueltas`}>
+              {(p) => <Input {...p} inputMode="numeric" value={sueltas} onChange={(e) => setSueltas(soloEntero(e.target.value))} className="cifras h-12 bg-background text-2xl font-bold" />}
+            </Campo>
+          </div>
+        ) : (
+          <Campo etiqueta="Cantidad contada" error={guardar.campos.cantidadNueva}>
+            {(p) => (
+              <Input
+                {...p}
+                inputMode="numeric"
+                value={cantidadNueva}
+                onChange={(e) => setCantidadNueva(soloEntero(e.target.value))}
+                className="cifras h-12 bg-background text-2xl font-bold"
+              />
+            )}
+          </Campo>
+        )}
         {diferencia !== null && diferencia !== 0 && (
           <p className={cn("col-span-3 text-sm font-semibold", diferencia > 0 ? "text-exito" : "text-destructive")}>
-            {Math.abs(diferencia) === 1
-              ? diferencia > 0 ? "Se suma 1 unidad" : "Se descuenta 1 unidad"
-              : diferencia > 0 ? `Se suman ${diferencia} unidades` : `Se descuentan ${-diferencia} unidades`}
+            {fraccionado
+              ? `Quedará en ${textoStock(Number(contado), fraccion)}: se ${diferencia > 0 ? "suman" : "descuentan"} ${Math.abs(diferencia)} ${nombreUnidad(fraccion, Math.abs(diferencia))}`
+              : Math.abs(diferencia) === 1
+                ? diferencia > 0 ? "Se suma 1 unidad" : "Se descuenta 1 unidad"
+                : diferencia > 0 ? `Se suman ${diferencia} unidades` : `Se descuentan ${-diferencia} unidades`}
           </p>
         )}
       </div>
@@ -352,7 +385,9 @@ export function DialogoTransferencia({
       <div className="space-y-2">
         {lineas.map((l, i) => {
           const disponible = stockDe(stock, l.productoId, origenId);
-          const excede = l.productoId !== null && Number(l.cantidad) > disponible;
+          // Se transfiere por envases completos: de un producto fraccionado solo cuentan los que alcanzan enteros.
+          const fraccion = fraccionDe(productos.find((p) => p.id === l.productoId));
+          const excede = l.productoId !== null && envasesAUnidades(Number(l.cantidad), fraccion) > disponible;
           return (
             <div key={l.clave} className="rounded-2xl border p-2">
               <div className="grid grid-cols-[1fr_6rem_2.5rem] gap-2">
@@ -362,7 +397,7 @@ export function DialogoTransferencia({
                   onCambiar={(id) => cambiarLinea(l.clave, { productoId: id })}
                   deshabilitados={elegidos}
                   invalido={!!guardar.campos[`lineas.${i}.productoId`]}
-                  extra={(p) => <span className="cifras text-xs text-muted-foreground">{stockDe(stock, p.id, origenId)} disp.</span>}
+                  extra={(p) => <span className="cifras text-xs text-muted-foreground">{desglosar(stockDe(stock, p.id, origenId), fraccionDe(p)).envases} disp.</span>}
                 />
                 <Input
                   aria-label="Cantidad"
@@ -387,7 +422,8 @@ export function DialogoTransferencia({
               </div>
               {l.productoId && (
                 <p className={cn("mt-1.5 px-1 text-xs", excede ? "font-semibold text-destructive" : "text-muted-foreground")}>
-                  Disponible en el origen: {disponible}
+                  Disponible en el origen: {textoStock(disponible, fraccion)}
+                  {esFraccionado(fraccion) && ` · se envían ${nombreEnvase(fraccion, 2)} completos`}
                   {excede && " — no alcanza"}
                 </p>
               )}

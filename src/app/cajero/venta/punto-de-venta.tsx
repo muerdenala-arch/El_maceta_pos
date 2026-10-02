@@ -8,6 +8,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Buscador, Resaltar, SinResultados } from "@/components/busqueda/buscador";
 import { coincide } from "@/lib/busqueda";
+import { esFraccionado, nombreEnvase, nombreUnidad, stockCorto, textoStock, unidadesPedidas } from "@/lib/inventario/fraccion";
+import { DialogoFraccion } from "./dialogo-fraccion";
 import { Marquesina } from "@/components/texto/marquesina";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -25,7 +27,10 @@ import type { VentaRealizada } from "../acciones";
 import { DialogoCobro } from "./dialogo-cobro";
 import { VentaExitosa } from "./venta-exitosa";
 
-type Linea = { productoId: number; cantidad: number };
+/** `fraccion`: unidades sueltas (cápsulas…) de un producto fraccionado; si no, envases completos. */
+type Linea = { productoId: number; cantidad: number; fraccion?: boolean };
+const mismaLinea = (l: Linea, productoId: number, fraccion: boolean) => l.productoId === productoId && !!l.fraccion === fraccion;
+const precioLinea = (p: ProductoPos, fraccion?: boolean) => (fraccion ? (p.precioUnidad ?? p.precioVenta) : p.precioVenta);
 
 const detalle = (p: ProductoPos) => [p.marca, p.sabor, p.presentacion].filter(Boolean).join(" · ");
 const camposBusqueda = (p: ProductoPos) => [p.nombre, p.marca, p.sabor, p.presentacion, p.categoria, p.codigoBarras];
@@ -57,6 +62,7 @@ export function PuntoDeVenta({
   const [busqueda, setBusqueda] = useState("");
   const [categoria, setCategoria] = useState<string | null>(null);
   const [zoom, setZoom] = useState<ProductoPos | null>(null);
+  const [fraccionando, setFraccionando] = useState<ProductoPos | null>(null);
   const [verCarrito, setVerCarrito] = useState(false);
   const [cobrando, setCobrando] = useState(false);
   const [realizada, setRealizada] = useState<VentaMostrada | null>(null);
@@ -75,7 +81,7 @@ export function PuntoDeVenta({
     try {
       const guardado = JSON.parse(leerAlmacen("local", claveCarrito) ?? "[]") as Linea[];
       // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage solo existe en el cliente
-      setCarrito(guardado.filter((l) => porId.has(l.productoId) && l.cantidad > 0));
+      setCarrito(guardado.filter((l) => porId.has(l.productoId) && l.cantidad > 0 && (!l.fraccion || esFraccionado(porId.get(l.productoId)!))));
     } catch {
       /* carrito dañado: se empieza vacío */
     }
@@ -85,24 +91,27 @@ export function PuntoDeVenta({
     if (cargado) escribirAlmacen("local", claveCarrito, carrito.length ? JSON.stringify(carrito) : null);
   }, [carrito, claveCarrito, cargado]);
 
-  const agregar = (p: ProductoPos, cantidad = 1) => {
-    const actual = carrito.find((l) => l.productoId === p.id)?.cantidad ?? 0;
-    if (actual + cantidad > p.stock) {
-      toast.warning(p.stock <= 0 ? `${p.nombre} está agotado` : `Solo hay ${p.stock} de ${p.nombre}`);
-      return;
-    }
-    setCarrito((c) =>
-      c.some((l) => l.productoId === p.id)
-        ? c.map((l) => (l.productoId === p.id ? { ...l, cantidad: l.cantidad + cantidad } : l))
-        : [...c, { productoId: p.id, cantidad }],
-    );
+  /** ¿Alcanza el stock si el carrito queda así? Se valida el total en unidades de stock (envases × unidades + sueltas). */
+  const alcanza = (p: ProductoPos, lineas: Linea[]) => unidadesPedidas(lineas, p) <= p.stock;
+  const avisarSinStock = (p: ProductoPos) =>
+    toast.warning(p.stock <= 0 ? `${p.nombre} está agotado` : `Solo hay ${textoStock(p.stock, p)} de ${p.nombre}`);
+
+  const agregar = (p: ProductoPos, cantidad = 1, fraccion = false) => {
+    const siguiente = carrito.some((l) => mismaLinea(l, p.id, fraccion))
+      ? carrito.map((l) => (mismaLinea(l, p.id, fraccion) ? { ...l, cantidad: l.cantidad + cantidad } : l))
+      : [...carrito, { productoId: p.id, cantidad, ...(fraccion && { fraccion }) }];
+    if (!alcanza(p, siguiente)) return void avisarSinStock(p);
+    setCarrito(siguiente);
   };
-  const cambiarCantidad = (productoId: number, cantidad: number) => {
+  /** Tocar un producto: si es fraccionado se pregunta "frasco completo o por cápsulas"; si no, va directo al carrito. */
+  const elegir = (p: ProductoPos) => (esFraccionado(p) ? setFraccionando(p) : agregar(p));
+  const cambiarCantidad = (productoId: number, fraccion: boolean, cantidad: number) => {
     const p = porId.get(productoId);
     if (!p) return;
-    if (cantidad <= 0) return setCarrito((c) => c.filter((l) => l.productoId !== productoId));
-    if (cantidad > p.stock) return toast.warning(`Solo hay ${p.stock} de ${p.nombre}`);
-    setCarrito((c) => c.map((l) => (l.productoId === productoId ? { ...l, cantidad } : l)));
+    if (cantidad <= 0) return setCarrito((c) => c.filter((l) => !mismaLinea(l, productoId, fraccion)));
+    const siguiente = carrito.map((l) => (mismaLinea(l, productoId, fraccion) ? { ...l, cantidad } : l));
+    if (!alcanza(p, siguiente)) return void avisarSinStock(p);
+    setCarrito(siguiente);
   };
 
   // Lector de código de barras: escribe muy rápido y termina con Enter. Funciona sin enfocar el buscador.
@@ -145,10 +154,12 @@ export function PuntoDeVenta({
     productoId: l.productoId,
     categoriaId: l.producto.categoriaId,
     cantidad: l.cantidad,
-    precioUnitario: l.producto.precioVenta,
+    precioUnitario: precioLinea(l.producto, l.fraccion),
+    ...(l.fraccion && { fraccion: true }),
   }));
   const totales = aplicarPromociones(lineasCarrito, promociones);
-  const unidades = lineas.reduce((s, l) => s + l.cantidad, 0);
+  // Para el contador del carrito: cada envase cuenta uno; un grupo de unidades sueltas, uno.
+  const unidades = lineas.reduce((s, l) => s + (l.fraccion ? 1 : l.cantidad), 0);
 
   if (realizada) {
     return (
@@ -168,6 +179,7 @@ export function PuntoDeVenta({
       resultado={totales}
       unidades={unidades}
       onCantidad={cambiarCantidad}
+      puedeSumar={(l) => alcanza(l.producto, carrito.map((x) => (mismaLinea(x, l.productoId, !!l.fraccion) ? { ...x, cantidad: x.cantidad + 1 } : x)))}
       onVaciar={() => setCarrito([])}
       onCobrar={() => {
         setVerCarrito(false);
@@ -199,7 +211,9 @@ export function PuntoDeVenta({
             const candidatos = codigo ? productos.filter((p) => (!categoria || p.categoria === categoria) && coincide(texto, camposBusqueda(p))) : [];
             const elegido = exacto ?? (candidatos.length === 1 ? candidatos[0] : null);
             if (!elegido) return false;
-            agregar(elegido);
+            // Código escaneado = envase completo; elegido por nombre = se pregunta si es fraccionado.
+            if (exacto) agregar(exacto);
+            else elegir(elegido);
             setBusqueda("");
             return true;
           }}
@@ -227,8 +241,10 @@ export function PuntoDeVenta({
 
         <ul className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
           {visibles.map((p) => {
-            const enCarrito = carrito.find((l) => l.productoId === p.id)?.cantidad ?? 0;
+            const enCarrito = carrito.filter((l) => l.productoId === p.id).reduce((s, l) => s + (l.fraccion ? 1 : l.cantidad), 0);
             const agotado = p.stock <= 0;
+            const fraccionado = esFraccionado(p);
+            const quedan = stockCorto(p.stock, p);
             return (
               <li key={p.id} className={cn("relative flex flex-col overflow-hidden rounded-3xl border bg-card shadow-sm", agotado && "opacity-50")}>
                 <button
@@ -246,7 +262,12 @@ export function PuntoDeVenta({
                   {agotado ? (
                     <Badge variant="destructive" className="absolute top-2.5 right-2.5">Agotado</Badge>
                   ) : (
-                    p.stock <= 3 && <Badge className="absolute top-2.5 right-2.5 bg-aviso text-aviso-foreground">Quedan {p.stock}</Badge>
+                    Number(quedan.principal) <= 3 && (
+                      <Badge className="absolute top-2.5 right-2.5 bg-aviso text-aviso-foreground">
+                        Quedan {quedan.principal}
+                        {quedan.extra && ` ${quedan.extra}`}
+                      </Badge>
+                    )
                   )}
                   <AnimatePresence>
                     {enCarrito > 0 && (
@@ -265,7 +286,7 @@ export function PuntoDeVenta({
                 <button
                   type="button"
                   disabled={agotado}
-                  onClick={() => agregar(p)}
+                  onClick={() => elegir(p)}
                   className="flex flex-1 flex-col p-3 text-left transition-colors hover:bg-accent/60 active:bg-accent disabled:cursor-not-allowed"
                 >
                   <Marquesina siempre titulo={p.nombre} className="leading-snug font-bold">
@@ -273,8 +294,15 @@ export function PuntoDeVenta({
                   </Marquesina>
                   <span className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">{detalle(p) ? <Resaltar texto={detalle(p)} consulta={busqueda} /> : " "}</span>
                   <span className="mt-auto flex items-center justify-between gap-2 pt-2">
-                    <span className="cifras font-display text-lg font-extrabold">{formatoBs(p.precioVenta)}</span>
-                    <span className="flex size-9 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm" aria-hidden>
+                    <span className="min-w-0">
+                      <span className="cifras block font-display text-lg font-extrabold">{formatoBs(p.precioVenta)}</span>
+                      {fraccionado && (
+                        <span className="cifras block truncate text-xs font-semibold text-primary">
+                          o {formatoBs(p.precioUnidad ?? "0")} por {nombreUnidad(p, 1)}
+                        </span>
+                      )}
+                    </span>
+                    <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm" aria-hidden>
                       <Plus className="size-5" />
                     </span>
                   </span>
@@ -341,7 +369,7 @@ export function PuntoDeVenta({
                   className="h-12 rounded-xl font-bold"
                   disabled={zoom.stock <= 0}
                   onClick={() => {
-                    agregar(zoom);
+                    elegir(zoom);
                     setZoom(null);
                   }}
                 >
@@ -352,6 +380,18 @@ export function PuntoDeVenta({
           )}
         </DialogContent>
       </Dialog>
+
+      {fraccionando && (
+        <DialogoFraccion
+          producto={porId.get(fraccionando.id) ?? fraccionando}
+          disponible={Math.max(0, (porId.get(fraccionando.id) ?? fraccionando).stock - unidadesPedidas(carrito, fraccionando))}
+          onCerrar={() => setFraccionando(null)}
+          onAgregar={(cantidad, fraccion) => {
+            agregar(porId.get(fraccionando.id) ?? fraccionando, cantidad, fraccion);
+            setFraccionando(null);
+          }}
+        />
+      )}
 
       {cobrando && (
         <DialogoCobro
@@ -381,13 +421,16 @@ function PanelCarrito({
   resultado,
   unidades,
   onCantidad,
+  puedeSumar,
   onVaciar,
   onCobrar,
 }: {
   lineas: (Linea & { producto: ProductoPos })[];
   resultado: ResultadoPromociones;
   unidades: number;
-  onCantidad: (productoId: number, cantidad: number) => void;
+  onCantidad: (productoId: number, fraccion: boolean, cantidad: number) => void;
+  /** ¿Hay stock para una unidad más de esta línea? (cuenta también la otra línea del mismo producto). */
+  puedeSumar: (l: Linea & { producto: ProductoPos }) => boolean;
   onVaciar: () => void;
   onCobrar: () => void;
 }) {
@@ -412,7 +455,7 @@ function PanelCarrito({
             const tieneDescuento = !!conPromo && Number(conPromo.descuento) > 0;
             return (
             <motion.li
-              key={l.productoId}
+              key={`${l.productoId}:${l.fraccion ? "u" : "e"}`}
               layout
               initial={{ opacity: 0, x: 16 }}
               animate={{ opacity: 1, x: 0 }}
@@ -426,26 +469,31 @@ function PanelCarrito({
               </span>
               <div className="min-w-0 flex-1">
                 <Marquesina className="text-sm font-bold">{l.producto.nombre}</Marquesina>
-                <p className="cifras text-xs text-muted-foreground">{formatoBs(l.producto.precioVenta)} c/u</p>
+                <p className="cifras text-xs text-muted-foreground">
+                  {formatoBs(precioLinea(l.producto, l.fraccion))} {l.fraccion ? `por ${nombreUnidad(l.producto, 1)}` : esFraccionado(l.producto) ? `por ${nombreEnvase(l.producto)}` : "c/u"}
+                </p>
                 {conPromo?.promocion && (
                   <p className="mt-0.5 flex items-center gap-1 truncate text-xs font-bold text-exito">
                     <Tag className="size-3 shrink-0" /> {conPromo.promocion}
                   </p>
                 )}
                 <div className="mt-1 flex items-center gap-1">
-                  <button type="button" onClick={() => onCantidad(l.productoId, l.cantidad - 1)} aria-label={`Quitar uno de ${l.producto.nombre}`} className="flex size-8 items-center justify-center rounded-lg border bg-background hover:bg-accent">
+                  <button type="button" onClick={() => onCantidad(l.productoId, !!l.fraccion, l.cantidad - 1)} aria-label={`Quitar uno de ${l.producto.nombre}`} className="flex size-8 items-center justify-center rounded-lg border bg-background hover:bg-accent">
                     {l.cantidad === 1 ? <Trash2 className="size-3.5" /> : <Minus className="size-3.5" />}
                   </button>
-                  <span className="cifras w-8 text-center font-display font-extrabold">{l.cantidad}</span>
+                  <span className="cifras min-w-8 text-center font-display font-extrabold">{l.cantidad}</span>
                   <button
                     type="button"
-                    onClick={() => onCantidad(l.productoId, l.cantidad + 1)}
-                    disabled={l.cantidad >= l.producto.stock}
+                    onClick={() => onCantidad(l.productoId, !!l.fraccion, l.cantidad + 1)}
+                    disabled={!puedeSumar(l)}
                     aria-label={`Agregar uno de ${l.producto.nombre}`}
                     className="flex size-8 items-center justify-center rounded-lg border bg-background hover:bg-accent disabled:opacity-40"
                   >
                     <Plus className="size-3.5" />
                   </button>
+                  {esFraccionado(l.producto) && (
+                    <span className="ml-1 text-xs font-semibold text-muted-foreground">{l.fraccion ? nombreUnidad(l.producto, l.cantidad) : nombreEnvase(l.producto, l.cantidad)}</span>
+                  )}
                 </div>
               </div>
               <span className="flex flex-col items-end">

@@ -48,6 +48,7 @@ export async function obtenerComprobante(filtro: { ventaId: number } | { token: 
         sabor: productos.sabor,
         presentacion: productos.presentacion,
         cantidad: detalleVenta.cantidad,
+        unidad: detalleVenta.unidadFraccion,
         precioUnitario: detalleVenta.precioUnitario,
         descuento: detalleVenta.descuento,
         promocion: promociones.nombre,
@@ -85,6 +86,7 @@ export async function obtenerComprobante(filtro: { ventaId: number } | { token: 
         nombre: l.nombre,
         detalle: [l.marca, l.sabor, l.presentacion].filter(Boolean).join(" · ") || null,
         cantidad: l.cantidad,
+        unidad: l.unidad,
         precioUnitario: l.precioUnitario,
         descuento: l.descuento,
         // Importe bruto de la línea; el descuento se muestra aparte debajo (subtotal − descuentos = total).

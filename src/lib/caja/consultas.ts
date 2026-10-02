@@ -59,7 +59,13 @@ export type ProductoPos = {
   codigoBarras: string | null;
   fotoUrl: string | null;
   precioVenta: string;
+  /** En unidades de stock: unidades sueltas si el producto es fraccionado, envases si no. */
   stock: number;
+  /** Venta fraccionada (ver lib/inventario/fraccion.ts). */
+  fraccionado: boolean;
+  unidadFraccion: string | null;
+  unidadesPorEnvase: number | null;
+  precioUnidad: string | null;
 };
 
 /** Productos activos con precio de venta y stock de la sucursal (sin costo: lo ve el cajero). */
@@ -77,6 +83,10 @@ export async function productosPos(sucursalId: number): Promise<ProductoPos[]> {
       fotoUrl: productos.fotoUrl,
       precioVenta: productos.precioVenta,
       stock: sql<number>`coalesce(${inventario.cantidad}, 0)::int`,
+      fraccionado: productos.fraccionado,
+      unidadFraccion: productos.unidadFraccion,
+      unidadesPorEnvase: productos.unidadesPorEnvase,
+      precioUnidad: productos.precioUnidad,
     })
     .from(productos)
     .leftJoin(categorias, eq(categorias.id, productos.categoriaId))

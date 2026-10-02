@@ -10,6 +10,7 @@ import { deCentavos, aCentavos } from "@/lib/dinero";
 import { formatoBs, ZONA_HORARIA } from "@/lib/formato";
 import type { ResumenGastos, GastoListado } from "./gastos";
 import type { LineaExportada, ResumenVentas, VentaListada, VentasCajero, VentasDia, VentasProducto } from "./ventas";
+import { nombreUnidad } from "@/lib/inventario/fraccion";
 
 /** Pares "Filtro: valor" que encabezan cada archivo. */
 export type Descripcion = [string, string][];
@@ -124,7 +125,7 @@ export function excelVentas(d: DatosVentas, descripcion: Descripcion): Buffer {
   );
   const lineas = hoja(
     [
-      ["N.º venta", "Fecha", "Hora", "Sucursal", "Cajero", "Estado", "Producto", "Detalle", "Cantidad", "Precio unitario", "Descuento", "Neto", "Costo", "Ganancia"],
+      ["N.º venta", "Fecha", "Hora", "Sucursal", "Cajero", "Estado", "Producto", "Detalle", "Cantidad", "Precio unitario", "Descuento", "Neto", "Costo", "Ganancia", "Vendido por"],
       ...d.lineas.map((l) => [
         l.numero,
         fecha(l.fecha),
@@ -140,18 +141,31 @@ export function excelVentas(d: DatosVentas, descripcion: Descripcion): Buffer {
         n(l.neto),
         n(l.costo),
         n(deCentavos(aCentavos(l.neto) - aCentavos(l.costo))),
+        l.unidad ? nombreUnidad({ unidadFraccion: l.unidad }, 1) : "envase / unidad",
       ]),
     ],
-    [9, 11, 7, 18, 18, 12, 28, 28, 9, 13, 11, 11, 11, 11],
+    [9, 11, 7, 18, 18, 12, 28, 28, 9, 13, 11, 11, 11, 11, 16],
     [9, 10, 11, 12, 13],
   );
   const productos = hoja(
     [
-      ["Producto", "Detalle", "Unidades", "Bruto", "Descuentos", "Neto", "Costo", "Ganancia"],
-      ...d.productos.map((p) => [p.nombre, [p.marca, p.sabor, p.presentacion].filter(Boolean).join(" · "), p.unidades, n(p.bruto), n(p.descuento), n(p.neto), n(p.costo), n(p.ganancia)]),
+      ["Producto", "Detalle", "Unidades (envases)", "Bruto", "Descuentos", "Neto", "Costo", "Ganancia", "Unidades sueltas", "Unidad suelta", "Neto de sueltas"],
+      ...d.productos.map((p) => [
+        p.nombre,
+        [p.marca, p.sabor, p.presentacion].filter(Boolean).join(" · "),
+        p.unidades,
+        n(p.bruto),
+        n(p.descuento),
+        n(p.neto),
+        n(p.costo),
+        n(p.ganancia),
+        p.sueltas || null,
+        p.sueltas ? nombreUnidad({ unidadFraccion: p.unidadFraccion }, 1) : null,
+        p.sueltas ? n(p.netoSueltas) : null,
+      ]),
     ],
-    [30, 30, 10, 12, 12, 12, 12, 12],
-    [3, 4, 5, 6, 7],
+    [30, 30, 10, 12, 12, 12, 12, 12, 10, 12, 12],
+    [3, 4, 5, 6, 7, 10],
   );
   const dias = hoja([["Día", "Ventas", "Efectivo", "QR", "Total"], ...d.dias.map((x) => [dia(x.dia), x.cantidad, n(x.efectivo), n(x.qr), n(x.total)])], [12, 9, 12, 12, 12], [2, 3, 4]);
   const cajeros = hoja(
@@ -399,7 +413,7 @@ export function pdfVentas(d: DatosVentas, descripcion: Descripcion, marca: strin
     ],
     d.productos.map((p) => [
       [p.nombre, p.sabor, p.presentacion].filter(Boolean).join(" · "),
-      String(p.unidades),
+      p.sueltas > 0 ? `${p.unidades} + ${p.sueltas} s.` : String(p.unidades),
       formatoBs(p.neto),
       formatoBs(p.costo),
       formatoBs(p.ganancia),

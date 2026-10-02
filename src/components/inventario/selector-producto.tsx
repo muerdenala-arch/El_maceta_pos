@@ -18,6 +18,10 @@ export type ProductoLigero = {
   presentacion: string | null;
   codigoBarras: string | null;
   fotoUrl: string | null;
+  /** Venta fraccionada (si la lista los trae): el stock está en unidades sueltas. */
+  fraccionado?: boolean;
+  unidadFraccion?: string | null;
+  unidadesPorEnvase?: number | null;
 };
 
 export const detalleProducto = (p: Pick<ProductoLigero, "marca" | "sabor" | "presentacion">) =>

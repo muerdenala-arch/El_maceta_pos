@@ -11,7 +11,9 @@ import { DialogoAjuste, DialogoIngreso, type UbicacionLigera } from "@/component
 import { Miniatura, detalleProducto } from "@/components/inventario/selector-producto";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { CantidadStock } from "@/components/inventario/cantidad-stock";
 import type { ProductoInventario } from "@/lib/inventario/consultas";
+import { desglosar, esFraccionado, minimoEnUnidades, nombreEnvase, textoStock } from "@/lib/inventario/fraccion";
 import { cn } from "@/lib/utils";
 
 type Props = {
@@ -45,7 +47,8 @@ export function TablaInventario({ ubicaciones, columnas, productos, stock, enCam
   }
 
   const cant = (p: number, u: number) => stock[`${p}:${u}`] ?? 0;
-  const bajo = (p: ProductoInventario, u: number) => p.stockMinimo > 0 && cant(p.id, u) < p.stockMinimo;
+  // El mínimo se define en envases; el stock de un producto fraccionado está en unidades sueltas.
+  const bajo = (p: ProductoInventario, u: number) => p.stockMinimo > 0 && cant(p.id, u) < minimoEnUnidades(p);
   // La bodega no vende: el stock mínimo se controla en las sucursales.
   const columnasVenta = columnas.filter((c) => c.tipo === "sucursal");
 
@@ -115,7 +118,7 @@ export function TablaInventario({ ubicaciones, columnas, productos, stock, enCam
                         </Marquesina>
                         <p className="truncate text-xs text-muted-foreground">
                           <Resaltar texto={detalleProducto(p) || "—"} consulta={busqueda} />
-                          {p.stockMinimo > 0 && ` · mín. ${p.stockMinimo}`}
+                          {p.stockMinimo > 0 && ` · mín. ${p.stockMinimo}${esFraccionado(p) ? ` ${nombreEnvase(p, p.stockMinimo)}` : ""}`}
                         </p>
                       </div>
                     </div>
@@ -140,17 +143,21 @@ export function TablaInventario({ ubicaciones, columnas, productos, stock, enCam
                           )}
                           data-en-alerta={enAlerta || undefined}
                         >
-                          {c}
+                          <CantidadStock unidades={c} producto={p} claseExtra={enAlerta ? "text-destructive" : undefined} />
                           {llegando > 0 && (
-                            <span className="flex items-center gap-1 text-[10px] font-semibold text-muted-foreground">
-                              <Truck className="size-3" />+{llegando}
+                            <span className="flex items-center gap-1 text-[10px] font-semibold text-muted-foreground" title={textoStock(llegando, p)}>
+                              <Truck className="size-3" />+{desglosar(llegando, p).envases}
                             </span>
                           )}
                         </button>
                       </td>
                     );
                   })}
-                  {columnas.length > 1 && <td className="cifras px-4 py-2 text-right font-display text-base font-extrabold">{total}</td>}
+                  {columnas.length > 1 && (
+                    <td className="cifras px-4 py-2 text-right font-display text-base font-extrabold">
+                      <CantidadStock unidades={total} producto={p} />
+                    </td>
+                  )}
                 </tr>
               );
             })}

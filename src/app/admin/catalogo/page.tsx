@@ -26,6 +26,10 @@ export default async function PaginaCatalogo() {
         fotoUrl: productos.fotoUrl,
         stockMinimo: productos.stockMinimo,
         activo: productos.activo,
+        fraccionado: productos.fraccionado,
+        unidadFraccion: productos.unidadFraccion,
+        unidadesPorEnvase: productos.unidadesPorEnvase,
+        precioUnidad: productos.precioUnidad,
       })
       .from(productos)
       .orderBy(sql`${productos.activo} desc`, asc(productos.nombre)),

@@ -3,6 +3,7 @@ export const ACCIONES_SENSIBLES: Record<string, { titulo: string; grave?: boolea
   venta_anulada: { titulo: "Venta anulada", grave: true },
   ajuste_stock: { titulo: "Ajuste de stock", grave: true },
   cambio_precio: { titulo: "Cambio de precio" },
+  venta_fraccionada_cambiada: { titulo: "Venta fraccionada activada o quitada" },
   login_fallido: { titulo: "PIN incorrecto al ingresar" },
   desbloqueo_fallido: { titulo: "PIN incorrecto al desbloquear" },
   bloqueo_por_intentos: { titulo: "Usuario bloqueado por intentos", grave: true },

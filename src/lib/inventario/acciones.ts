@@ -16,6 +16,7 @@ import {
   type DatosIngreso,
   type DatosTransferencia,
 } from "@/lib/validaciones/inventario";
+import { envasesAUnidades } from "./fraccion";
 import { completarLotes } from "./lotes";
 import { cambiarStock, ErrorStock } from "./stock";
 
@@ -27,10 +28,14 @@ async function ubicacionActiva(id: number) {
   return u ?? null;
 }
 
-async function productosExisten(ids: number[]) {
+/** Productos por id (con lo necesario para pasar de envases a unidades de stock), o null si falta alguno. */
+async function productosPorId(ids: number[]) {
   const unicos = [...new Set(ids)];
-  const encontrados = await db.select({ id: productos.id }).from(productos).where(inArray(productos.id, unicos));
-  return encontrados.length === unicos.length;
+  const encontrados = await db
+    .select({ id: productos.id, fraccionado: productos.fraccionado, unidadFraccion: productos.unidadFraccion, unidadesPorEnvase: productos.unidadesPorEnvase })
+    .from(productos)
+    .where(inArray(productos.id, unicos));
+  return encontrados.length === unicos.length ? new Map(encontrados.map((p) => [p.id, p])) : null;
 }
 
 /** Ejecuta la operación y convierte los errores de negocio de stock en un mensaje para el usuario. */
@@ -53,13 +58,16 @@ export async function registrarIngreso(entrada: DatosIngreso): Promise<Resultado
       const d = v.data;
       const destino = await ubicacionActiva(d.ubicacionId);
       if (!destino) return fallo("Revisa los datos marcados", { ubicacionId: "Ubicación inválida o inactiva" });
-      if (!(await productosExisten(d.lineas.map((l) => l.productoId)))) return fallo("Algún producto ya no existe");
+      const porId = await productosPorId(d.lineas.map((l) => l.productoId));
+      if (!porId) return fallo("Algún producto ya no existe");
 
       const motivo = ["Compra", d.proveedor && `a ${d.proveedor}`, d.documento && `· Doc. ${d.documento}`].filter(Boolean).join(" ");
       // Se agrupan por producto: un movimiento por producto, con todos sus vencimientos.
       const porProducto = new Map<number, { vencimiento: string | null; cantidad: number }[]>();
       for (const l of d.lineas) {
-        porProducto.set(l.productoId, [...(porProducto.get(l.productoId) ?? []), { vencimiento: l.fechaVencimiento, cantidad: l.cantidad }]);
+        // Se ingresa por envases completos: en los fraccionados cada envase suma sus unidades sueltas.
+        const unidades = envasesAUnidades(l.cantidad, porId.get(l.productoId)!);
+        porProducto.set(l.productoId, [...(porProducto.get(l.productoId) ?? []), { vencimiento: l.fechaVencimiento, cantidad: unidades }]);
       }
 
       await db.transaction(async (tx) => {
@@ -94,7 +102,7 @@ export async function ajustarStock(entrada: DatosAjuste): Promise<Resultado> {
       if (!v.success) return falloValidacion(v.error);
       const d = v.data;
       if (!(await ubicacionActiva(d.ubicacionId))) return fallo("Ubicación inválida o inactiva");
-      if (!(await productosExisten([d.productoId]))) return fallo("El producto ya no existe");
+      if (!(await productosPorId([d.productoId]))) return fallo("El producto ya no existe");
 
       const resultado = await db.transaction(async (tx) => {
         const [actual] = await tx
@@ -141,7 +149,8 @@ export async function crearTransferencia(entrada: DatosTransferencia): Promise<R
       const [origen, destino] = await Promise.all([ubicacionActiva(d.origenId), ubicacionActiva(d.destinoId)]);
       if (!origen) return fallo("Revisa los datos marcados", { origenId: "Origen inválido o inactivo" });
       if (!destino) return fallo("Revisa los datos marcados", { destinoId: "Destino inválido o inactivo" });
-      if (!(await productosExisten(d.lineas.map((l) => l.productoId)))) return fallo("Algún producto ya no existe");
+      const porId = await productosPorId(d.lineas.map((l) => l.productoId));
+      if (!porId) return fallo("Algún producto ya no existe");
 
       const id = await db.transaction(async (tx) => {
         const [t] = await tx
@@ -149,10 +158,12 @@ export async function crearTransferencia(entrada: DatosTransferencia): Promise<R
           .values({ origenId: d.origenId, destinoId: d.destinoId, usuarioEnviaId: sesion.uid, nota: d.nota })
           .returning({ id: transferencias.id });
         for (const l of d.lineas) {
+          // Se transfiere por envases completos; el detalle guarda unidades de stock (las que entran al recibir).
+          const unidades = envasesAUnidades(l.cantidad, porId.get(l.productoId)!);
           const { lotesSalida } = await cambiarStock(tx, {
             productoId: l.productoId,
             ubicacionId: d.origenId,
-            delta: -l.cantidad,
+            delta: -unidades,
             tipo: "transferencia_salida",
             usuarioId: sesion.uid,
             motivo: `Envío a ${destino.nombre}`,
@@ -161,8 +172,8 @@ export async function crearTransferencia(entrada: DatosTransferencia): Promise<R
           await tx.insert(detalleTransferencia).values({
             transferenciaId: t.id,
             productoId: l.productoId,
-            cantidad: l.cantidad,
-            lotes: completarLotes(lotesSalida, l.cantidad),
+            cantidad: unidades,
+            lotes: completarLotes(lotesSalida, unidades),
           });
         }
         if (d.alertaId) {

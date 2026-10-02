@@ -15,6 +15,8 @@ import {
 import { useMemo, useState } from "react";
 import { Buscador, Resaltar, SinResultados } from "@/components/busqueda/buscador";
 import { coincide } from "@/lib/busqueda";
+import { CantidadStock } from "@/components/inventario/cantidad-stock";
+import { desglosar, textoStock } from "@/lib/inventario/fraccion";
 import { useResaltado } from "@/components/alertas/use-resaltado";
 import { Marquesina } from "@/components/texto/marquesina";
 import { EncabezadoPagina } from "@/components/formularios/encabezado-pagina";
@@ -71,7 +73,8 @@ export function Bodega({ vista, resaltar, hoy, ubicaciones, productos, stock, lo
   const [transferencia, setTransferencia] = useState<PrecargaTransferencia | "nueva" | null>(null);
 
   const enBodega = (p: number) => (bodega ? (stock[`${p}:${bodega.id}`] ?? 0) : 0);
-  const unidades = productos.reduce((s, p) => s + Math.max(0, enBodega(p.id)), 0);
+  // Envases completos (de un producto fraccionado no se suman las unidades sueltas).
+  const unidades = productos.reduce((s, p) => s + Math.max(0, desglosar(enBodega(p.id), p).envases), 0);
   const conStock = productos.filter((p) => enBodega(p.id) > 0).length;
   const porVencer = lotes.filter((l) => diasParaVencer(l.vencimiento, hoy) <= DIAS_AVISO);
   const enCamino = transferencias.filter((t) => t.estado === "enviada");
@@ -103,7 +106,13 @@ export function Bodega({ vista, resaltar, hoy, ubicaciones, productos, stock, lo
       </section>
 
       {solicitudes.length > 0 && (
-        <Solicitudes solicitudes={solicitudes} stockBodega={enBodega} onAtender={(s, cantidad) =>
+        <Solicitudes
+          solicitudes={solicitudes}
+          stockBodega={(id) => {
+            const p = productos.find((x) => x.id === id);
+            return p ? textoStock(enBodega(id), p) : String(enBodega(id));
+          }}
+          onAtender={(s, cantidad) =>
           setTransferencia({ destinoId: s.sucursalId, productoId: s.productoId, cantidad, alertaId: s.id })
         } />
       )}
@@ -141,7 +150,7 @@ function Solicitudes({
   onAtender,
 }: {
   solicitudes: SolicitudReposicion[];
-  stockBodega: (productoId: number) => number;
+  stockBodega: (productoId: number) => string;
   onAtender: (s: SolicitudReposicion, cantidad: number) => void;
 }) {
   const resolver = useAccion(resolverSolicitud, { mensajeExito: "Solicitud marcada como atendida" });
@@ -237,9 +246,9 @@ function StockBodega({
                       key={l.id}
                       variant="outline"
                       className={cn("cifras", dias < 0 ? "border-destructive/60 text-destructive" : dias <= DIAS_AVISO && "border-aviso bg-aviso/15")}
-                      title={`${l.cantidad} unidades vencen el ${fechaDia(l.vencimiento)}`}
+                      title={`${l.texto} vencen el ${fechaDia(l.vencimiento)}`}
                     >
-                      {l.cantidad} · vence {fechaDia(l.vencimiento)}
+                      {desglosar(l.cantidad, p).envases || l.cantidad} · vence {fechaDia(l.vencimiento)}
                     </Badge>
                   );
                 })}
@@ -253,7 +262,7 @@ function StockBodega({
                   esResaltado && "rounded-lg bg-destructive/15 px-2 text-destructive ring-2 ring-destructive",
                 )}
               >
-                {c}
+                <CantidadStock unidades={c} producto={p} />
               </span>
             </li>
           );
@@ -306,7 +315,7 @@ function ListaTransferencias({ transferencias }: { transferencias: Transferencia
                     <Resaltar texto={l.producto} consulta={busqueda} />
                     {l.presentacion && <span className="text-muted-foreground"> · {l.presentacion}</span>}
                   </span>
-                  <span className="cifras font-semibold">{l.cantidad}</span>
+                  <span className="cifras shrink-0 font-semibold">{l.texto}</span>
                 </li>
               ))}
             </ul>
@@ -443,7 +452,9 @@ function Vencimientos({
                   </p>
                   <p className="cifras text-xs text-muted-foreground">{fechaDia(l.vencimiento)}</p>
                 </div>
-                <span className="cifras w-14 text-right font-display text-xl font-extrabold">{l.cantidad}</span>
+                <span className="cifras min-w-14 text-right font-display text-xl font-extrabold" title={l.texto}>
+                  {l.texto.includes("en total") ? l.texto.split(" (")[0] : l.cantidad}
+                </span>
               </li>
             );
           })}

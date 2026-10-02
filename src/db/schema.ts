@@ -146,7 +146,18 @@ export const productos = pgTable(
     precioCosto: dinero("precio_costo").notNull(),
     codigoBarras: varchar("codigo_barras", { length: 64 }),
     fotoUrl: text("foto_url"),
+    /** En envases (frascos), también para los productos fraccionados. */
     stockMinimo: integer("stock_minimo").notNull().default(0),
+    /**
+     * Venta fraccionada: además del envase completo se venden unidades sueltas (cápsulas, sobres…).
+     * El stock de estos productos se guarda en la unidad suelta (ver lib/inventario/fraccion.ts).
+     */
+    fraccionado: boolean("fraccionado").notNull().default(false),
+    /** capsula | tableta | scoop | sobre */
+    unidadFraccion: varchar("unidad_fraccion", { length: 20 }),
+    unidadesPorEnvase: integer("unidades_por_envase"),
+    /** Precio de venta de una unidad suelta. */
+    precioUnidad: dinero("precio_unidad"),
     activo: boolean("activo").notNull().default(true),
     creadoEn: creadoEn(),
   },
@@ -155,6 +166,10 @@ export const productos = pgTable(
       .on(t.codigoBarras)
       .where(sql`${t.codigoBarras} is not null`),
     index("productos_categoria_idx").on(t.categoriaId),
+    check(
+      "productos_fraccion_ck",
+      sql`not ${t.fraccionado} or (${t.unidadFraccion} is not null and ${t.unidadesPorEnvase} between 2 and 10000 and ${t.precioUnidad} is not null)`,
+    ),
   ],
 );
 
@@ -359,6 +374,10 @@ export const detalleVenta = pgTable(
     promocionId: integer("promocion_id").references(() => promociones.id),
     /** Precio de costo del producto al momento de la venta (ganancia en reportes aunque el costo cambie). */
     costoUnitario: dinero("costo_unitario"),
+    /** Venta por unidad suelta: `cantidad` y los precios son por cápsula/sobre, no por envase. */
+    fraccion: boolean("fraccion").notNull().default(false),
+    /** Unidad suelta vendida (capsula, sobre…), tal como era al vender. Nulo si se vendió el envase. */
+    unidadFraccion: varchar("unidad_fraccion", { length: 20 }),
   },
   (t) => [
     index("detalle_venta_venta_idx").on(t.ventaId),
