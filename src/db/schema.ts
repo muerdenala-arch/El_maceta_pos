@@ -107,6 +107,8 @@ export const usuarios = pgTable(
      * encontrando al usuario de una vez, y que dos personas no tengan el mismo PIN. null = se calcula al ingresar.
      */
     pinHuella: varchar("pin_huella", { length: 80 }),
+    /** Sueldo mensual vigente (apartado Sueldos, solo administrador). */
+    sueldoMensual: dinero("sueldo_mensual").notNull().default("0"),
     creadoEn: creadoEn(),
   },
   (t) => [
@@ -124,6 +126,12 @@ export const intentosIngreso = pgTable("intentos_ingreso", {
   intentos: integer("intentos").notNull().default(0),
   bloqueadoHasta: timestamp("bloqueado_hasta", { withTimezone: true }),
   actualizado: timestamp("actualizado", { withTimezone: true }).notNull().defaultNow(),
+  /**
+   * Último PIN fallido (huella y largo): el ingreso prueba solo al llegar a 4, 5 y 6 dígitos, y seguir escribiendo
+   * el mismo PIN (el nuevo empieza con el anterior) no suma otro fallo.
+   */
+  ultimaHuella: varchar("ultima_huella", { length: 80 }),
+  ultimoLargo: integer("ultimo_largo"),
 });
 
 // ---------- Catálogo ----------
@@ -406,9 +414,8 @@ export const gastos = pgTable(
   {
     id: serial("id").primaryKey(),
     uuidDispositivo: uuid("uuid_dispositivo").notNull(),
-    cajaId: integer("caja_id")
-      .notNull()
-      .references(() => cajas.id),
+    /** null = gasto de la sucursal registrado por el administrador o el encargado: no sale del efectivo de ninguna caja. */
+    cajaId: integer("caja_id").references(() => cajas.id),
     sucursalId: integer("sucursal_id")
       .notNull()
       .references(() => sucursales.id),
@@ -545,6 +552,8 @@ export const alertas = pgTable(
     leida: boolean("leida").notNull().default(false),
     /** Leída por el encargado de la sucursal (su campanita es independiente de la del administrador). */
     leidaEncargado: boolean("leida_encargado").notNull().default(false),
+    /** Ya se envió como notificación al celular (lib/notificaciones). */
+    notificada: boolean("notificada").notNull().default(false),
     resuelta: boolean("resuelta").notNull().default(false),
     fecha: timestamp("fecha", { withTimezone: true }).notNull().defaultNow(),
   },
@@ -772,4 +781,62 @@ export const ventasCombos = pgTable(
     precioFinal: dinero("precio_final").notNull(),
   },
   (t) => [index("ventas_combos_venta_idx").on(t.ventaId)],
+);
+
+// ---------- Sueldos (solo administrador) ----------
+
+export const tipoMovimientoSueldoEnum = pgEnum("tipo_movimiento_sueldo", ["adelanto", "descuento", "bono", "pago"]);
+
+/** Sueldo de una persona en un mes ("2026-10"): se fija al registrar el primer movimiento o al editarlo para ese mes. */
+export const sueldosMes = pgTable(
+  "sueldos_mes",
+  {
+    id: serial("id").primaryKey(),
+    usuarioId: integer("usuario_id")
+      .notNull()
+      .references(() => usuarios.id),
+    periodo: varchar("periodo", { length: 7 }).notNull(),
+    monto: dinero("monto").notNull(),
+  },
+  (t) => [uniqueIndex("sueldos_mes_usuario_periodo_uq").on(t.usuarioId, t.periodo)],
+);
+
+/** Adelantos, descuentos, bonos y pagos de sueldo. No se borran: se anulan con motivo. */
+export const movimientosSueldo = pgTable(
+  "movimientos_sueldo",
+  {
+    id: serial("id").primaryKey(),
+    usuarioId: integer("usuario_id")
+      .notNull()
+      .references(() => usuarios.id),
+    periodo: varchar("periodo", { length: 7 }).notNull(),
+    tipo: tipoMovimientoSueldoEnum("tipo").notNull(),
+    monto: dinero("monto").notNull(),
+    nota: text("nota"),
+    registradoPor: integer("registrado_por")
+      .notNull()
+      .references(() => usuarios.id),
+    anulado: boolean("anulado").notNull().default(false),
+    motivoAnulacion: text("motivo_anulacion"),
+    fecha: timestamp("fecha", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("movimientos_sueldo_periodo_idx").on(t.periodo, t.usuarioId)],
+);
+
+// ---------- Notificaciones en el celular (Web Push) ----------
+
+/** Un dispositivo donde un usuario activó las notificaciones. */
+export const suscripcionesPush = pgTable(
+  "suscripciones_push",
+  {
+    id: serial("id").primaryKey(),
+    usuarioId: integer("usuario_id")
+      .notNull()
+      .references(() => usuarios.id),
+    endpoint: text("endpoint").notNull(),
+    p256dh: text("p256dh").notNull(),
+    auth: text("auth").notNull(),
+    creadoEn: creadoEn(),
+  },
+  (t) => [uniqueIndex("suscripciones_push_endpoint_uq").on(t.endpoint)],
 );

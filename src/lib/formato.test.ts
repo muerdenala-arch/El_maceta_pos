@@ -24,7 +24,7 @@ describe("formato", () => {
 
 describe("validación de login", () => {
   it("se ingresa solo con un PIN de 4 a 6 dígitos", () => {
-    expect(esquemaLogin.parse({ pin: "1234" })).toEqual({ pin: "1234" });
+    expect(esquemaLogin.parse({ pin: "1234" })).toEqual({ pin: "1234", automatico: false });
     expect(esquemaLogin.safeParse({ pin: "123456" }).success).toBe(true);
   });
 

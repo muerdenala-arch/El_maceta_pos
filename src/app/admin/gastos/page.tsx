@@ -9,6 +9,8 @@ import { listarGastos, resumenGastos } from "@/lib/reportes/gastos";
 import { opcionesFiltros } from "@/lib/reportes/opciones";
 import { obtenerSucursalVista } from "@/lib/sucursal-vista";
 import { CATEGORIAS_GASTO } from "@/lib/validaciones/caja";
+import { AgregarGasto } from "@/components/gastos/agregar-gasto";
+import { listarUbicaciones } from "@/lib/inventario/consultas";
 import { ListaGastos } from "./lista-gastos";
 
 export const metadata: Metadata = { title: "Gastos diarios" };
@@ -24,7 +26,7 @@ export default async function PaginaGastosAdmin(props: PageProps<"/admin/gastos"
   const hoy = hoyEnBolivia();
   const f = leerFiltros(await props.searchParams, hoy, await obtenerSucursalVista(sesion));
 
-  const [opciones, r, lista] = await Promise.all([opcionesFiltros({ conProductos: false }), resumenGastos(f), listarGastos(f, LIMITE + 1)]);
+  const [opciones, r, lista, ubicaciones] = await Promise.all([opcionesFiltros({ conProductos: false }), resumenGastos(f), listarGastos(f, LIMITE + 1), listarUbicaciones()]);
   const sucursal = f.sucursalId ? opciones.sucursales.find((s) => s.id === f.sucursalId)?.nombre : "Todas las sucursales";
   const varios = f.desde !== f.hasta;
 
@@ -38,7 +40,9 @@ export default async function PaginaGastosAdmin(props: PageProps<"/admin/gastos"
             {sucursal ?? "Sucursal"} · <span className="cifras">{textoRango(f.desde, f.hasta)}</span>
           </>
         }
-      />
+      >
+        <AgregarGasto sucursales={ubicaciones.map((u) => ({ id: u.id, nombre: u.nombre }))} sucursalPorDefecto={f.sucursalId} />
+      </EncabezadoPagina>
 
       <BarraFiltros filtros={f} hoy={hoy} opciones={opciones} campos={["cajero", "categoria"]} categorias={CATEGORIAS_GASTO} exportar="gastos" />
 

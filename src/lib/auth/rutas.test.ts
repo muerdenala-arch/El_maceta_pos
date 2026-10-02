@@ -45,7 +45,7 @@ describe("decidirAcceso", () => {
 
   it("el encargado no entra a lo que es solo del administrador, ni escribiendo la URL ni llamando al API", () => {
     for (const ruta of ["/admin", "/admin/dashboard", "/admin/personal", "/admin/personal/3", "/admin/reportes", "/admin/gastos", "/admin/otra-cosa"]) {
-      expect(decidirAcceso(ruta, encargado), ruta).toEqual({ tipo: "redirigir", destino: "/encargado/panel" });
+      expect(decidirAcceso(ruta, encargado), ruta).toEqual({ tipo: "redirigir", destino: "/cajero/venta" });
     }
     expect(decidirAcceso("/api/admin/exportar", encargado)).toEqual({ tipo: "prohibido" });
     expect(decidirAcceso("/api/admin/plantilla-productos", encargado)).toEqual({ tipo: "prohibido" });
@@ -72,15 +72,15 @@ describe("decidirAcceso", () => {
   });
 
   it("el encargado tiene sus pantallas y además las de caja; el cajero y el admin no entran a las del encargado", () => {
-    for (const ruta of ["/encargado/panel", "/encargado/reportes", "/encargado/cajas", "/cajero/venta", "/cajero/bodega", "/cajero/cierre", "/api/sync"]) {
+    for (const ruta of ["/encargado/reportes", "/encargado/gastos", "/encargado/cajas", "/cajero/venta", "/cajero/bodega", "/cajero/cierre", "/api/sync"]) {
       expect(decidirAcceso(ruta, encargado)).toEqual({ tipo: "seguir" });
     }
-    expect(decidirAcceso("/encargado/panel", cajero)).toEqual({ tipo: "redirigir", destino: "/cajero/venta" });
+    expect(decidirAcceso("/encargado/cajas", cajero)).toEqual({ tipo: "redirigir", destino: "/cajero/venta" });
     expect(decidirAcceso("/encargado/reportes", admin)).toEqual({ tipo: "redirigir", destino: "/admin/dashboard" });
     expect(decidirAcceso("/api/encargado/x", cajero)).toEqual({ tipo: "prohibido" });
-    expect(decidirAcceso("/encargado/panel", null)).toEqual({ tipo: "redirigir", destino: "/login" });
-    expect(decidirAcceso("/login", encargado)).toEqual({ tipo: "redirigir", destino: "/encargado/panel" });
-    expect(decidirAcceso("/", encargado)).toEqual({ tipo: "redirigir", destino: "/encargado/panel" });
+    expect(decidirAcceso("/encargado/cajas", null)).toEqual({ tipo: "redirigir", destino: "/login" });
+    expect(decidirAcceso("/login", encargado)).toEqual({ tipo: "redirigir", destino: "/cajero/venta" });
+    expect(decidirAcceso("/", encargado)).toEqual({ tipo: "redirigir", destino: "/cajero/venta" });
   });
 
   it("no confunde prefijos parecidos (/administrar no es /admin)", () => {

@@ -46,3 +46,10 @@ Equipos: un celular Android con Chrome, una PC y la impresora térmica de la tie
 - [ ] Reportes: exportar a Excel y abrirlo en Excel/Google Sheets; exportar a PDF y abrirlo en el celular.
 
 Anotar cualquier falla con: qué se hizo, qué se esperaba, qué pasó y una captura de pantalla.
+
+## Notificaciones en el celular
+- [ ] Android (Chrome, app instalada o no): campanita → Activar → aceptar el permiso. Provocar una alerta (vender hasta dejar un
+      producto bajo el mínimo) y comprobar que llega con la app cerrada y la pantalla bloqueada; al tocarla abre el producto.
+- [ ] iPhone/iPad (iOS 16.4 o más): instalar con "Agregar a inicio", abrir desde el ícono y repetir lo anterior.
+- [ ] Cerrar sesión en ese equipo: ya no llegan avisos.
+- [ ] Encargado: solo le llegan las de stock de su sucursal.

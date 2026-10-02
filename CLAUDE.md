@@ -371,7 +371,7 @@ Credenciales de prueba locales: en `.env.local` (`SEED_*`), nunca en el código 
 ## Rol Encargado (encargado de sucursal)
 
 - Tercer rol (`rolEnum`, `Rol` en `lib/auth/constantes.ts`; `ROLES_CAJA = cajero + encargado`, `NOMBRES_ROL`). Siempre con una
-  sucursal. Lo crea el administrador desde Personal. Inicio: `/encargado/panel`.
+  sucursal. Lo crea el administrador desde Personal. Entra directo a `/cajero/venta` (el panel de inicio se quitó a pedido del dueño).
 - Rutas (`lib/auth/rutas.ts`): `/admin` y `/api/admin` solo admin; `/encargado` y `/api/encargado` solo encargado; `/cajero`,
   `/api/cajero` y `/api/sync` cajero **y** encargado (opera una caja igual que un cajero: `autorizar(...ROLES_CAJA)`).
 - Pantallas `/encargado/*` (panel, reportes, gastos, transferencias, cajas): todas empiezan con `requerirEncargado()`
@@ -421,6 +421,36 @@ Credenciales de prueba locales: en `.env.local` (`SEED_*`), nunca en el código 
 - `/admin/layout.tsx` admite admin y encargado; `rutas.ts` deja pasar al encargado solo a `moduloDeRuta(ruta) !== null`
   (y al Excel de eventos). Pruebas: `modulos.test.ts`, `rutas.test.ts`, `test/candados.integracion.test.ts`,
   `e2e/revision-encargado.spec.ts`.
+
+## Mejoras pedidas después del rol Encargado
+
+- **Encargado sin "Inicio"**: `inicioSegunRol("encargado")` = `/cajero/venta` (no existe `/encargado/panel`). Su menú: venta,
+  reportes, gastos, stock, transferencias, registrar gasto, cierre + los apartados compartidos con candado.
+- **Ingreso automático** (`app/(auth)/login/formulario-login.tsx`): con 6 dígitos entra al instante; con 4 o 5 prueba solo tras
+  450 ms sin teclear (`iniciarSesion({ pin, automatico: true })`, sin mostrar error si falla). Para que escribir un PIN largo no
+  gaste intentos, `registrarFalloOrigen(origen, pin)` guarda huella y largo del último PIN fallido (`intentos_ingreso.ultima_huella`,
+  `ultimo_largo`): si el nuevo empieza con el anterior y llega en menos de 30 s, es el mismo intento. PIN distintos sí suman
+  (5 → bloqueo). Las pruebas automáticas no registran `login_fallido` en auditoría.
+- **Gastos sin caja**: `gastos.caja_id` es opcional. `agregarGasto` (`app/admin/gastos/acciones.ts`; admin en cualquier ubicación
+  activa, encargado solo en su sucursal; auditoría `gasto_registrado`) crea un gasto que cuenta en reportes pero **no** en el
+  efectivo esperado de ninguna caja (`totalesCaja` filtra por caja). Botón `<AgregarGasto>` en Gastos diarios (admin) y Gastos de
+  la sucursal (encargado). Se marcan "Sin caja"; los anula el administrador en cualquier momento. Toda consulta que una
+  `gastos` con `cajas` debe usar `leftJoin`.
+- **Sueldos** (`/admin/sueldos?mes=AAAA-MM`, solo administrador): `usuarios.sueldo_mensual` (vigente), `sueldos_mes` (sueldo
+  fijado de una persona en un mes: se crea al primer movimiento o al editar el sueldo viendo ese mes) y `movimientos_sueldo`
+  (adelanto | descuento | bono | pago; se anulan con motivo, no se borran). Reglas puras y probadas en `lib/sueldos/calculo.ts`:
+  a pagar = sueldo + bonos − descuentos; saldo = a pagar − adelantos − pagos. Hasta el mes siguiente al actual. No cuentan como
+  gasto en los reportes (decisión del dueño). Auditoría: `sueldo_editado`, `sueldo_movimiento`, `sueldo_movimiento_anulado`.
+- **Notificaciones en el celular (Web Push)**: claves `NEXT_PUBLIC_VAPID_PUBLICA` / `VAPID_PRIVADA` (+ `VAPID_CONTACTO`); sin ellas
+  todo queda apagado. El usuario las activa por dispositivo desde el pie de la campanita (`<ActivarNotificaciones>`,
+  `lib/notificaciones/cliente.ts` → tabla `suscripciones_push`); al cerrar sesión se desactivan en ese equipo. Reciben: el
+  administrador todas las alertas; el encargado las de stock de su sucursal. `despacharAlertas()` (`lib/notificaciones/despacho.ts`)
+  toma las alertas con `notificada = false` (las marca primero: no se envían dos veces), más de 3 a la vez se resumen en una, y
+  borra las suscripciones vencidas (404/410). Se dispara con `programarDespacho()` (usa `after()`) al terminar cualquier acción
+  (`conPermiso`), en `/api/sync` y al conciliar alertas. El service worker (`public/sw.js`) muestra la notificación y al tocarla
+  abre la pantalla de esa alerta. En iPhone/iPad solo funciona con la app instalada en la pantalla de inicio (iOS 16.4+).
+- Pruebas: `test/mejoras.integracion.test.ts` (envío simulado con `vi.mock("web-push")`), `sueldos/calculo.test.ts`,
+  `e2e/revision-mejoras.spec.ts`. El envío real a un teléfono solo se prueba a mano (`docs/pruebas-manuales.md`).
 
 ## Botón atrás por niveles
 

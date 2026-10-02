@@ -47,6 +47,7 @@ export function ListaGastos({ gastos, conFecha, soloLectura }: { gastos: GastoLi
             <div className="min-w-0 flex-1 basis-48">
               <p className="flex flex-wrap items-center gap-2 font-bold">
                 <Resaltar texto={g.categoria} consulta={busqueda} />
+                {g.sinCaja && <Badge variant="secondary">Sin caja</Badge>}
                 {g.anulado && <Badge variant="destructive">Anulado</Badge>}
               </p>
               <p className="text-sm text-muted-foreground">

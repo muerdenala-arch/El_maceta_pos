@@ -14,6 +14,19 @@ export type TipoAlerta =
   | "revision_offline"
   | "evento_por_finalizar";
 
+/** Nombre corto de cada tipo (título de la notificación en el celular; mismos textos que la campanita). */
+export const TITULOS_ALERTA: Record<TipoAlerta, string> = {
+  agotado: "Agotado",
+  stock_bajo: "Stock bajo",
+  stock_negativo: "Stock negativo",
+  por_vencer: "Por vencer",
+  caja_diferencia: "Diferencia en caja",
+  qr_por_confirmar: "QR por confirmar",
+  solicitud_reposicion: "Pedido de sucursal",
+  revision_offline: "Revisar venta",
+  evento_por_finalizar: "Reto terminado",
+};
+
 /** Días de anticipación para avisar vencimientos. */
 export const DIAS_AVISO_VENCIMIENTO = 30;
 

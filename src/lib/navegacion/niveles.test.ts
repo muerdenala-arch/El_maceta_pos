@@ -7,14 +7,12 @@ describe("navegación por niveles", () => {
     expect(padreDe("/cajero/venta")).toBeNull();
     expect(padreDe("/cajero/apertura")).toBeNull();
     expect(esInicio("/admin/dashboard")).toBe(true);
-    expect(padreDe("/encargado/panel")).toBeNull();
-    expect(esInicio("/encargado/panel")).toBe(true);
   });
 
   it("los apartados del menú vuelven al inicio de su rol", () => {
     for (const r of ["/admin/eventos", "/admin/reportes", "/admin/inventario/"]) expect(padreDe(r)).toBe("/admin/dashboard");
     for (const r of ["/cajero/gastos", "/cajero/cierre", "/cajero/ventas"]) expect(padreDe(r)).toBe("/cajero/venta");
-    for (const r of ["/encargado/reportes", "/encargado/cajas", "/encargado/transferencias"]) expect(padreDe(r)).toBe("/encargado/panel");
+    for (const r of ["/encargado/reportes", "/encargado/cajas", "/encargado/transferencias"]) expect(padreDe(r)).toBe("/cajero/venta");
   });
 
   it("las pantallas internas suben un nivel (sin importar pestañas ni filtros)", () => {

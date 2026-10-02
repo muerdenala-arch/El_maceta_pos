@@ -29,6 +29,7 @@ const PERMITIDOS: Record<string, Rol[] | "publica"> = {
   eliminarCategoria: ["admin"],
   guardarConfiguracion: ["admin"],
   anularGasto: ["admin"],
+  agregarGasto: ["admin", "encargado"], // el encargado, solo en su sucursal
   crearUsuario: ["admin"],
   editarUsuario: ["admin"],
   cambiarEstadoUsuario: ["admin"],
@@ -47,6 +48,9 @@ const PERMITIDOS: Record<string, Rol[] | "publica"> = {
   cambiarEstadoSucursal: ["admin"],
   cambiarSucursalVista: ["admin"],
   cambiarCandado: ["admin"],
+  guardarSueldo: ["admin"],
+  registrarMovimientoSueldo: ["admin"],
+  anularMovimientoSueldo: ["admin"],
   // Campanita: el encargado solo ve y marca las de stock de su sucursal (encargado.integracion.test.ts)
   obtenerAlertas: ["admin", "encargado"],
   marcarAlertaLeida: ["admin", "encargado"],
@@ -89,6 +93,9 @@ const PERMITIDOS: Record<string, Rol[] | "publica"> = {
   verComprobante: ["cajero", "encargado", "admin"],
   buscarClientes: ["cajero", "encargado", "admin"],
   subirImagen: ["cajero", "encargado", "admin"], // según la carpeta; con "qr" (abajo) solo admin
+  // Notificaciones en el celular
+  guardarSuscripcionPush: ["admin", "encargado"],
+  quitarSuscripcionPush: ["cajero", "encargado", "admin"],
   // Sin sesión
   iniciarSesion: "publica",
   desbloquear: "publica",
@@ -170,14 +177,17 @@ describe("server actions", () => {
     expect(delEncargado).toEqual(
       [
         "abrirCaja",
+        "agregarGasto",
         "anularVentaEnSucursal",
         "buscarClientes",
         "cerrarCaja",
         "consultarCupon",
+        "guardarSuscripcionPush",
         "marcarAlertaLeida",
         "marcarTodasLeidas",
         "obtenerAlertas",
         "pedirAutorizacion",
+        "quitarSuscripcionPush",
         "recibirTransferencia",
         "registrarGasto",
         "registrarVenta",

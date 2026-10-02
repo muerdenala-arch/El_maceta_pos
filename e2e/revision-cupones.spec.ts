@@ -18,7 +18,11 @@ const ayer = () => new Date(Date.now() - 86_400_000).toLocaleDateString("en-CA",
 test("administrador: máximo de descuento manual y cupones", async ({ page }) => {
   await ingresarAdmin(page);
   await page.goto("/admin/configuracion");
-  await page.getByLabel("Máximo que puede descontar el cajero").fill("5");
+  // Se repite hasta que el formulario ya responde (si se escribe antes de que cargue del todo, se pierde lo escrito).
+  await expect(async () => {
+    await page.getByLabel("Máximo que puede descontar el cajero").fill("5");
+    await expect(page.getByRole("button", { name: "Guardar cambios" })).toBeEnabled({ timeout: 1500 });
+  }).toPass();
   await page.getByRole("button", { name: "Guardar cambios" }).click();
   await expect(page.getByRole("button", { name: "Guardar cambios" })).toBeDisabled();
 

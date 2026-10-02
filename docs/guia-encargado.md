@@ -4,8 +4,7 @@ El encargado hace **todo lo que hace un cajero** (ver `guia-cajero.md`) y ademá
 No ve otras sucursales, costos ni ganancias, ni maneja al personal.
 
 ## Entrar
-- Abre la app y escribe tu **PIN**. Llegas a **Inicio**: ventas del día, semana y mes de tu sucursal, cajas abiertas,
-  lo más vendido y el stock que falta reponer.
+- Abre la app y escribe tu **PIN**: al completarlo entras solo, directo a **Venta** (o a abrir tu caja).
 
 ## Vender, gastos y caja
 - **Venta**, **Registrar gasto** y **Cierre de caja** funcionan igual que para un cajero: abre tu caja, vende y ciérrala.
@@ -14,7 +13,8 @@ No ve otras sucursales, costos ni ganancias, ni maneja al personal.
 ## Supervisar
 - **Reportes de venta**: ventas de tu sucursal por fecha, cajero, método de pago y producto (también por día y descuentos).
   Toca una venta para ver o reimprimir su comprobante.
-- **Gastos de la sucursal**: lo que registraron tus cajeros, con su foto.
+- **Gastos de la sucursal**: lo que registraron tus cajeros, con su foto. Con **Agregar gasto** anotas gastos de la sucursal
+  que no salen de ninguna caja (luz, alquiler, compras).
 - **Cajas**: cajas abiertas en vivo y cierres anteriores (esperado, contado y diferencia).
 - **Inventario**: stock de tu sucursal y de la bodega central. **Pedir** envía la solicitud al administrador.
 - **Campanita**: te avisa cuando un producto de tu sucursal está bajo o agotado; al tocar el aviso llegas al producto.
@@ -39,3 +39,8 @@ No ve otras sucursales, costos ni ganancias, ni maneja al personal.
 - Los que tienen un **candado** son de solo consulta: puedes verlos, pero no cambiar nada. El administrador abre o cierra
   el candado de cada apartado cuando lo necesite.
 - Con el candado abierto trabajas solo con tu sucursal (y la bodega central), y nunca ves ni cambias costos.
+
+## Avisos en tu celular
+- Toca la **campanita** → **Activar**. Desde entonces, cuando un producto de tu sucursal quede bajo o agotado te llega una
+  notificación al celular aunque la app esté cerrada; al tocarla abre el producto.
+- En iPhone o iPad primero hay que instalar la app: Compartir → "Agregar a inicio", y abrirla desde su ícono.

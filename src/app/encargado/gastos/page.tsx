@@ -1,6 +1,7 @@
 import { ReceiptText } from "lucide-react";
 import type { Metadata } from "next";
 import { ListaGastos } from "@/app/admin/gastos/lista-gastos";
+import { AgregarGasto } from "@/components/gastos/agregar-gasto";
 import { EncabezadoPagina } from "@/components/formularios/encabezado-pagina";
 import { BarraFiltros } from "@/components/reportes/barra-filtros";
 import { opcionesEncargado } from "@/lib/encargado-reportes";
@@ -14,7 +15,7 @@ export const metadata: Metadata = { title: "Gastos de la sucursal" };
 
 const LIMITE = 300;
 
-/** Gastos de la sucursal del encargado (solo consulta: anular un gasto sigue siendo del administrador). */
+/** Gastos de la sucursal del encargado: los ve y agrega gastos sin caja; anular sigue siendo del administrador. */
 export default async function GastosEncargado(props: PageProps<"/encargado/gastos">) {
   const { sucursal } = await requerirEncargado();
   const hoy = hoyEnBolivia();
@@ -32,7 +33,9 @@ export default async function GastosEncargado(props: PageProps<"/encargado/gasto
             {sucursal.nombre} · <span className="cifras">{textoRango(f.desde, f.hasta)}</span>
           </>
         }
-      />
+      >
+        <AgregarGasto sucursales={[sucursal]} sucursalPorDefecto={sucursal.id} />
+      </EncabezadoPagina>
 
       <BarraFiltros sucursalFija filtros={f} hoy={hoy} opciones={opciones} campos={["cajero", "categoria"]} categorias={CATEGORIAS_GASTO} />
 

@@ -61,6 +61,16 @@ export const esquemaGasto = z.object({
 });
 export type DatosGasto = z.input<typeof esquemaGasto>;
 
+/** Gasto de la sucursal que registra el administrador o el encargado (sin caja). */
+export const esquemaGastoSucursal = z.object({
+  sucursalId: idPositivo,
+  categoria: z.enum(CATEGORIAS_GASTO, { message: "Elige una categoría" }),
+  monto: monto("Monto inválido").refine((m) => Number(m) > 0, "El monto debe ser mayor a 0"),
+  descripcion: textoOpcional(300),
+  fotoUrl: urlImagen,
+});
+export type DatosGastoSucursal = z.input<typeof esquemaGastoSucursal>;
+
 export const esquemaCierre = z.object({ efectivoContado: monto("Monto inválido") });
 export type DatosCierre = z.input<typeof esquemaCierre>;
 

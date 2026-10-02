@@ -9,7 +9,7 @@ describe("apartados compartidos con el encargado", () => {
   });
 
   it("lo que es solo del administrador no es un apartado compartido", () => {
-    for (const r of ["/admin", "/admin/dashboard", "/admin/personal", "/admin/reportes", "/admin/gastos", "/admin/catalogos", "/cajero/venta", "/encargado/panel", "/api/admin/exportar"]) {
+    for (const r of ["/admin", "/admin/dashboard", "/admin/personal", "/admin/reportes", "/admin/gastos", "/admin/catalogos", "/cajero/venta", "/encargado/reportes", "/api/admin/exportar"]) {
       expect(moduloDeRuta(r), r).toBeNull();
     }
   });

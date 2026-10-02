@@ -5,6 +5,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useState, useTransition } from "react";
 import { ESTILO_ALERTA } from "@/components/alertas/estilo";
+import { ActivarNotificaciones } from "./activar-notificaciones";
 import { EVENTO_RESALTAR } from "@/components/alertas/use-resaltado";
 import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
@@ -163,6 +164,7 @@ export function Campanita({ noLeidas: inicial = 0 }: { noLeidas?: number }) {
         <p className="border-t px-4 py-2 text-[11px] text-muted-foreground">
           Las de stock y vencimiento se resuelven solas al corregirse; las demás se marcan como revisadas (✓).
         </p>
+        <ActivarNotificaciones />
       </PopoverContent>
     </Popover>
   );

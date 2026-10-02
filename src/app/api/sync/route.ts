@@ -1,6 +1,7 @@
 import { obtenerSesion } from "@/lib/auth/sesion";
 import { registrarGastoOffline, registrarVentaOffline, type ResultadoSync } from "@/lib/caja/registro";
 import { esquemaGastoOffline, esquemaLoteSync, esquemaVentaOffline } from "@/lib/validaciones/caja";
+import { programarDespacho } from "@/lib/notificaciones/despacho";
 
 export type RespuestaSync = {
   resultados: ({ uuid: string } & (ResultadoSync | { ok: true }))[];
@@ -49,5 +50,6 @@ export async function POST(req: Request) {
       resultados.push({ uuid: op.uuid, ok: false, error: "Error del servidor, se reintentará", permanente: false });
     }
   }
+  programarDespacho();
   return Response.json({ resultados } satisfies RespuestaSync);
 }

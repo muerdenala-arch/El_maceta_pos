@@ -142,17 +142,39 @@ export async function origenBloqueado(origen: string): Promise<Date | null> {
   return f?.hasta && f.hasta > new Date() ? f.hasta : null;
 }
 
-/** Suma un fallo al origen (los fallos de más de 15 min atrás no cuentan); al llegar al límite, lo bloquea. */
-export async function registrarFalloOrigen(origen: string): Promise<Date | null> {
+/** Segundos durante los que seguir escribiendo el mismo PIN se considera el mismo intento. */
+const SEGUNDOS_MISMO_INTENTO = 30;
+
+/**
+ * Suma un fallo al origen (los fallos de más de 15 min atrás no cuentan); al llegar al límite, lo bloquea.
+ * Con `pin` (ingreso, que prueba solo al llegar a 4, 5 y 6 dígitos): si el PIN es el fallido anterior con más
+ * dígitos, es la misma persona terminando de escribir y no suma otro fallo. Un PIN distinto sí cuenta.
+ */
+export async function registrarFalloOrigen(origen: string, pin?: string): Promise<Date | null> {
+  if (pin) {
+    const [previo] = await db.select().from(intentosIngreso).where(eq(intentosIngreso.origen, origen));
+    const continua =
+      !!previo?.ultimaHuella &&
+      !!previo.ultimoLargo &&
+      pin.length > previo.ultimoLargo &&
+      Date.now() - previo.actualizado.getTime() < SEGUNDOS_MISMO_INTENTO * 1000 &&
+      previo.ultimaHuella === huellaPin(pin.slice(0, previo.ultimoLargo));
+    if (continua) {
+      await db.update(intentosIngreso).set({ ultimaHuella: huellaPin(pin), ultimoLargo: pin.length, actualizado: sql`now()` }).where(eq(intentosIngreso.origen, origen));
+      return null;
+    }
+  }
+  const rastro = pin ? { ultimaHuella: huellaPin(pin), ultimoLargo: pin.length } : { ultimaHuella: null, ultimoLargo: null };
   const ventana = sql`now() - make_interval(mins => ${MINUTOS_BLOQUEO_PIN})`;
   const [{ intentos }] = await db
     .insert(intentosIngreso)
-    .values({ origen, intentos: 1 })
+    .values({ origen, intentos: 1, ...rastro })
     .onConflictDoUpdate({
       target: intentosIngreso.origen,
       set: {
         intentos: sql`case when ${intentosIngreso.actualizado} < ${ventana} then 1 else ${intentosIngreso.intentos} + 1 end`,
         actualizado: sql`now()`,
+        ...rastro,
       },
     })
     .returning({ intentos: intentosIngreso.intentos });

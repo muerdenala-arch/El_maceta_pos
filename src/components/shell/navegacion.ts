@@ -36,6 +36,7 @@ export const navAdmin: ItemNav[] = [
   { href: "/admin/combos", titulo: "Combos", icono: Gift, fase: 12 },
   { href: "/admin/eventos", titulo: "Eventos", icono: Trophy, fase: 11 },
   { href: "/admin/personal", titulo: "Personal / Cajeros", icono: Users, fase: 2 },
+  { href: "/admin/sueldos", titulo: "Sueldos", icono: HandCoins, fase: 14 },
   { href: "/admin/qr", titulo: "QR de cobro", icono: QrCode, fase: 4 },
   { href: "/admin/sucursales", titulo: "Sucursales", icono: Store, fase: 2 },
   { href: "/admin/auditoria", titulo: "Auditoría de caja", icono: ScrollText, fase: 7 },
@@ -55,7 +56,6 @@ export const navCajero: ItemNav[] = [
  * (/cajero/*). No tiene catálogo, precios, personal, QR, cupones ni configuración.
  */
 export const navEncargado: ItemNav[] = [
-  { href: "/encargado/panel", titulo: "Inicio", icono: LayoutDashboard, fase: 13 },
   { href: "/cajero/venta", titulo: "Venta", icono: ShoppingCart, fase: 4 },
   { href: "/encargado/reportes", titulo: "Reportes de venta", icono: BarChart3, fase: 13 },
   { href: "/encargado/gastos", titulo: "Gastos de la sucursal", icono: ReceiptText, fase: 13 },
@@ -67,8 +67,8 @@ export const navEncargado: ItemNav[] = [
 
 /** Pestañas inferiores del encargado en el celular (el resto, en el menú lateral). */
 export const navEncargadoInferior: ItemNav[] = [
-  { href: "/encargado/panel", titulo: "Inicio", icono: LayoutDashboard, fase: 13 },
   { href: "/cajero/venta", titulo: "Venta", icono: ShoppingCart, fase: 4 },
+  { href: "/encargado/reportes", titulo: "Reportes", icono: BarChart3, fase: 13 },
   { href: "/cajero/bodega", titulo: "Stock", icono: PackageSearch, fase: 3 },
   { href: "/admin/auditoria", titulo: "Cajas", icono: Wallet, fase: 13 },
 ];

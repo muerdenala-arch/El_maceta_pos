@@ -42,17 +42,23 @@ test("administrador: crea un encargado desde Personal y fija los dos máximos de
   await page.screenshot({ path: "test-results/encargado-1-personal.png" });
 
   await page.goto("/admin/configuracion");
-  await page.getByLabel("Máximo que puede descontar el cajero").fill("5");
-  await page.getByLabel("Máximo que puede dar o autorizar el encargado").fill("15");
+  // Se repite hasta que el formulario ya responde (si se escribe antes de que cargue del todo, se pierde lo escrito).
+  await expect(async () => {
+    await page.getByLabel("Máximo que puede descontar el cajero").fill("5");
+    await page.getByLabel("Máximo que puede dar o autorizar el encargado").fill("15");
+    await expect(page.getByRole("button", { name: "Guardar cambios" })).toBeEnabled({ timeout: 1500 });
+  }).toPass();
   await page.getByRole("button", { name: "Guardar cambios" }).click();
   await expect(page.getByRole("button", { name: "Guardar cambios" })).toBeDisabled();
 });
 
 test("encargado: su panel y su menú; lo que es solo del administrador no abre, ni escribiendo la dirección ni por el API", async ({ page }) => {
+  // Sin pantalla de inicio: entra directo a vender (o a abrir su caja), como un cajero.
   await ingresarEncargado(page);
-  await expect(page.getByRole("heading", { name: "Sucursal principal" })).toBeVisible();
+  await expect(page).toHaveURL(/\/cajero\/(venta|apertura)/);
   const menu = page.locator("aside nav");
-  const propios = ["Inicio", "Venta", "Reportes de venta", "Gastos de la sucursal", "Stock y pedidos", "Transferencias", "Cierre de caja"];
+  await expect(menu.getByRole("link", { name: /^Inicio/ })).toHaveCount(0);
+  const propios = ["Venta", "Reportes de venta", "Gastos de la sucursal", "Stock y pedidos", "Transferencias", "Cierre de caja"];
   const compartidos = ["Catálogo", "Inventario de sucursales", "Bodega central", "Promociones y cupones", "Combos", "Eventos", "QR de cobro", "Sucursales", "Auditoría de caja", "Configuración"];
   for (const item of [...propios, ...compartidos]) {
     await expect(menu.getByRole("link", { name: new RegExp(`^${item}`) })).toBeVisible(); // algunos llevan el número de alertas o el candado
@@ -63,9 +69,12 @@ test("encargado: su panel y su menú; lo que es solo del administrador no abre, 
   await page.screenshot({ path: "test-results/encargado-2-panel.png", fullPage: true });
 
   for (const ruta of ["/admin/dashboard", "/admin/personal", "/admin/reportes", "/admin/gastos"]) {
-    await page.goto(ruta);
-    await expect(page, ruta).toHaveURL(/\/encargado\/panel/);
+    // El servidor redirige dos veces (a la venta y de ahí a abrir caja): la navegación original puede darse por "abortada".
+    await page.goto(ruta).catch(() => {});
+    await expect(page, ruta).toHaveURL(/\/cajero\/(venta|apertura)/);
+    await page.waitForLoadState("load");
   }
+  expect((await page.request.get("/encargado/panel")).status()).toBe(404); // el panel de inicio ya no existe
   expect((await page.request.get("/api/admin/exportar?reporte=ventas&formato=xlsx")).status()).toBe(403);
   expect((await page.request.get("/api/admin/plantilla-productos")).status()).toBe(403);
 });
@@ -244,7 +253,7 @@ test("encargado: abre caja, vende con su propio máximo de descuento y anula sin
 
   // En celular: pestañas inferiores y sin desborde horizontal.
   await page.setViewportSize({ width: 375, height: 812 });
-  await page.goto("/encargado/panel");
+  await page.goto("/encargado/reportes");
   await expect(page.locator("nav.fixed").getByRole("link", { name: "Venta", exact: true })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
   await page.screenshot({ path: "test-results/encargado-7-celular.png", fullPage: true });

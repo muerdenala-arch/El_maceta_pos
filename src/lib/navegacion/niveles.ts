@@ -8,18 +8,17 @@
 
 export const INICIO_ADMIN = "/admin/dashboard";
 export const INICIO_CAJERO = "/cajero/venta";
-export const INICIO_ENCARGADO = "/encargado/panel";
 
 /** Pantallas sin padre: los inicios y la apertura de caja (sin caja abierta, la venta vuelve a llevar ahí). */
-const RAICES = new Set([INICIO_ADMIN, INICIO_CAJERO, INICIO_ENCARGADO, "/cajero/apertura"]);
+const RAICES = new Set([INICIO_ADMIN, INICIO_CAJERO, "/cajero/apertura"]);
 
-export const esInicio = (ruta: string) => ruta === INICIO_ADMIN || ruta === INICIO_CAJERO || ruta === INICIO_ENCARGADO;
+export const esInicio = (ruta: string) => ruta === INICIO_ADMIN || ruta === INICIO_CAJERO;
 
 export function padreDe(ruta: string): string | null {
   const limpia = ruta.split(/[?#]/)[0].replace(/\/+$/, "") || "/";
   if (RAICES.has(limpia)) return null;
   const partes = limpia.split("/").filter(Boolean);
   if (partes[0] !== "admin" && partes[0] !== "cajero" && partes[0] !== "encargado") return null;
-  if (partes.length <= 2) return partes[0] === "admin" ? INICIO_ADMIN : partes[0] === "encargado" ? INICIO_ENCARGADO : INICIO_CAJERO;
+  if (partes.length <= 2) return partes[0] === "admin" ? INICIO_ADMIN : INICIO_CAJERO; // el inicio del encargado es la venta
   return `/${partes.slice(0, -1).join("/")}`;
 }

@@ -30,7 +30,10 @@ export type GastoListado = {
   motivoAnulacion: string | null;
   cajero: string;
   sucursal: string;
+  /** Se puede anular: su caja sigue abierta, o no salió de ninguna caja. */
   cajaAbierta: boolean;
+  /** Gasto de la sucursal registrado por el administrador o el encargado (no salió de una caja). */
+  sinCaja: boolean;
 };
 
 /** Gastos del filtro, del más reciente al más antiguo (incluye anulados). */
@@ -47,12 +50,13 @@ export async function listarGastos(f: FiltrosReporte, limite: number): Promise<G
       motivoAnulacion: gastos.motivoAnulacion,
       cajero: usuarios.nombre,
       sucursal: sucursales.nombre,
-      cajaAbierta: sql<boolean>`${cajas.estado} = 'abierta'`,
+      cajaAbierta: sql<boolean>`coalesce(${cajas.estado} = 'abierta', true)`,
+      sinCaja: sql<boolean>`${gastos.cajaId} is null`,
     })
     .from(gastos)
     .innerJoin(usuarios, eq(usuarios.id, gastos.usuarioId))
     .innerJoin(sucursales, eq(sucursales.id, gastos.sucursalId))
-    .innerJoin(cajas, eq(cajas.id, gastos.cajaId))
+    .leftJoin(cajas, eq(cajas.id, gastos.cajaId))
     .where(condiciones(f))
     .orderBy(desc(gastos.fecha), desc(gastos.id))
     .limit(limite);

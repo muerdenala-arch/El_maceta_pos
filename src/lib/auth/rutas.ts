@@ -12,7 +12,8 @@ export type Decision =
   | { tipo: "prohibido" };
 
 export function inicioSegunRol(rol: Rol) {
-  return rol === "admin" ? "/admin/dashboard" : rol === "encargado" ? "/encargado/panel" : "/cajero/venta";
+  // El encargado no tiene panel de inicio: entra directo a vender, como el cajero.
+  return rol === "admin" ? "/admin/dashboard" : "/cajero/venta";
 }
 
 const bajo = (ruta: string, prefijo: string) => ruta === prefijo || ruta.startsWith(`${prefijo}/`);

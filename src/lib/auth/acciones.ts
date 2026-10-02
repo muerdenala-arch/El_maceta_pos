@@ -20,6 +20,8 @@ export type ResultadoLogin =
 /**
  * Ingreso solo con el PIN: se busca al dueño del PIN y se lo lleva a su pantalla según su rol.
  * Los PIN incorrectos se cuentan por dispositivo/red (no se sabe a qué usuario se probaba): 5 fallos → 15 min.
+ * La pantalla prueba sola al llegar a 4, 5 y 6 dígitos (`automatico`): si el PIN es válido entra sin tocar "Ingresar";
+ * seguir escribiendo el mismo PIN cuenta como un solo intento (ver registrarFalloOrigen).
  */
 export async function iniciarSesion(datos: DatosLogin): Promise<ResultadoLogin> {
   const validado = esquemaLogin.safeParse(datos);
@@ -35,8 +37,9 @@ export async function iniciarSesion(datos: DatosLogin): Promise<ResultadoLogin> 
     return { ok: false, error: "Ese PIN lo tienen dos usuarios: pide al administrador que le cambie el PIN a uno." };
   }
   if (busqueda.tipo === "ninguno") {
-    const hasta = await registrarFalloOrigen(origen);
-    if (!hasta) await registrarAuditoria("login_fallido", { detalle: { motivo: "pin_desconocido", origen } });
+    const hasta = await registrarFalloOrigen(origen, pin);
+    // Las pruebas automáticas mientras se escribe (4 y 5 dígitos) no llenan la auditoría: solo el intento explícito.
+    if (!hasta && !validado.data.automatico) await registrarAuditoria("login_fallido", { detalle: { motivo: "pin_desconocido", origen } });
     return { ok: false, error: hasta ? mensajeBloqueo(hasta) : MENSAJE_INCORRECTO };
   }
 

@@ -34,6 +34,7 @@ export type AccionAuditoria =
   | "caja_abierta"
   | "caja_cerrada"
   | "gasto_anulado"
+  | "gasto_registrado"
   | "qr_creado"
   | "qr_editado"
   // Fase 5
@@ -54,6 +55,10 @@ export type AccionAuditoria =
   // Rol Encargado
   | "autorizacion_fallida"
   | "candado_encargado"
+  // Sueldos
+  | "sueldo_editado"
+  | "sueldo_movimiento"
+  | "sueldo_movimiento_anulado"
   // Módulo Eventos
   | "evento_creado"
   | "evento_iniciado"

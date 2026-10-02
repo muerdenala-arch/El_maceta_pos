@@ -8,6 +8,7 @@
  * - Peticiones RSC (navegación interna de Next) → solo red. Si falla, Next navega "a la antigua"
  *   y esta misma lógica sirve la copia guardada de la pantalla.
  * - POST (acciones, /api/sync) → nunca se tocan.
+ * - Notificaciones: muestra cada alerta que envía el servidor y, al tocarla, abre su pantalla (al final del archivo).
  *
  * Los nombres de caché coinciden con src/lib/offline/precarga.ts.
  */
@@ -108,4 +109,41 @@ self.addEventListener("fetch", (evento) => {
   if (peticion.mode === "navigate") {
     evento.respondWith(navegacion(peticion));
   }
+});
+
+// ---------------------------------------------------------------- Notificaciones (Web Push)
+// El servidor envía { titulo, cuerpo, url, etiqueta } por cada alerta nueva (src/lib/notificaciones/despacho.ts).
+self.addEventListener("push", (evento) => {
+  let datos = {};
+  try {
+    datos = evento.data ? evento.data.json() : {};
+  } catch {
+    datos = { cuerpo: evento.data ? evento.data.text() : "" };
+  }
+  evento.waitUntil(
+    self.registration.showNotification(datos.titulo || "El Maseta", {
+      body: datos.cuerpo || "Tienes una alerta nueva",
+      icon: "/icono/192",
+      badge: "/icono/192",
+      tag: datos.etiqueta || undefined,
+      data: { url: datos.url || "/" },
+    }),
+  );
+});
+
+// Al tocar la notificación: se abre (o se trae al frente) la app en la pantalla de esa alerta.
+self.addEventListener("notificationclick", (evento) => {
+  evento.notification.close();
+  const destino = new URL((evento.notification.data && evento.notification.data.url) || "/", self.location.origin).href;
+  evento.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(async (ventanas) => {
+      const abierta = ventanas.find((v) => new URL(v.url).origin === self.location.origin);
+      if (abierta) {
+        await abierta.focus();
+        if ("navigate" in abierta) return abierta.navigate(destino).catch(() => {});
+        return;
+      }
+      return self.clients.openWindow(destino);
+    }),
+  );
 });

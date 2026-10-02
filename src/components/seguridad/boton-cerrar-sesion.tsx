@@ -20,6 +20,7 @@ import { CLAVE_DESBLOQUEO } from "@/lib/auth/constantes";
 import { borrarPaginasGuardadas } from "@/lib/offline/precarga";
 import { usePendientes } from "@/lib/offline/sincronizar";
 import { cn } from "@/lib/utils";
+import { desactivarPush } from "@/lib/notificaciones/cliente";
 
 /**
  * Cerrar sesión. Si quedan operaciones sin sincronizar, avisa primero (sección 8.7 del plan):
@@ -37,6 +38,8 @@ export function BotonCerrarSesion({ soloIcono, className }: { soloIcono?: boolea
         setConfirmar(false);
         return;
       }
+      // Las alertas son de quien las activó: este equipo deja de recibirlas al salir.
+      await desactivarPush();
       await cerrarSesion();
       escribirAlmacen("session", CLAVE_DESBLOQUEO, null);
       await borrarPaginasGuardadas();

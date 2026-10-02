@@ -1,6 +1,7 @@
 import "server-only";
 import type { z } from "zod";
 import { ErrorAutorizacion, ErrorCandado } from "@/lib/auth/sesion";
+import { programarDespacho } from "@/lib/notificaciones/despacho";
 
 /** Respuesta estándar de las server actions de formularios. */
 export type Resultado<T = undefined> =
@@ -41,7 +42,10 @@ export const MENSAJE_CANDADO = "Este apartado tiene candado: solo el administrad
 /** Envuelve una acción: los errores de permiso se devuelven como resultado en vez de romper la pantalla. */
 export async function conPermiso<T>(fn: () => Promise<Resultado<T>>): Promise<Resultado<T>> {
   try {
-    return await fn();
+    const r = await fn();
+    // Si la acción generó alertas (stock bajo, diferencia de caja…), salen como notificación al celular.
+    programarDespacho();
+    return r;
   } catch (e) {
     if (e instanceof ErrorCandado) return fallo(MENSAJE_CANDADO);
     if (e instanceof ErrorAutorizacion) return fallo("No tienes permiso para esta acción");
