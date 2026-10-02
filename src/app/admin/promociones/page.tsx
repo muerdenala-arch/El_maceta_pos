@@ -2,7 +2,8 @@ import { asc, desc, eq } from "drizzle-orm";
 import type { Metadata } from "next";
 import { db } from "@/db";
 import { categorias, cupones, productos, promociones, sucursales } from "@/db/schema";
-import { requerirSesion } from "@/lib/auth/sesion";
+import { ZonaModulo } from "@/components/permisos/zona-modulo";
+import { requerirModulo } from "@/lib/auth/modulo-servidor";
 import { diaBolivia, hoyEnBolivia } from "@/lib/formato";
 import { listarProductosInventario } from "@/lib/inventario/consultas";
 import { listarSucursalesActivas } from "@/lib/sucursal-vista";
@@ -13,7 +14,7 @@ import { ListaPromociones } from "./lista-promociones";
 export const metadata: Metadata = { title: "Promociones y cupones" };
 
 export default async function PaginaPromociones(props: PageProps<"/admin/promociones">) {
-  await requerirSesion("admin");
+  const acceso = await requerirModulo("promociones");
   const vista = (await props.searchParams).vista === "cupones" ? "cupones" : "automaticos";
 
   const [filas, listaCupones, listaProductos, listaCategorias, listaSucursales] = await Promise.all([
@@ -62,6 +63,7 @@ export default async function PaginaPromociones(props: PageProps<"/admin/promoci
 
   if (vista === "cupones") {
     return (
+      <ZonaModulo soloLectura={acceso.soloLectura}>
       <ListaCupones
         hoy={hoy}
         cupones={listaCupones.map((c) => ({
@@ -89,10 +91,12 @@ export default async function PaginaPromociones(props: PageProps<"/admin/promoci
       >
         {pestanas}
       </ListaCupones>
+      </ZonaModulo>
     );
   }
 
   return (
+    <ZonaModulo soloLectura={acceso.soloLectura}>
     <ListaPromociones
       hoy={hoy}
       promociones={filas.map(({ fechaInicio, fechaFin, ...p }) => ({
@@ -108,5 +112,6 @@ export default async function PaginaPromociones(props: PageProps<"/admin/promoci
     >
       {pestanas}
     </ListaPromociones>
+    </ZonaModulo>
   );
 }

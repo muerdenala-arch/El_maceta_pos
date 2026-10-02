@@ -4,6 +4,7 @@ export const ACCIONES_SENSIBLES: Record<string, { titulo: string; grave?: boolea
   ajuste_stock: { titulo: "Ajuste de stock", grave: true },
   cambio_precio: { titulo: "Cambio de precio" },
   descuento_manual: { titulo: "Descuento manual" },
+  candado_encargado: { titulo: "Candado de un apartado (encargado)" },
   autorizacion_fallida: { titulo: "PIN de autorización incorrecto" },
   transferencia_recibida: { titulo: "Transferencia recibida" },
   venta_fraccionada_cambiada: { titulo: "Venta fraccionada activada o quitada" },

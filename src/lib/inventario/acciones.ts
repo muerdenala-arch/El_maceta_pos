@@ -7,6 +7,7 @@ import { alertas, detalleTransferencia, inventario, productos, sucursales, trans
 import { conPermiso, exito, fallo, falloValidacion, type Resultado } from "@/lib/acciones/resultado";
 import { registrarAuditoria } from "@/lib/auditoria";
 import { autorizar } from "@/lib/auth/sesion";
+import { autorizarAlguno, autorizarModulo, autorizarUbicacion, exigirSuSucursal } from "@/lib/auth/modulo-servidor";
 import { idPositivo } from "@/lib/validaciones/comunes";
 import {
   esquemaAjuste,
@@ -52,8 +53,9 @@ async function conStock(fn: () => Promise<Resultado>): Promise<Resultado> {
 export async function registrarIngreso(entrada: DatosIngreso): Promise<Resultado> {
   return conPermiso(() =>
     conStock(async () => {
-      const sesion = await autorizar("admin");
       const v = esquemaIngreso.safeParse(entrada);
+      // Sin sesión o con datos inválidos, primero el permiso (no se revela nada a quien no puede).
+      const sesion = v.success ? await autorizarUbicacion(v.data.ubicacionId) : await autorizarAlguno("inventario", "bodega");
       if (!v.success) return falloValidacion(v.error);
       const d = v.data;
       const destino = await ubicacionActiva(d.ubicacionId);
@@ -97,8 +99,8 @@ export async function registrarIngreso(entrada: DatosIngreso): Promise<Resultado
 export async function ajustarStock(entrada: DatosAjuste): Promise<Resultado> {
   return conPermiso(() =>
     conStock(async () => {
-      const sesion = await autorizar("admin");
       const v = esquemaAjuste.safeParse(entrada);
+      const sesion = v.success ? await autorizarUbicacion(v.data.ubicacionId) : await autorizarAlguno("inventario", "bodega");
       if (!v.success) return falloValidacion(v.error);
       const d = v.data;
       if (!(await ubicacionActiva(d.ubicacionId))) return fallo("Ubicación inválida o inactiva");
@@ -142,10 +144,16 @@ export async function ajustarStock(entrada: DatosAjuste): Promise<Resultado> {
 export async function crearTransferencia(entrada: DatosTransferencia): Promise<Resultado> {
   return conPermiso(() =>
     conStock(async () => {
-      const sesion = await autorizar("admin");
+      const sesion = await autorizarModulo("bodega");
       const v = esquemaTransferencia.safeParse(entrada);
       if (!v.success) return falloValidacion(v.error);
       const d = v.data;
+      // El encargado solo pide envíos de la bodega central hacia su sucursal.
+      if (sesion.rol !== "admin") {
+        exigirSuSucursal(sesion, d.destinoId);
+        const [o] = await db.select({ tipo: sucursales.tipo }).from(sucursales).where(eq(sucursales.id, d.origenId));
+        if (o?.tipo !== "bodega") return fallo("Revisa los datos marcados", { origenId: "Solo puedes enviar desde la bodega central" });
+      }
       const [origen, destino] = await Promise.all([ubicacionActiva(d.origenId), ubicacionActiva(d.destinoId)]);
       if (!origen) return fallo("Revisa los datos marcados", { origenId: "Origen inválido o inactivo" });
       if (!destino) return fallo("Revisa los datos marcados", { destinoId: "Destino inválido o inactivo" });
@@ -180,7 +188,7 @@ export async function crearTransferencia(entrada: DatosTransferencia): Promise<R
           await tx
             .update(alertas)
             .set({ resuelta: true, leida: true })
-            .where(and(eq(alertas.id, d.alertaId), eq(alertas.tipo, "solicitud_reposicion")));
+            .where(and(eq(alertas.id, d.alertaId), eq(alertas.tipo, "solicitud_reposicion"), eq(alertas.sucursalId, d.destinoId)));
         }
         return t.id;
       });
@@ -196,8 +204,9 @@ export async function crearTransferencia(entrada: DatosTransferencia): Promise<R
 async function cerrarTransferencia(entrada: { id: number }, accion: "recibir" | "cancelar"): Promise<Resultado> {
   return conPermiso(() =>
     conStock(async () => {
-      // Recibir: el administrador, o el encargado de la sucursal de destino. Cancelar: solo el administrador.
-      const sesion = accion === "recibir" ? await autorizar("admin", "encargado") : await autorizar("admin");
+      // Recibir: el administrador, o el encargado de la sucursal de destino.
+      // Cancelar: el administrador, o el encargado con el candado de Bodega abierto (solo las que van a su sucursal).
+      const sesion = accion === "recibir" ? await autorizar("admin", "encargado") : await autorizarModulo("bodega");
       const id = idPositivo.parse(entrada.id);
 
       const ok = await db.transaction(async (tx) => {
@@ -255,12 +264,13 @@ export async function cancelarTransferencia(entrada: { id: number }) {
 /** Marca como atendida una solicitud de reposición sin crear transferencia. */
 export async function resolverSolicitud(entrada: { id: number }): Promise<Resultado> {
   return conPermiso(async () => {
-    await autorizar("admin");
+    const sesion = await autorizarModulo("bodega");
     const id = idPositivo.parse(entrada.id);
     await db
       .update(alertas)
       .set({ resuelta: true, leida: true })
-      .where(and(eq(alertas.id, id), eq(alertas.tipo, "solicitud_reposicion")));
+      // El encargado, solo las solicitudes de su sucursal.
+      .where(and(eq(alertas.id, id), eq(alertas.tipo, "solicitud_reposicion"), sesion.rol === "admin" ? undefined : eq(alertas.sucursalId, sesion.sucursalId ?? -1)));
     refresh();
     return exito();
   });

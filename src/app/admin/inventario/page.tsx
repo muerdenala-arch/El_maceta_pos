@@ -2,7 +2,8 @@ import { Boxes } from "lucide-react";
 import type { Metadata } from "next";
 import { EncabezadoPagina } from "@/components/formularios/encabezado-pagina";
 import { Pestanas } from "@/components/inventario/pestanas";
-import { requerirSesion } from "@/lib/auth/sesion";
+import { ZonaModulo } from "@/components/permisos/zona-modulo";
+import { requerirModulo } from "@/lib/auth/modulo-servidor";
 import { fechaValida } from "@/lib/formato";
 import {
   listarMovimientos,
@@ -20,12 +21,16 @@ export const metadata: Metadata = { title: "Inventario" };
 const TIPOS = ["ingreso", "venta", "transferencia_salida", "transferencia_entrada", "ajuste", "anulacion"];
 
 export default async function PaginaInventario(props: PageProps<"/admin/inventario">) {
-  const sesion = await requerirSesion("admin");
+  const acceso = await requerirModulo("inventario");
+  const sesion = acceso.sesion;
   const sp = await props.searchParams;
   const texto = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : undefined);
   const vista = sp.vista === "movimientos" ? "movimientos" : "stock";
   const sucursalVista = await obtenerSucursalVista(sesion);
-  const ubicaciones = await listarUbicaciones();
+  const todas = await listarUbicaciones();
+  // El encargado: su sucursal y la bodega central (de donde se repone), nunca otra sucursal.
+  const ubicaciones = acceso.encargado ? todas.filter((u) => u.id === acceso.sucursalId || u.tipo === "bodega") : todas;
+  const permitida = (id: number) => (ubicaciones.some((u) => u.id === id) ? id : 0);
 
   const pestanas = (
     <Pestanas
@@ -39,7 +44,7 @@ export default async function PaginaInventario(props: PageProps<"/admin/inventar
 
   if (vista === "movimientos") {
     const filtros = {
-      ubicacionId: Number(sp.ubicacion) || sucursalVista || undefined,
+      ubicacionId: permitida(Number(sp.ubicacion)) || sucursalVista || undefined,
       tipo: TIPOS.includes(String(sp.tipo)) ? String(sp.tipo) : undefined,
       producto: texto(sp.producto)?.slice(0, 80),
       desde: fechaValida(sp.desde) ?? undefined,
@@ -48,20 +53,27 @@ export default async function PaginaInventario(props: PageProps<"/admin/inventar
     };
     const resultado = await listarMovimientos(filtros);
     return (
-      <div className="mx-auto max-w-7xl space-y-6">
-        <EncabezadoPagina icono={Boxes} titulo="Inventario" descripcion="Cada entrada y salida de mercadería, con quién y por qué" />
-        {pestanas}
-        <HistorialMovimientos ubicaciones={ubicaciones} filtros={filtros} {...resultado} />
-      </div>
+      <ZonaModulo soloLectura={acceso.soloLectura}>
+        <div className="mx-auto max-w-7xl space-y-6">
+          <EncabezadoPagina icono={Boxes} titulo="Inventario" descripcion="Cada entrada y salida de mercadería, con quién y por qué" />
+          {pestanas}
+          <HistorialMovimientos ubicaciones={ubicaciones} filtros={filtros} {...resultado} />
+        </div>
+      </ZonaModulo>
     );
   }
 
-  const [productos, stock, enCamino] = await Promise.all([listarProductosInventario(), mapaStock(), mapaEnCamino()]);
+  const [productos, stock, enCamino] = await Promise.all([
+    listarProductosInventario(),
+    mapaStock(acceso.encargado ? ubicaciones.map((u) => u.id) : undefined),
+    mapaEnCamino(acceso.sucursalId ?? undefined),
+  ]);
   const resaltar = Number(sp.resaltar) || null;
   // Desde una alerta: se muestra la sucursal de la alerta (y la bodega), sin cambiar "Viendo sucursal".
-  const sucursalFoco = Number(sp.sucursal) || sucursalVista;
+  const sucursalFoco = permitida(Number(sp.sucursal)) || sucursalVista;
 
   return (
+    <ZonaModulo soloLectura={acceso.soloLectura}>
     <div className="mx-auto max-w-7xl space-y-6">
       <TablaInventario
         ubicaciones={ubicaciones}
@@ -71,10 +83,11 @@ export default async function PaginaInventario(props: PageProps<"/admin/inventar
         stock={stock}
         enCamino={enCamino}
         resaltar={resaltar}
-        ubicacionResaltada={Number(sp.sucursal) || null}
+        ubicacionResaltada={permitida(Number(sp.sucursal)) || null}
       >
         {pestanas}
       </TablaInventario>
     </div>
+    </ZonaModulo>
   );
 }

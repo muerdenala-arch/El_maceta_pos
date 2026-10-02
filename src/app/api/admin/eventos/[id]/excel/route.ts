@@ -17,7 +17,7 @@ import { estadoTorneo } from "@/lib/eventos/torneo-datos";
 export async function GET(_req: Request, ctx: RouteContext<"/api/admin/eventos/[id]/excel">) {
   const sesion = await obtenerSesion();
   if (!sesion) return Response.json({ error: "Sesión vencida" }, { status: 401 });
-  if (sesion.rol !== "admin") return Response.json({ error: "Sin permiso" }, { status: 403 });
+  if (sesion.rol === "cajero") return Response.json({ error: "Sin permiso" }, { status: 403 });
 
   const id = Number((await ctx.params).id);
   const [tipo] = Number.isInteger(id) && id > 0 ? await db.select({ t: eventos.tipoJuego }).from(eventos).where(eq(eventos.id, id)) : [];

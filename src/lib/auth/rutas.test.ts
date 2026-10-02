@@ -43,27 +43,32 @@ describe("decidirAcceso", () => {
     expect(decidirAcceso("/api/admin/reportes", cajero)).toEqual({ tipo: "prohibido" });
   });
 
-  it("el encargado no entra a nada del administrador, ni escribiendo la URL ni llamando al API", () => {
-    for (const ruta of [
-      "/admin",
-      "/admin/dashboard",
-      "/admin/catalogo",
-      "/admin/personal",
-      "/admin/qr",
-      "/admin/promociones",
-      "/admin/combos",
-      "/admin/configuracion",
-      "/admin/sucursales",
-      "/admin/inventario",
-      "/admin/bodega",
-      "/admin/reportes",
-      "/admin/auditoria",
-      "/admin/eventos",
-    ]) {
-      expect(decidirAcceso(ruta, encargado)).toEqual({ tipo: "redirigir", destino: "/encargado/panel" });
+  it("el encargado no entra a lo que es solo del administrador, ni escribiendo la URL ni llamando al API", () => {
+    for (const ruta of ["/admin", "/admin/dashboard", "/admin/personal", "/admin/personal/3", "/admin/reportes", "/admin/gastos", "/admin/otra-cosa"]) {
+      expect(decidirAcceso(ruta, encargado), ruta).toEqual({ tipo: "redirigir", destino: "/encargado/panel" });
     }
     expect(decidirAcceso("/api/admin/exportar", encargado)).toEqual({ tipo: "prohibido" });
     expect(decidirAcceso("/api/admin/plantilla-productos", encargado)).toEqual({ tipo: "prohibido" });
+  });
+
+  it("el encargado entra a los apartados compartidos (el candado decide si puede cambiar algo); el cajero, a ninguno", () => {
+    for (const ruta of [
+      "/admin/catalogo",
+      "/admin/inventario",
+      "/admin/bodega",
+      "/admin/promociones",
+      "/admin/combos",
+      "/admin/eventos",
+      "/admin/eventos/reto-transformacion/1",
+      "/admin/qr",
+      "/admin/sucursales",
+      "/admin/auditoria",
+      "/admin/configuracion",
+      "/api/admin/eventos/1/excel",
+    ]) {
+      expect(decidirAcceso(ruta, encargado), ruta).toEqual({ tipo: "seguir" });
+      expect(decidirAcceso(ruta, cajero).tipo, ruta).not.toBe("seguir");
+    }
   });
 
   it("el encargado tiene sus pantallas y además las de caja; el cajero y el admin no entran a las del encargado", () => {

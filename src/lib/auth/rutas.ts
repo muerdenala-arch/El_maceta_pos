@@ -3,6 +3,7 @@
  * Es la primera barrera; cada página y cada acción del servidor vuelve a verificar la sesión.
  */
 import { ROLES_CAJA, type Rol } from "./constantes";
+import { moduloDeRuta } from "./modulos";
 
 export type Decision =
   | { tipo: "seguir" }
@@ -44,7 +45,10 @@ export function decidirAcceso(ruta: string, sesion: { rol: Rol } | null): Decisi
           ? ROLES_CAJA
           : null;
 
-  if (permitidos && !permitidos.includes(sesion.rol)) {
+  // El encargado entra además a los apartados del administrador que comparte (lib/auth/modulos.ts) y al Excel de eventos.
+  const compartida = sesion.rol === "encargado" && (moduloDeRuta(ruta) !== null || bajo(ruta, "/api/admin/eventos"));
+
+  if (permitidos && !permitidos.includes(sesion.rol) && !compartida) {
     return esApi ? { tipo: "prohibido" } : { tipo: "redirigir", destino: inicioSegunRol(sesion.rol) };
   }
   return { tipo: "seguir" };

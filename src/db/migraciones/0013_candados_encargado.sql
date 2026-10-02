@@ -1,0 +1,1 @@
+ALTER TABLE "configuracion" ADD COLUMN "encargado_modulos_abiertos" text[] DEFAULT '{}'::text[] NOT NULL;

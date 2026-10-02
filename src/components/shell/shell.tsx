@@ -16,7 +16,9 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { NOMBRES_ROL, type Rol } from "@/lib/auth/constantes";
-import { navAdmin, navCajero, navEncargado, navEncargadoInferior } from "./navegacion";
+import { moduloDeRuta, MODULOS_CON_CANDADO, type ModuloEncargado } from "@/lib/auth/modulos";
+import { BotonCandado, IndicadorCandado } from "./candado";
+import { navAdmin, navCajero, navEncargado, navEncargadoCompartido, navEncargadoInferior } from "./navegacion";
 import { SelectorSucursal } from "./selector-sucursal";
 
 export type PropsShell = {
@@ -28,6 +30,8 @@ export type PropsShell = {
   sucursalActual: number | null;
   /** Admin y encargado: contador de la campanita y numeritos por módulo del menú. */
   alertas?: { noLeidas: number; porModulo: Record<string, number> };
+  /** Apartados con el candado abierto para los encargados (el administrador los abre y cierra desde su menú). */
+  candados?: ModuloEncargado[];
   children: React.ReactNode;
 };
 
@@ -117,12 +121,18 @@ function ContenidoLateral({
   sucursales,
   sucursalActual,
   alertas,
+  candados = [],
   alNavegar,
 }: PropsShell & { alNavegar?: () => void }) {
   const router = useRouter();
   const pathname = usePathname();
-  const items = rol === "admin" ? navAdmin : rol === "encargado" ? navEncargado : navCajero;
+  const items = rol === "admin" ? navAdmin : rol === "encargado" ? [...navEncargado, ...navEncargadoCompartido] : navCajero;
   const activo = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
+  /** Apartado con candado al que corresponde un enlace del menú (null si no tiene). */
+  const conCandado = (href: string) => {
+    const m = moduloDeRuta(href);
+    return m && MODULOS_CON_CANDADO.includes(m) ? m : null;
+  };
 
   return (
     <div className="flex h-full flex-col">
@@ -159,9 +169,12 @@ function ContenidoLateral({
       </div>
 
       <nav className="flex-1 space-y-1 overflow-y-auto px-3 pb-3">
-        {items.map(({ href, titulo, icono: Icono }) => (
+        {items.map(({ href, titulo, icono: Icono }) => {
+          const modulo = rol === "cajero" ? null : conCandado(href);
+          const abierto = !!modulo && candados.includes(modulo);
+          return (
+          <div key={href} className="relative">
           <Link
-            key={href}
             href={href}
             // Saltar entre apartados del menú no apila pasos: atrás vuelve al inicio (navegación por niveles).
             replace={!esInicio(pathname)}
@@ -169,6 +182,7 @@ function ContenidoLateral({
             aria-current={activo(href) ? "page" : undefined}
             className={cn(
               "flex items-center gap-3.5 rounded-xl px-4 py-3 text-[15px] font-semibold transition-colors",
+              modulo && rol === "admin" && "pr-12",
               activo(href)
                 ? "bg-nav-activo text-nav-activo-foreground shadow-sm"
                 : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
@@ -184,8 +198,12 @@ function ContenidoLateral({
                 {alertas.porModulo[href]}
               </span>
             )}
+            {modulo && rol === "encargado" && <IndicadorCandado abierto={abierto} />}
           </Link>
-        ))}
+          {modulo && rol === "admin" && <BotonCandado modulo={modulo} titulo={titulo} abierto={abierto} />}
+          </div>
+          );
+        })}
       </nav>
 
       <div className="space-y-3 border-t border-sidebar-border p-4">

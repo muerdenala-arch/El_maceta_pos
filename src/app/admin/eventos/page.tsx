@@ -2,7 +2,8 @@ import { BicepsFlexed, ChevronRight, Scale, Trophy } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { EncabezadoPagina } from "@/components/formularios/encabezado-pagina";
-import { requerirSesion } from "@/lib/auth/sesion";
+import { ZonaModulo } from "@/components/permisos/zona-modulo";
+import { requerirModulo } from "@/lib/auth/modulo-servidor";
 import { conteoPorTipo } from "@/lib/eventos/consultas";
 import { TIPOS_JUEGO } from "@/lib/eventos/tipos";
 
@@ -12,10 +13,11 @@ const ICONOS = { Scale, Trophy, BicepsFlexed };
 
 /** Catálogo de tipos de juego del módulo Eventos (lib/eventos/tipos.ts). */
 export default async function PaginaEventos() {
-  await requerirSesion("admin");
+  const acceso = await requerirModulo("eventos");
   const conteo = await conteoPorTipo();
 
   return (
+    <ZonaModulo soloLectura={acceso.soloLectura}>
     <div className="mx-auto max-w-6xl space-y-6">
       <EncabezadoPagina icono={Trophy} titulo="Eventos" descripcion="Juegos y retos para tus clientes" />
       <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -46,5 +48,6 @@ export default async function PaginaEventos() {
         })}
       </ul>
     </div>
+    </ZonaModulo>
   );
 }

@@ -1,7 +1,7 @@
 # Guía rápida del encargado de sucursal — El Maseta
 
 El encargado hace **todo lo que hace un cajero** (ver `guia-cajero.md`) y además supervisa **su** sucursal.
-No ve otras sucursales, costos ni ganancias; no cambia precios, catálogo, personal, QR, cupones ni configuración.
+No ve otras sucursales, costos ni ganancias, ni maneja al personal.
 
 ## Entrar
 - Abre la app y escribe tu **PIN**. Llegas a **Inicio**: ventas del día, semana y mes de tu sucursal, cajas abiertas,
@@ -32,3 +32,10 @@ No ve otras sucursales, costos ni ganancias; no cambia precios, catálogo, perso
 - Solo se puede anular mientras **la caja de esa venta siga abierta**. Con la caja cerrada, lo hace el administrador.
 - Todo queda registrado con tu nombre. **No compartas tu PIN**: quien lo tenga autoriza en tu nombre.
 - 5 PIN incorrectos seguidos bloquean las autorizaciones de ese cajero por 15 minutos.
+
+## Apartados con candado
+- En tu menú también están **Catálogo, Inventario de sucursales, Bodega central, Promociones y cupones, Combos, Eventos,
+  QR de cobro, Sucursales, Auditoría de caja y Configuración**.
+- Los que tienen un **candado** son de solo consulta: puedes verlos, pero no cambiar nada. El administrador abre o cierra
+  el candado de cada apartado cuando lo necesite.
+- Con el candado abierto trabajas solo con tu sucursal (y la bodega central), y nunca ves ni cambias costos.

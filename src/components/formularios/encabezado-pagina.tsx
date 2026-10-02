@@ -1,6 +1,7 @@
 import type { LucideIcon } from "lucide-react";
+import { SoloEdicion } from "@/components/permisos/zona-modulo";
 
-/** Título de pantalla con ícono naranja, subtítulo y acciones a la derecha. */
+/** Título de pantalla con ícono naranja, subtítulo y acciones a la derecha (crear, guardar: no salen en un apartado con candado). */
 export function EncabezadoPagina({
   icono: Icono,
   titulo,
@@ -21,7 +22,11 @@ export function EncabezadoPagina({
         </h1>
         {descripcion && <p className="mt-1 text-muted-foreground">{descripcion}</p>}
       </div>
-      {children && <div className="flex flex-wrap items-center gap-2">{children}</div>}
+      {children && (
+        <SoloEdicion>
+          <div className="flex flex-wrap items-center gap-2">{children}</div>
+        </SoloEdicion>
+      )}
     </header>
   );
 }

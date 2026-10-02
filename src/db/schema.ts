@@ -525,6 +525,8 @@ export const configuracion = pgTable("configuracion", {
   descuentoManualMaximo: numeric("descuento_manual_maximo", { precision: 5, scale: 2 }).notNull().default("0"),
   /** Máximo que puede autorizar el encargado de la sucursal (con su PIN en la pantalla del cajero), en %. */
   descuentoManualMaximoEncargado: numeric("descuento_manual_maximo_encargado", { precision: 5, scale: 2 }).notNull().default("0"),
+  /** Apartados con el candado abierto para los encargados (lib/auth/modulos.ts). Vacío = todos en solo lectura. */
+  encargadoModulosAbiertos: text("encargado_modulos_abiertos").array().notNull().default(sql`'{}'::text[]`),
 });
 
 // ---------- Alertas y auditoría ----------

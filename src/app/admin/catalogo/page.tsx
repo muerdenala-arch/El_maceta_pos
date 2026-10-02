@@ -2,13 +2,14 @@ import { asc, eq, sql } from "drizzle-orm";
 import type { Metadata } from "next";
 import { db } from "@/db";
 import { categorias, productos } from "@/db/schema";
-import { requerirSesion } from "@/lib/auth/sesion";
+import { ZonaModulo } from "@/components/permisos/zona-modulo";
+import { requerirModulo } from "@/lib/auth/modulo-servidor";
 import { Catalogo } from "./catalogo";
 
 export const metadata: Metadata = { title: "Catálogo" };
 
 export default async function PaginaCatalogo() {
-  await requerirSesion("admin");
+  const acceso = await requerirModulo("catalogo");
 
   const [listaProductos, listaCategorias] = await Promise.all([
     db
@@ -45,5 +46,14 @@ export default async function PaginaCatalogo() {
       .orderBy(asc(categorias.nombre)),
   ]);
 
-  return <Catalogo productos={listaProductos} categorias={listaCategorias} />;
+  return (
+    <ZonaModulo soloLectura={acceso.soloLectura}>
+      {/* El encargado no ve costos: no viajan al navegador. */}
+      <Catalogo
+        sinCostos={acceso.encargado}
+        productos={acceso.encargado ? listaProductos.map((p) => ({ ...p, precioCosto: "0" })) : listaProductos}
+        categorias={listaCategorias}
+      />
+    </ZonaModulo>
+  );
 }

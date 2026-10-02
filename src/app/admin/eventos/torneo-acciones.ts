@@ -7,7 +7,7 @@ import { db } from "@/db";
 import { combates, eventos, participantesEvento, sucursales, torneos } from "@/db/schema";
 import { conPermiso, esViolacionUnica, exito, fallo, falloValidacion, type Resultado } from "@/lib/acciones/resultado";
 import { registrarAuditoria } from "@/lib/auditoria";
-import { autorizar } from "@/lib/auth/sesion";
+import { autorizarModulo } from "@/lib/auth/modulo-servidor";
 import { asaltosParaGanar, ErrorTorneo, reconstruir, torneoCompleto, type Suceso } from "@/lib/eventos/pulseada";
 import { autoresDe, cargarTorneo, guardarLlaves, llavesDe, type EstadoTorneo } from "@/lib/eventos/torneo-datos";
 import type { Tx } from "@/lib/inventario/stock";
@@ -59,7 +59,7 @@ async function rehacer(tx: Tx, t: EstadoTorneo, historia: Suceso[], autores: Map
 
 export async function crearTorneo(entrada: DatosTorneo): Promise<Resultado<{ id: number }>> {
   return conPermiso(async () => {
-    const sesion = await autorizar("admin");
+    const sesion = await autorizarModulo("eventos");
     const v = esquemaTorneo.safeParse(entrada);
     if (!v.success) return falloValidacion(v.error);
     const { formato, mejorDe, puntosVictoria, ...datos } = v.data;
@@ -88,7 +88,7 @@ export async function crearTorneo(entrada: DatosTorneo): Promise<Resultado<{ id:
 export async function sortearTorneo(entrada: { id: number }): Promise<Resultado> {
   return conPermiso(() =>
     conReglas(async () => {
-      const sesion = await autorizar("admin");
+      const sesion = await autorizarModulo("eventos");
       const id = idPositivo.parse(entrada.id);
       const n = await db.transaction(async (tx) => {
         const t = await torneoBloqueado(tx, id);
@@ -122,7 +122,7 @@ export async function sortearTorneo(entrada: { id: number }): Promise<Resultado>
 export async function finalizarTorneo(entrada: { id: number }): Promise<Resultado> {
   return conPermiso(() =>
     conReglas(async () => {
-      const sesion = await autorizar("admin");
+      const sesion = await autorizarModulo("eventos");
       const id = idPositivo.parse(entrada.id);
       await db.transaction(async (tx) => {
         const t = await torneoBloqueado(tx, id);
@@ -142,7 +142,7 @@ export async function finalizarTorneo(entrada: { id: number }): Promise<Resultad
 export async function inscribirCompetidor(entrada: DatosCompetidor): Promise<Resultado<{ id: number }>> {
   return conPermiso(() =>
     conReglas(async () => {
-      const sesion = await autorizar("admin");
+      const sesion = await autorizarModulo("eventos");
       const v = esquemaCompetidor.safeParse(entrada);
       if (!v.success) return falloValidacion(v.error);
       try {
@@ -169,7 +169,7 @@ export async function inscribirCompetidor(entrada: DatosCompetidor): Promise<Res
 export async function editarCompetidor(entrada: DatosEditarCompetidor): Promise<Resultado> {
   return conPermiso(() =>
     conReglas(async () => {
-      const sesion = await autorizar("admin");
+      const sesion = await autorizarModulo("eventos");
       const v = esquemaEditarCompetidor.safeParse(entrada);
       if (!v.success) return falloValidacion(v.error);
       const { id, ...datos } = v.data;
@@ -200,7 +200,7 @@ export async function editarCompetidor(entrada: DatosEditarCompetidor): Promise<
 export async function darDeBajaCompetidor(entrada: DatosBaja): Promise<Resultado> {
   return conPermiso(() =>
     conReglas(async () => {
-      const sesion = await autorizar("admin");
+      const sesion = await autorizarModulo("eventos");
       const v = esquemaBaja.safeParse(entrada);
       if (!v.success) return falloValidacion(v.error);
       const p = await db.transaction(async (tx) => {
@@ -243,7 +243,7 @@ async function combateDelTorneo(tx: Tx, combateId: number) {
 export async function registrarCombate(entrada: DatosCombate): Promise<Resultado> {
   return conPermiso(() =>
     conReglas(async () => {
-      const sesion = await autorizar("admin");
+      const sesion = await autorizarModulo("eventos");
       const v = esquemaCombate.safeParse(entrada);
       if (!v.success) return falloValidacion(v.error);
       const d = v.data;
@@ -268,7 +268,7 @@ export async function registrarCombate(entrada: DatosCombate): Promise<Resultado
 export async function registrarAusencia(entrada: DatosAusencia): Promise<Resultado> {
   return conPermiso(() =>
     conReglas(async () => {
-      const sesion = await autorizar("admin");
+      const sesion = await autorizarModulo("eventos");
       const v = esquemaAusencia.safeParse(entrada);
       if (!v.success) return falloValidacion(v.error);
       const r = await db.transaction(async (tx) => {
@@ -295,7 +295,7 @@ export async function registrarAusencia(entrada: DatosAusencia): Promise<Resulta
 export async function corregirCombate(entrada: DatosCorreccionCombate): Promise<Resultado> {
   return conPermiso(() =>
     conReglas(async () => {
-      const sesion = await autorizar("admin");
+      const sesion = await autorizarModulo("eventos");
       const v = esquemaCorreccionCombate.safeParse(entrada);
       if (!v.success) return falloValidacion(v.error);
       const { motivo, ...d } = v.data;

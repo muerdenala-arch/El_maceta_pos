@@ -5,20 +5,23 @@ import { db } from "@/db";
 import { configuracion } from "@/db/schema";
 import { conPermiso, exito, falloValidacion, type Resultado } from "@/lib/acciones/resultado";
 import { registrarAuditoria } from "@/lib/auditoria";
-import { autorizar } from "@/lib/auth/sesion";
+import { autorizarModulo } from "@/lib/auth/modulo-servidor";
 import { esquemaConfiguracion, type DatosConfiguracion } from "@/lib/validaciones/admin";
 
 export async function guardarConfiguracion(entrada: DatosConfiguracion): Promise<Resultado> {
   return conPermiso(async () => {
-    const sesion = await autorizar("admin");
+    const sesion = await autorizarModulo("configuracion");
     const validado = esquemaConfiguracion.safeParse(entrada);
     if (!validado.success) return falloValidacion(validado.error);
 
+    // El encargado no cambia los máximos de descuento (el suyo incluido): se conservan los que hay.
+    const { descuentoManualMaximo, descuentoManualMaximoEncargado, ...comunes } = validado.data;
+    const datos = sesion.rol === "admin" ? { ...comunes, descuentoManualMaximo, descuentoManualMaximoEncargado } : comunes;
     await db
       .insert(configuracion)
-      .values({ id: 1, ...validado.data })
-      .onConflictDoUpdate({ target: configuracion.id, set: validado.data });
-    await registrarAuditoria("configuracion_editada", { usuarioId: sesion.uid, detalle: validado.data });
+      .values({ id: 1, ...datos })
+      .onConflictDoUpdate({ target: configuracion.id, set: datos });
+    await registrarAuditoria("configuracion_editada", { usuarioId: sesion.uid, detalle: { ...datos, rol: sesion.rol } });
     refresh();
     return exito();
   });

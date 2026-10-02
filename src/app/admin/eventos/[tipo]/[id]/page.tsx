@@ -6,7 +6,8 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { configuracion } from "@/db/schema";
 import { Pestanas } from "@/components/inventario/pestanas";
-import { requerirSesion } from "@/lib/auth/sesion";
+import { ZonaModulo } from "@/components/permisos/zona-modulo";
+import { requerirModulo } from "@/lib/auth/modulo-servidor";
 import { obtenerEvento, participantesDe, pesajesDe } from "@/lib/eventos/consultas";
 import { juegoPorSlug } from "@/lib/eventos/tipos";
 import { hoyEnBolivia } from "@/lib/formato";
@@ -22,7 +23,7 @@ const VISTAS = ["participantes", "pesajes", "posiciones"] as const;
 
 /** Detalle de un evento: Reto Transformación (aquí) o Torneo de Pulseada (./torneo/pagina-torneo.tsx). */
 export default async function PaginaReto(props: PageProps<"/admin/eventos/[tipo]/[id]">) {
-  await requerirSesion("admin");
+  const { soloLectura } = await requerirModulo("eventos");
   const { tipo, id } = await props.params;
   const juego = juegoPorSlug(tipo);
   const eventoId = Number(id);
@@ -33,7 +34,13 @@ export default async function PaginaReto(props: PageProps<"/admin/eventos/[tipo]
     .from(configuracion)
     .where(eq(configuracion.id, 1));
   const negocio = datosNegocio ?? { nombre: "El Maseta", logoUrl: null, nit: null, codigoPais: "591" };
-  if (juego.tipo === "torneo_pulseada") return <PaginaTorneo juego={juego} eventoId={eventoId} vista={sp.vista} negocio={negocio} />;
+  if (juego.tipo === "torneo_pulseada") {
+    return (
+      <ZonaModulo soloLectura={soloLectura}>
+        <PaginaTorneo juego={juego} eventoId={eventoId} vista={sp.vista} negocio={negocio} />
+      </ZonaModulo>
+    );
+  }
 
   const [evento, participantes, pesajes] = await Promise.all([obtenerEvento(eventoId, juego.tipo), participantesDe(eventoId), pesajesDe(eventoId)]);
   if (!evento) notFound();
@@ -43,6 +50,7 @@ export default async function PaginaReto(props: PageProps<"/admin/eventos/[tipo]
   const datos = { evento, participantes, pesajes, hoy: hoyEnBolivia(), negocio };
 
   return (
+    <ZonaModulo soloLectura={soloLectura}>
     <div className="mx-auto max-w-5xl space-y-6">
       <Link href={`/admin/eventos/${juego.slug}`} className="inline-flex items-center gap-1.5 text-sm font-semibold text-muted-foreground hover:text-foreground">
         <ArrowLeft className="size-4" /> {juego.titulo}
@@ -60,5 +68,6 @@ export default async function PaginaReto(props: PageProps<"/admin/eventos/[tipo]
       {vista === "pesajes" && <PestanaPesajes {...datos} />}
       {vista === "posiciones" && <PestanaPosiciones {...datos} />}
     </div>
+    </ZonaModulo>
   );
 }

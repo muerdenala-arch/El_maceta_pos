@@ -5,7 +5,7 @@ import { db } from "@/db";
 import { auditoria, productos, sucursales, usuarios } from "@/db/schema";
 import { EncabezadoPagina } from "@/components/formularios/encabezado-pagina";
 import { Pestanas } from "@/components/inventario/pestanas";
-import { requerirSesion } from "@/lib/auth/sesion";
+import { requerirModulo } from "@/lib/auth/modulo-servidor";
 import { listarCajasAuditadas } from "@/lib/caja/auditadas";
 import { fechaValida, hoyEnBolivia, ZONA_HORARIA } from "@/lib/formato";
 import { obtenerSucursalVista } from "@/lib/sucursal-vista";
@@ -19,16 +19,17 @@ export const metadata: Metadata = { title: "Auditoría" };
 const POR_PAGINA = 50;
 
 export default async function PaginaAuditoria(props: PageProps<"/admin/auditoria">) {
-  const sesion = await requerirSesion("admin");
+  const { sesion, encargado } = await requerirModulo("auditoria");
   const sp = await props.searchParams;
-  const vista = sp.vista === "acciones" ? "acciones" : "cajas";
+  // Las acciones sensibles (precios, personal…) son solo del administrador.
+  const vista = sp.vista === "acciones" && !encargado ? "acciones" : "cajas";
   const hoy = hoyEnBolivia();
   const hasta = fechaValida(sp.hasta) ?? hoy;
   const desde = fechaValida(sp.desde) ?? new Date(Date.parse(`${hasta}T12:00:00Z`) - 6 * 86_400_000).toISOString().slice(0, 10);
   const rango = (columna: Parameters<typeof gte>[0]) =>
     and(gte(columna, sql`(${desde}::date at time zone ${ZONA_HORARIA})`), lt(columna, sql`((${hasta}::date + 1) at time zone ${ZONA_HORARIA})`));
 
-  const pestanas = (
+  const pestanas = encargado ? null : (
     <Pestanas
       actual={vista}
       opciones={[

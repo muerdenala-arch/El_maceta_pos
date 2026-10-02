@@ -1,6 +1,6 @@
 import "server-only";
 import type { z } from "zod";
-import { ErrorAutorizacion } from "@/lib/auth/sesion";
+import { ErrorAutorizacion, ErrorCandado } from "@/lib/auth/sesion";
 
 /** Respuesta estándar de las server actions de formularios. */
 export type Resultado<T = undefined> =
@@ -36,11 +36,14 @@ export function esViolacionUnica(e: unknown, restriccion?: string): boolean {
   return false;
 }
 
+export const MENSAJE_CANDADO = "Este apartado tiene candado: solo el administrador puede hacer cambios";
+
 /** Envuelve una acción: los errores de permiso se devuelven como resultado en vez de romper la pantalla. */
 export async function conPermiso<T>(fn: () => Promise<Resultado<T>>): Promise<Resultado<T>> {
   try {
     return await fn();
   } catch (e) {
+    if (e instanceof ErrorCandado) return fallo(MENSAJE_CANDADO);
     if (e instanceof ErrorAutorizacion) return fallo("No tienes permiso para esta acción");
     throw e;
   }

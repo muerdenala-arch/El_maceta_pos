@@ -43,6 +43,8 @@ export async function requerirSesion(...roles: Rol[]): Promise<Sesion> {
 }
 
 export class ErrorAutorizacion extends Error {}
+/** El apartado tiene el candado cerrado para el encargado (lib/auth/modulo-servidor.ts). */
+export class ErrorCandado extends ErrorAutorizacion {}
 
 /** Para server actions y route handlers: lanza error si no hay sesión o el rol no corresponde. */
 export async function autorizar(...roles: Rol[]): Promise<Sesion> {

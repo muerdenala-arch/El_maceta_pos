@@ -8,6 +8,7 @@ import {
   Wallet,
   LayoutDashboard,
   Package,
+  PackageSearch,
   QrCode,
   ReceiptText,
   ScrollText,
@@ -58,9 +59,8 @@ export const navEncargado: ItemNav[] = [
   { href: "/cajero/venta", titulo: "Venta", icono: ShoppingCart, fase: 4 },
   { href: "/encargado/reportes", titulo: "Reportes de venta", icono: BarChart3, fase: 13 },
   { href: "/encargado/gastos", titulo: "Gastos de la sucursal", icono: ReceiptText, fase: 13 },
-  { href: "/cajero/bodega", titulo: "Inventario", icono: Boxes, fase: 3 },
+  { href: "/cajero/bodega", titulo: "Stock y pedidos", icono: PackageSearch, fase: 3 },
   { href: "/encargado/transferencias", titulo: "Transferencias", icono: Truck, fase: 13 },
-  { href: "/encargado/cajas", titulo: "Cajas", icono: Wallet, fase: 13 },
   { href: "/cajero/gastos", titulo: "Registrar gasto", icono: HandCoins, fase: 4 },
   { href: "/cajero/cierre", titulo: "Cierre de caja", icono: ClipboardCheck, fase: 4 },
 ];
@@ -69,6 +69,14 @@ export const navEncargado: ItemNav[] = [
 export const navEncargadoInferior: ItemNav[] = [
   { href: "/encargado/panel", titulo: "Inicio", icono: LayoutDashboard, fase: 13 },
   { href: "/cajero/venta", titulo: "Venta", icono: ShoppingCart, fase: 4 },
-  { href: "/cajero/bodega", titulo: "Inventario", icono: Boxes, fase: 3 },
-  { href: "/encargado/cajas", titulo: "Cajas", icono: Wallet, fase: 13 },
+  { href: "/cajero/bodega", titulo: "Stock", icono: PackageSearch, fase: 3 },
+  { href: "/admin/auditoria", titulo: "Cajas", icono: Wallet, fase: 13 },
 ];
+
+/**
+ * Apartados del administrador que también usa el encargado (lib/auth/modulos.ts): se agregan a su menú. Cada uno
+ * tiene un candado que abre o cierra el administrador (cerrado = el encargado lo ve en solo lectura).
+ */
+export const navEncargadoCompartido: ItemNav[] = navAdmin.filter((i) =>
+  ["catalogo", "inventario", "bodega", "promociones", "combos", "eventos", "qr", "sucursales", "auditoria", "configuracion"].includes(i.href.split("/")[2]),
+);

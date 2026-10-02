@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { requerirSesion } from "@/lib/auth/sesion";
+import { ZonaModulo } from "@/components/permisos/zona-modulo";
+import { requerirModulo } from "@/lib/auth/modulo-servidor";
 import { listarEventos, listarTorneos } from "@/lib/eventos/consultas";
 import { juegoPorSlug } from "@/lib/eventos/tipos";
 import { hoyEnBolivia } from "@/lib/formato";
@@ -14,13 +15,21 @@ export async function generateMetadata(props: PageProps<"/admin/eventos/[tipo]">
 
 /** Eventos de un tipo de juego (Reto Transformación o Torneo de Pulseada) y alta de uno nuevo. */
 export default async function PaginaTipoEvento(props: PageProps<"/admin/eventos/[tipo]">) {
-  await requerirSesion("admin");
+  const { soloLectura } = await requerirModulo("eventos");
   const juego = juegoPorSlug((await props.params).tipo);
   if (!juego) notFound();
   if (juego.tipo === "torneo_pulseada") {
     const [lista, sucursales] = await Promise.all([listarTorneos(), listarSucursalesActivas()]);
-    return <ListaTorneos juego={juego} torneos={lista} sucursales={sucursales} hoy={hoyEnBolivia()} />;
+    return (
+      <ZonaModulo soloLectura={soloLectura}>
+        <ListaTorneos juego={juego} torneos={lista} sucursales={sucursales} hoy={hoyEnBolivia()} />
+      </ZonaModulo>
+    );
   }
   const [lista, sucursales] = await Promise.all([listarEventos(juego.tipo), listarSucursalesActivas()]);
-  return <ListaRetos juego={juego} retos={lista} sucursales={sucursales} hoy={hoyEnBolivia()} />;
+  return (
+    <ZonaModulo soloLectura={soloLectura}>
+      <ListaRetos juego={juego} retos={lista} sucursales={sucursales} hoy={hoyEnBolivia()} />
+    </ZonaModulo>
+  );
 }

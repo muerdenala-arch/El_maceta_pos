@@ -14,6 +14,7 @@ import {
 } from "@/lib/acciones/resultado";
 import { registrarAuditoria } from "@/lib/auditoria";
 import { autorizar } from "@/lib/auth/sesion";
+import { autorizarModulo } from "@/lib/auth/modulo-servidor";
 import { aCentavos } from "@/lib/dinero";
 import { idPositivo } from "@/lib/validaciones/comunes";
 import { esquemaCategoria, esquemaProducto, type DatosProducto } from "@/lib/validaciones/admin";
@@ -35,10 +36,13 @@ async function categoriaExiste(id: number | null) {
 /** Crea o edita un producto. Los productos no se borran (tienen historial de ventas): se desactivan. */
 export async function guardarProducto(entrada: DatosProducto & { id?: number }): Promise<Resultado> {
   return conPermiso(async () => {
-    const sesion = await autorizar("admin");
+    const sesion = await autorizarModulo("catalogo");
     const validado = esquemaProducto.safeParse(entrada);
     if (!validado.success) return falloValidacion(validado.error);
     const datos = validado.data;
+    // El encargado no ve ni cambia costos: un producto nuevo queda con costo 0 y al editar se conserva el que tenía.
+    const sinCostos = sesion.rol !== "admin";
+    if (sinCostos) datos.precioCosto = "0";
     if (!(await categoriaExiste(datos.categoriaId))) {
       return fallo("Revisa los datos marcados", { categoriaId: "La categoría ya no existe" });
     }
@@ -48,12 +52,13 @@ export async function guardarProducto(entrada: DatosProducto & { id?: number }):
         const [nuevo] = await db.insert(productos).values(datos).returning({ id: productos.id });
         await registrarAuditoria("producto_creado", {
           usuarioId: sesion.uid,
-          detalle: { id: nuevo.id, nombre: datos.nombre, precioVenta: datos.precioVenta, precioCosto: datos.precioCosto },
+          detalle: { id: nuevo.id, nombre: datos.nombre, precioVenta: datos.precioVenta, precioCosto: datos.precioCosto, rol: sesion.rol },
         });
       } else {
         const id = idPositivo.parse(entrada.id);
         const [antes] = await db.select().from(productos).where(eq(productos.id, id));
         if (!antes) return fallo("El producto ya no existe");
+        if (sinCostos) datos.precioCosto = antes.precioCosto;
         // Activar o quitar la venta fraccionada cambia la unidad del stock: todo o nada.
         const conversion = await db.transaction(async (tx) => {
           await tx.update(productos).set(datos).where(eq(productos.id, id));
@@ -103,7 +108,7 @@ export async function guardarProducto(entrada: DatosProducto & { id?: number }):
 
 export async function guardarCategoria(entrada: { id?: number; nombre: string }): Promise<Resultado<{ id: number }>> {
   return conPermiso(async () => {
-    await autorizar("admin");
+    await autorizarModulo("catalogo");
     const validado = esquemaCategoria.safeParse(entrada);
     if (!validado.success) return falloValidacion(validado.error);
     try {
@@ -125,7 +130,7 @@ export async function guardarCategoria(entrada: { id?: number; nombre: string })
 
 export async function eliminarCategoria(entrada: { id: number }): Promise<Resultado> {
   return conPermiso(async () => {
-    await autorizar("admin");
+    await autorizarModulo("catalogo");
     const id = idPositivo.parse(entrada.id);
     const [{ total }] = await db
       .select({ total: sql<number>`count(*)::int` })

@@ -2,13 +2,14 @@ import { asc, eq, sql } from "drizzle-orm";
 import type { Metadata } from "next";
 import { db } from "@/db";
 import { sucursales, usuarios } from "@/db/schema";
-import { requerirSesion } from "@/lib/auth/sesion";
+import { ZonaModulo } from "@/components/permisos/zona-modulo";
+import { requerirModulo } from "@/lib/auth/modulo-servidor";
 import { ListaSucursales } from "./lista-sucursales";
 
 export const metadata: Metadata = { title: "Sucursales" };
 
 export default async function PaginaSucursales() {
-  await requerirSesion("admin");
+  const acceso = await requerirModulo("sucursales");
 
   const filas = await db
     .select({
@@ -27,5 +28,10 @@ export default async function PaginaSucursales() {
     .groupBy(sucursales.id)
     .orderBy(sql`${sucursales.tipo} = 'sucursal'`, asc(sucursales.id));
 
-  return <ListaSucursales sucursales={filas} />;
+  return (
+    <ZonaModulo soloLectura={acceso.soloLectura}>
+      {/* El encargado: solo su sucursal (edita sus datos; no crea ni desactiva). */}
+      <ListaSucursales soloLaSuya={acceso.encargado} sucursales={acceso.encargado ? filas.filter((s) => s.id === acceso.sucursalId) : filas} />
+    </ZonaModulo>
+  );
 }

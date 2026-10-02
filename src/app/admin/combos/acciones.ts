@@ -6,14 +6,14 @@ import { db } from "@/db";
 import { comboItems, combos, productos } from "@/db/schema";
 import { conPermiso, exito, fallo, falloValidacion, type Resultado } from "@/lib/acciones/resultado";
 import { registrarAuditoria } from "@/lib/auditoria";
-import { autorizar } from "@/lib/auth/sesion";
+import { autorizarModulo } from "@/lib/auth/modulo-servidor";
 import { esquemaCombo, type DatosCombo } from "@/lib/validaciones/combos";
 import { idPositivo } from "@/lib/validaciones/comunes";
 
 /** Crea o edita un combo con sus productos (los productos se reemplazan completos). Solo administrador. */
 export async function guardarCombo(entrada: DatosCombo & { id?: number }): Promise<Resultado<{ id: number }>> {
   return conPermiso(async () => {
-    const sesion = await autorizar("admin");
+    const sesion = await autorizarModulo("combos");
     const v = esquemaCombo.safeParse(entrada);
     if (!v.success) return falloValidacion(v.error);
     const { items, ...datos } = v.data;
@@ -58,7 +58,7 @@ export async function guardarCombo(entrada: DatosCombo & { id?: number }): Promi
 /** Activa o desactiva un combo (los combos no se borran: quedan en el historial de ventas). */
 export async function cambiarEstadoCombo(entrada: { id: number; activo: boolean }): Promise<Resultado> {
   return conPermiso(async () => {
-    const sesion = await autorizar("admin");
+    const sesion = await autorizarModulo("combos");
     const id = idPositivo.parse(entrada.id);
     const activo = entrada.activo === true;
     const [combo] = await db.update(combos).set({ activo }).where(eq(combos.id, id)).returning({ nombre: combos.nombre });

@@ -53,6 +53,7 @@ export type AccionAuditoria =
   | "combo_editado"
   // Rol Encargado
   | "autorizacion_fallida"
+  | "candado_encargado"
   // Módulo Eventos
   | "evento_creado"
   | "evento_iniciado"

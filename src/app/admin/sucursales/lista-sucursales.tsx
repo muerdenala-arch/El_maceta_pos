@@ -33,7 +33,7 @@ const NOMBRES_IMPRESION = { "58mm": "Térmica 58 mm", "80mm": "Térmica 80 mm", 
 
 const VACIO: DatosSucursal = { nombre: "", direccion: "", telefono: "", encargado: "", tamanoImpresion: "80mm" };
 
-export function ListaSucursales({ sucursales }: { sucursales: Sucursal[] }) {
+export function ListaSucursales({ sucursales, soloLaSuya = false }: { sucursales: Sucursal[]; /** Encargado: edita los datos de su sucursal; no crea ni desactiva. */ soloLaSuya?: boolean }) {
   const [editando, setEditando] = useState<Sucursal | "nueva" | null>(null);
   const cambiarEstado = useAccion(cambiarEstadoSucursal);
   const [busqueda, setBusqueda] = useState("");
@@ -41,14 +41,16 @@ export function ListaSucursales({ sucursales }: { sucursales: Sucursal[] }) {
 
   return (
     <div className="mx-auto max-w-6xl">
-      <EncabezadoPagina icono={Store} titulo="Sucursales" descripcion="Puntos de venta y bodega central">
-        <Button size="lg" className="rounded-full font-bold" onClick={() => setEditando("nueva")}>
-          <Plus className="size-5" />
-          Nueva sucursal
-        </Button>
+      <EncabezadoPagina icono={Store} titulo={soloLaSuya ? "Tu sucursal" : "Sucursales"} descripcion={soloLaSuya ? "Datos que salen en el comprobante y tamaño de impresión" : "Puntos de venta y bodega central"}>
+        {!soloLaSuya && (
+          <Button size="lg" className="rounded-full font-bold" onClick={() => setEditando("nueva")}>
+            <Plus className="size-5" />
+            Nueva sucursal
+          </Button>
+        )}
       </EncabezadoPagina>
 
-      <Buscador className="mt-6" valor={busqueda} onCambiar={setBusqueda} etiqueta="Buscar sucursales" placeholder="Nombre, dirección, teléfono o encargado" />
+      <Buscador className={cn("mt-6", soloLaSuya && "hidden")} valor={busqueda} onCambiar={setBusqueda} etiqueta="Buscar sucursales" placeholder="Nombre, dirección, teléfono o encargado" />
       {visibles.length === 0 && <SinResultados className="mt-5" consulta={busqueda} onLimpiar={() => setBusqueda("")} />}
       <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {visibles.map((s) => (
@@ -91,7 +93,7 @@ export function ListaSucursales({ sucursales }: { sucursales: Sucursal[] }) {
               )}
             </ul>
 
-            {s.tipo === "sucursal" && (
+            {s.tipo === "sucursal" && !soloLaSuya && (
               <label className="mt-5 flex items-center justify-between gap-3 border-t pt-4 text-sm font-semibold">
                 {s.activo ? "Activa" : "Inactiva"}
                 <Switch

@@ -13,14 +13,14 @@ import {
   type Resultado,
 } from "@/lib/acciones/resultado";
 import { registrarAuditoria } from "@/lib/auditoria";
-import { autorizar } from "@/lib/auth/sesion";
+import { autorizarModulo } from "@/lib/auth/modulo-servidor";
 import { inicioDiaBolivia } from "@/lib/formato";
 import { idPositivo } from "@/lib/validaciones/comunes";
 import { esquemaCupon, esquemaPromocion, type DatosCupon, type DatosPromocion } from "@/lib/validaciones/promociones";
 
 export async function guardarPromocion(entrada: DatosPromocion & { id?: number }): Promise<Resultado> {
   return conPermiso(async () => {
-    const sesion = await autorizar("admin");
+    const sesion = await autorizarModulo("promociones");
     const v = esquemaPromocion.safeParse(entrada);
     if (!v.success) return falloValidacion(v.error);
     const { desde, hasta, ...d } = v.data;
@@ -64,7 +64,7 @@ export async function guardarPromocion(entrada: DatosPromocion & { id?: number }
 /** Crea o edita un cupón (código único). Solo administrador. */
 export async function guardarCupon(entrada: DatosCupon & { id?: number }): Promise<Resultado> {
   return conPermiso(async () => {
-    const sesion = await autorizar("admin");
+    const sesion = await autorizarModulo("promociones");
     const v = esquemaCupon.safeParse(entrada);
     if (!v.success) return falloValidacion(v.error);
     const d = v.data;
@@ -98,7 +98,7 @@ export async function guardarCupon(entrada: DatosCupon & { id?: number }): Promi
 /** Activa o desactiva un cupón sin tocar el resto. */
 export async function cambiarEstadoCupon(entrada: { id: number; activo: boolean }): Promise<Resultado> {
   return conPermiso(async () => {
-    const sesion = await autorizar("admin");
+    const sesion = await autorizarModulo("promociones");
     const id = idPositivo.parse(entrada.id);
     const activo = entrada.activo === true;
     const [c] = await db.update(cupones).set({ activo }).where(eq(cupones.id, id)).returning({ codigo: cupones.codigo });
@@ -112,7 +112,7 @@ export async function cambiarEstadoCupon(entrada: { id: number; activo: boolean 
 /** Solo se eliminan cupones sin usar (los usados quedan como historial de las ventas). */
 export async function eliminarCupon(entrada: { id: number }): Promise<Resultado> {
   return conPermiso(async () => {
-    const sesion = await autorizar("admin");
+    const sesion = await autorizarModulo("promociones");
     const id = idPositivo.parse(entrada.id);
     const [c] = await db.select().from(cupones).where(eq(cupones.id, id));
     if (!c) return fallo("El cupón ya no existe");

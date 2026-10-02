@@ -14,6 +14,7 @@ import { GET as exportar } from "@/app/api/admin/exportar/route";
 import { POST as sincronizar } from "@/app/api/sync/route";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
+import { MENSAJE_CANDADO } from "@/lib/acciones/resultado";
 import { ErrorAutorizacion } from "@/lib/auth/sesion";
 import { comoUsuario, prepararBase, type Base } from "./base";
 
@@ -45,6 +46,7 @@ const PERMITIDOS: Record<string, Rol[] | "publica"> = {
   guardarSucursal: ["admin"],
   cambiarEstadoSucursal: ["admin"],
   cambiarSucursalVista: ["admin"],
+  cambiarCandado: ["admin"],
   // Campanita: el encargado solo ve y marca las de stock de su sucursal (encargado.integracion.test.ts)
   obtenerAlertas: ["admin", "encargado"],
   marcarAlertaLeida: ["admin", "encargado"],
@@ -135,7 +137,8 @@ beforeAll(async () => {
 async function rechazada(fn: (...a: unknown[]) => Promise<unknown>, arg: unknown) {
   try {
     const r = (await fn(arg)) as { ok?: boolean; error?: string } | undefined;
-    return r?.ok === false && r.error === "No tienes permiso para esta acción";
+    // "Candado": apartado compartido que el encargado tiene en solo lectura (por defecto, todos).
+    return r?.ok === false && (r.error === "No tienes permiso para esta acción" || r.error === MENSAJE_CANDADO);
   } catch (e) {
     return e instanceof ErrorAutorizacion;
   }
@@ -159,7 +162,7 @@ describe("server actions", () => {
     expect(await conteos()).toEqual(antes);
   });
 
-  it("el encargado no tiene ninguna acción de catálogo, precios, personal, QR, cupones, configuración ni eventos", () => {
+  it("sin abrir candados, el encargado no tiene ninguna acción de catálogo, precios, personal, QR, cupones, configuración ni eventos", () => {
     const delEncargado = Object.entries(PERMITIDOS)
       .filter(([, roles]) => roles !== "publica" && roles.includes("encargado"))
       .map(([n]) => n)

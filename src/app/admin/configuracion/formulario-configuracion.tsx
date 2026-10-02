@@ -25,7 +25,7 @@ function mensajeEjemplo(plantilla: string, negocio: string) {
     .replaceAll("{total}", "Bs 350,00");
 }
 
-export function FormularioConfiguracion({ inicial }: { inicial: Datos }) {
+export function FormularioConfiguracion({ inicial, sinDescuentos = false }: { inicial: Datos; /** Encargado: los máximos de descuento son solo del administrador. */ sinDescuentos?: boolean }) {
   const [d, setD] = useState<Datos>(inicial);
   const guardar = useAccion(guardarConfiguracion, { mensajeExito: "Configuración guardada" });
   const poner = <K extends keyof Datos>(campo: K, valor: Datos[K]) => {
@@ -143,6 +143,7 @@ export function FormularioConfiguracion({ inicial }: { inicial: Datos }) {
             </Campo>
           </section>
 
+          {!sinDescuentos && (
           <section className="space-y-4 rounded-3xl border bg-card p-5 shadow-sm sm:p-6">
             <h2 className="text-lg font-extrabold">Descuento manual</h2>
             <Campo
@@ -182,6 +183,7 @@ export function FormularioConfiguracion({ inicial }: { inicial: Datos }) {
               )}
             </Campo>
           </section>
+          )}
         </div>
 
         <aside className="space-y-4 lg:sticky lg:top-8 lg:self-start">

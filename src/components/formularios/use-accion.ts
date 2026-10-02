@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
+import { useSoloLectura } from "@/components/permisos/zona-modulo";
 
 type Resultado<T> = { ok: true; datos: T } | { ok: false; error: string; campos?: Record<string, string> };
 
@@ -15,9 +16,15 @@ export function useAccion<E, T>(
 ) {
   const [pendiente, iniciar] = useTransition();
   const [campos, setCampos] = useState<Record<string, string>>({});
+  // Apartado con candado (encargado): no se envía nada; el servidor lo rechazaría igual.
+  const soloLectura = useSoloLectura();
 
   const ejecutar = (entrada: E) =>
     iniciar(async () => {
+      if (soloLectura) {
+        toast.error("Este apartado tiene candado: solo el administrador puede hacer cambios");
+        return;
+      }
       try {
         const r = await accion(entrada);
         if (r.ok) {

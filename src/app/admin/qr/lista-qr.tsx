@@ -24,7 +24,17 @@ type Opcion = { id: number; nombre: string };
 // Calidad máxima y buena resolución: el QR debe escanearse bien desde la pantalla del cajero.
 const COMPRESION_QR = { ladoMaximo: 1000, calidad: 1 };
 
-export function ListaQr({ qrs, sucursales }: { qrs: Qr[]; sucursales: Opcion[] }) {
+export function ListaQr({
+  qrs,
+  sucursales,
+  sucursalFija = null,
+}: {
+  qrs: Qr[];
+  sucursales: Opcion[];
+  /** Encargado: crea y edita solo los QR de esta sucursal; los "para todas" los ve pero no los cambia. */
+  sucursalFija?: number | null;
+}) {
+  const editable = (q: Qr) => sucursalFija === null || q.sucursalId === sucursalFija;
   const [editando, setEditando] = useState<Qr | "nuevo" | null>(null);
   const cambiar = useAccion(guardarQr);
   const [busqueda, setBusqueda] = useState("");
@@ -58,9 +68,11 @@ export function ListaQr({ qrs, sucursales }: { qrs: Qr[]; sucursales: Opcion[] }
                   <p className="flex-1 font-bold">
                     <Resaltar texto={q.nombre} consulta={busqueda} />
                   </p>
-                  <Button variant="ghost" size="icon" aria-label={`Editar ${q.nombre}`} onClick={() => setEditando(q)}>
-                    <Pencil className="size-4" />
-                  </Button>
+                  {editable(q) && (
+                    <Button variant="ghost" size="icon" aria-label={`Editar ${q.nombre}`} onClick={() => setEditando(q)}>
+                      <Pencil className="size-4" />
+                    </Button>
+                  )}
                 </div>
                 <p className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Store className="size-4" /> <Resaltar texto={q.sucursal ?? "Todas las sucursales"} consulta={busqueda} />
@@ -69,7 +81,7 @@ export function ListaQr({ qrs, sucursales }: { qrs: Qr[]; sucursales: Opcion[] }
                   {q.activo ? <Badge className="bg-exito text-exito-foreground">Activo</Badge> : <Badge variant="secondary">Inactivo</Badge>}
                   <Switch
                     checked={q.activo}
-                    disabled={cambiar.pendiente}
+                    disabled={cambiar.pendiente || !editable(q)}
                     aria-label={`${q.activo ? "Desactivar" : "Activar"} ${q.nombre}`}
                     onCheckedChange={(activo) =>
                       cambiar.ejecutar({ id: q.id, nombre: q.nombre, imagenUrl: q.imagenUrl, sucursalId: q.sucursalId, activo })
@@ -88,6 +100,7 @@ export function ListaQr({ qrs, sucursales }: { qrs: Qr[]; sucursales: Opcion[] }
           key={editando === "nuevo" ? "nuevo" : editando.id}
           qr={editando === "nuevo" ? null : editando}
           sucursales={sucursales}
+          sucursalFija={sucursalFija}
           onCerrar={() => setEditando(null)}
         />
       )}
@@ -95,10 +108,10 @@ export function ListaQr({ qrs, sucursales }: { qrs: Qr[]; sucursales: Opcion[] }
   );
 }
 
-function FormularioQr({ qr, sucursales, onCerrar }: { qr: Qr | null; sucursales: Opcion[]; onCerrar: () => void }) {
+function FormularioQr({ qr, sucursales, sucursalFija, onCerrar }: { qr: Qr | null; sucursales: Opcion[]; sucursalFija: number | null; onCerrar: () => void }) {
   const [nombre, setNombre] = useState(qr?.nombre ?? "");
   const [imagenUrl, setImagenUrl] = useState<string | null>(qr?.imagenUrl ?? null);
-  const [sucursalId, setSucursalId] = useState<number | null>(qr?.sucursalId ?? null);
+  const [sucursalId, setSucursalId] = useState<number | null>(qr?.sucursalId ?? sucursalFija);
   const [activo, setActivo] = useState(qr?.activo ?? true);
   const guardar = useAccion(guardarQr, { mensajeExito: qr ? "QR actualizado" : "QR agregado", alExito: onCerrar });
 
@@ -123,7 +136,7 @@ function FormularioQr({ qr, sucursales, onCerrar }: { qr: Qr | null; sucursales:
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="todas">Todas las sucursales</SelectItem>
+              {sucursalFija === null && <SelectItem value="todas">Todas las sucursales</SelectItem>}
               {sucursales.map((s) => (
                 <SelectItem key={s.id} value={String(s.id)}>
                   {s.nombre}

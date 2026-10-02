@@ -7,7 +7,7 @@ import { db } from "@/db";
 import { eventos, participantesEvento, pesajes, sucursales } from "@/db/schema";
 import { conPermiso, esViolacionUnica, exito, fallo, falloValidacion, type Resultado } from "@/lib/acciones/resultado";
 import { registrarAuditoria } from "@/lib/auditoria";
-import { autorizar } from "@/lib/auth/sesion";
+import { autorizarModulo } from "@/lib/auth/modulo-servidor";
 import { conciliarAlertasEventos } from "@/lib/eventos/alertas";
 import { aCentikg, cambioSospechoso } from "@/lib/eventos/calculos";
 import { idPositivo } from "@/lib/validaciones/comunes";
@@ -55,7 +55,7 @@ async function conReglas<T>(fn: () => Promise<Resultado<T>>): Promise<Resultado<
 
 export async function crearReto(entrada: DatosReto): Promise<Resultado<{ id: number }>> {
   return conPermiso(async () => {
-    const sesion = await autorizar("admin");
+    const sesion = await autorizarModulo("eventos");
     const v = esquemaReto.safeParse(entrada);
     if (!v.success) return falloValidacion(v.error);
     if (v.data.sucursalId) {
@@ -76,7 +76,7 @@ export async function crearReto(entrada: DatosReto): Promise<Resultado<{ id: num
 export async function iniciarReto(entrada: { id: number }): Promise<Resultado> {
   return conPermiso(() =>
     conReglas(async () => {
-      const sesion = await autorizar("admin");
+      const sesion = await autorizarModulo("eventos");
       const id = idPositivo.parse(entrada.id);
       await db.transaction(async (tx) => {
         const e = await eventoBloqueado(tx, id);
@@ -104,7 +104,7 @@ export async function iniciarReto(entrada: { id: number }): Promise<Resultado> {
 export async function finalizarReto(entrada: { id: number; forzar: boolean }): Promise<Resultado<{ sinFinal: string[] }>> {
   return conPermiso(() =>
     conReglas(async () => {
-      const sesion = await autorizar("admin");
+      const sesion = await autorizarModulo("eventos");
       const id = idPositivo.parse(entrada.id);
       const sinFinal = await db.transaction(async (tx) => {
         const e = await eventoBloqueado(tx, id);
@@ -140,7 +140,7 @@ export async function finalizarReto(entrada: { id: number; forzar: boolean }): P
 export async function inscribirParticipante(entrada: DatosParticipante): Promise<Resultado<{ id: number }>> {
   return conPermiso(() =>
     conReglas(async () => {
-      const sesion = await autorizar("admin");
+      const sesion = await autorizarModulo("eventos");
       const v = esquemaParticipante.safeParse(entrada);
       if (!v.success) return falloValidacion(v.error);
       try {
@@ -168,7 +168,7 @@ export async function inscribirParticipante(entrada: DatosParticipante): Promise
 export async function editarParticipante(entrada: DatosEditarParticipante): Promise<Resultado> {
   return conPermiso(() =>
     conReglas(async () => {
-      const sesion = await autorizar("admin");
+      const sesion = await autorizarModulo("eventos");
       const v = esquemaEditarParticipante.safeParse(entrada);
       if (!v.success) return falloValidacion(v.error);
       const { id, ...datos } = v.data;
@@ -204,7 +204,7 @@ export async function editarParticipante(entrada: DatosEditarParticipante): Prom
 export async function darDeBajaParticipante(entrada: DatosBaja): Promise<Resultado> {
   return conPermiso(() =>
     conReglas(async () => {
-      const sesion = await autorizar("admin");
+      const sesion = await autorizarModulo("eventos");
       const v = esquemaBaja.safeParse(entrada);
       if (!v.success) return falloValidacion(v.error);
       const p = await db.transaction(async (tx) => {
@@ -236,7 +236,7 @@ export async function darDeBajaParticipante(entrada: DatosBaja): Promise<Resulta
 export async function guardarPesajes(entrada: DatosPesajes): Promise<Resultado<{ guardados: number }>> {
   return conPermiso(() =>
     conReglas(async () => {
-      const sesion = await autorizar("admin");
+      const sesion = await autorizarModulo("eventos");
       const v = esquemaPesajes.safeParse(entrada);
       if (!v.success) return falloValidacion(v.error);
       const d = v.data;
@@ -286,7 +286,7 @@ export async function guardarPesajes(entrada: DatosPesajes): Promise<Resultado<{
 export async function corregirPesaje(entrada: DatosCorreccionPesaje): Promise<Resultado> {
   return conPermiso(() =>
     conReglas(async () => {
-      const sesion = await autorizar("admin");
+      const sesion = await autorizarModulo("eventos");
       const v = esquemaCorreccionPesaje.safeParse(entrada);
       if (!v.success) return falloValidacion(v.error);
       const r = await db.transaction(async (tx) => {

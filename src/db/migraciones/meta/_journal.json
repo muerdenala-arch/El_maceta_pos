@@ -92,6 +92,13 @@
       "when": 1790935933399,
       "tag": "0012_encargado",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1790939898858,
+      "tag": "0013_candados_encargado",
+      "breakpoints": true
     }
   ]
 }

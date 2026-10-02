@@ -59,7 +59,16 @@ function margen(venta: string, costo: string): number | null {
   }
 }
 
-export function Catalogo({ productos, categorias }: { productos: Producto[]; categorias: Categoria[] }) {
+export function Catalogo({
+  productos,
+  categorias,
+  sinCostos = false,
+}: {
+  productos: Producto[];
+  categorias: Categoria[];
+  /** Encargado: sin costo ni margen, y sin importación desde Excel (trae costos). */
+  sinCostos?: boolean;
+}) {
   const [editando, setEditando] = useState<Producto | "nuevo" | null>(null);
   const [verCategorias, setVerCategorias] = useState(false);
   const [importando, setImportando] = useState(false);
@@ -87,10 +96,12 @@ export function Catalogo({ productos, categorias }: { productos: Producto[]; cat
         titulo="Catálogo"
         descripcion={`${productos.length - cantidadInactivos} producto${productos.length - cantidadInactivos === 1 ? "" : "s"} activo${productos.length - cantidadInactivos === 1 ? "" : "s"}`}
       >
-        <Button variant="outline" size="lg" className="rounded-full" onClick={() => setImportando(true)}>
-          <FileSpreadsheet className="size-5" />
-          Importar Excel
-        </Button>
+        {!sinCostos && (
+          <Button variant="outline" size="lg" className="rounded-full" onClick={() => setImportando(true)}>
+            <FileSpreadsheet className="size-5" />
+            Importar Excel
+          </Button>
+        )}
         <Button variant="outline" size="lg" className="rounded-full" onClick={() => setVerCategorias(true)}>
           <Tags className="size-5" />
           Categorías
@@ -153,7 +164,7 @@ export function Catalogo({ productos, categorias }: { productos: Producto[]; cat
       ) : (
         <ul className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4 xl:grid-cols-5">
           {visibles.map((p) => {
-            const m = margen(p.precioVenta, p.precioCosto);
+            const m = sinCostos ? null : margen(p.precioVenta, p.precioCosto);
             return (
               <li key={p.id}>
                 <button
@@ -211,6 +222,7 @@ export function Catalogo({ productos, categorias }: { productos: Producto[]; cat
         <FormularioProducto
           key={editando === "nuevo" ? "nuevo" : editando.id}
           producto={editando === "nuevo" ? null : editando}
+          sinCostos={sinCostos}
           categorias={categorias}
           onCerrar={() => setEditando(null)}
         />
@@ -223,9 +235,11 @@ export function Catalogo({ productos, categorias }: { productos: Producto[]; cat
 
 function FormularioProducto({
   producto,
+  sinCostos,
   categorias,
   onCerrar,
 }: {
+  sinCostos: boolean;
   producto: Producto | null;
   categorias: Categoria[];
   onCerrar: () => void;
@@ -238,7 +252,8 @@ function FormularioProducto({
     presentacion: producto?.presentacion ?? "",
     descripcion: producto?.descripcion ?? "",
     precioVenta: producto?.precioVenta ?? "",
-    precioCosto: producto?.precioCosto ?? "",
+    // Sin costos (encargado): el servidor conserva el costo guardado; aquí va un valor válido cualquiera.
+    precioCosto: sinCostos ? "0" : (producto?.precioCosto ?? ""),
     codigoBarras: producto?.codigoBarras ?? "",
     stockMinimo: producto?.stockMinimo ?? 0,
     fotoUrl: producto?.fotoUrl ?? null,
@@ -330,16 +345,20 @@ function FormularioProducto({
         <Campo etiqueta="Precio de venta (Bs)" error={guardar.campos.precioVenta}>
           {(p) => <Input {...p} {...texto("precioVenta")} inputMode="decimal" className="cifras bg-background text-lg font-bold" placeholder="0,00" />}
         </Campo>
-        <Campo etiqueta="Precio de costo (Bs)" error={guardar.campos.precioCosto} ayuda="Solo lo ve el administrador">
-          {(p) => <Input {...p} {...texto("precioCosto")} inputMode="decimal" className="cifras bg-background" placeholder="0,00" />}
-        </Campo>
-        <div className="space-y-1.5">
-          <p className="text-sm font-semibold">Margen</p>
-          <p className={cn("cifras font-display text-2xl font-extrabold", m !== null && m < 0 && "text-destructive")}>
-            {m === null ? "—" : `${m.toFixed(1)}%`}
-          </p>
-          {m !== null && m < 0 && <p className="text-xs text-destructive">Vendes por debajo del costo</p>}
-        </div>
+        {!sinCostos && (
+          <>
+            <Campo etiqueta="Precio de costo (Bs)" error={guardar.campos.precioCosto} ayuda="Solo lo ve el administrador">
+              {(p) => <Input {...p} {...texto("precioCosto")} inputMode="decimal" className="cifras bg-background" placeholder="0,00" />}
+            </Campo>
+            <div className="space-y-1.5">
+              <p className="text-sm font-semibold">Margen</p>
+              <p className={cn("cifras font-display text-2xl font-extrabold", m !== null && m < 0 && "text-destructive")}>
+                {m === null ? "—" : `${m.toFixed(1)}%`}
+              </p>
+              {m !== null && m < 0 && <p className="text-xs text-destructive">Vendes por debajo del costo</p>}
+            </div>
+          </>
+        )}
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">

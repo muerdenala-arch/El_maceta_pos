@@ -397,6 +397,31 @@ Credenciales de prueba locales: en `.env.local` (`SEED_*`), nunca en el código 
 - Pruebas: `encargado.integracion.test.ts`, el barrido de permisos (lista exacta de acciones del encargado), `rutas.test.ts` y
   `e2e/revision-encargado.spec.ts` (usuario `SEED_ENCARGADO_*` de .env.local).
 
+## Apartados compartidos con el encargado y candados
+
+- Pedido del dueño (después del rol Encargado): el encargado también entra a **Catálogo, Inventario de sucursales, Bodega central,
+  Promociones y cupones, Combos, Eventos, QR de cobro, Sucursales, Auditoría de caja y Configuración** (`MODULOS_ENCARGADO`,
+  `lib/auth/modulos.ts`). Siguen siendo solo del administrador: Inicio, Reportes y Gastos del admin, Personal, exportaciones y candados.
+- **Candado por apartado, igual para todos los encargados** (`configuracion.encargado_modulos_abiertos`, migración 0013; vacío =
+  todos cerrados, que es el valor por defecto). Cerrado = el encargado ve pero no cambia nada; abierto = trabaja en él. El
+  administrador lo cambia con el candado de cada apartado en su menú (`<BotonCandado>` → `cambiarCandado`, auditoría
+  `candado_encargado`). Auditoría no tiene candado (solo consulta; el encargado ve solo la pestaña Cajas de su sucursal).
+- Servidor (`lib/auth/modulo-servidor.ts`): páginas con `requerirModulo(m)` → `{ encargado, soloLectura, sucursalId }`; acciones con
+  `autorizarModulo(m)` (lanza `ErrorCandado` → "Este apartado tiene candado…"), `autorizarUbicacion(id)` para el stock
+  (su sucursal = Inventario, bodega = Bodega, otra sucursal = sin permiso) y `exigirSuSucursal`. **Toda acción nueva de uno de
+  estos apartados usa `autorizarModulo`, no `autorizar("admin")`**.
+- Límites del encargado aunque el candado esté abierto (decididos con el dueño: solo su sucursal y sin costos):
+  catálogo sin costo ni margen (no viajan al navegador; el servidor conserva el costo, 0 en productos nuevos) y sin importar
+  Excel; inventario y movimientos de su sucursal + bodega; transferencias solo bodega → su sucursal (cancela y atiende
+  solicitudes solo las suyas); QR solo de su sucursal (los "para todas" los ve, no los cambia); Sucursales: edita la suya,
+  no crea ni desactiva; Configuración sin los máximos de descuento; combos sin aviso de costo.
+- Interfaz: la página envuelve su contenido en `<ZonaModulo soloLectura>` (`components/permisos/zona-modulo.tsx`): aviso arriba,
+  `EncabezadoPagina` oculta sus botones (crear/guardar), `DialogoFormulario` muestra los datos deshabilitados sin Guardar y
+  `useAccion` no envía nada. El menú del encargado suma `navEncargadoCompartido` con un candadito en los cerrados.
+- `/admin/layout.tsx` admite admin y encargado; `rutas.ts` deja pasar al encargado solo a `moduloDeRuta(ruta) !== null`
+  (y al Excel de eventos). Pruebas: `modulos.test.ts`, `rutas.test.ts`, `test/candados.integracion.test.ts`,
+  `e2e/revision-encargado.spec.ts`.
+
 ## Botón atrás por niveles
 
 - `lib/navegacion/niveles.ts` (`padreDe`, probado): apartados del menú → inicio del rol; pantallas internas → un nivel arriba.
