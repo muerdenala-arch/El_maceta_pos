@@ -271,6 +271,17 @@ Credenciales de prueba locales: en `.env.local` (`SEED_*`), nunca en el código 
 - Punto de venta: filtra sobre los productos ya cargados (también sin internet); `onEnter` agrega el código exacto o el único resultado.
 - Pruebas: `lib/busqueda.test.ts`, `test/busqueda.integracion.test.ts`, `e2e/revision-buscador.spec.ts` (corre después de criterios).
 
+## Nombres largos (marquesina)
+
+- `<Marquesina>` (`components/texto/marquesina.tsx`) en vez de `truncate` / `line-clamp` para nombres de producto: mide si
+  el texto se desborda (ResizeObserver); si entra, queda quieto; si no, se desplaza a 40 px/s con 1,5 s de pausa en cada
+  extremo (Web Animations API, ida y vuelta). `siempre` = se mueve solo (tarjetas del punto de venta); si no, al pasar el
+  mouse por el ancestro con `data-desplazar` (fila o tarjeta); en pantallas táctiles siempre se mueve solo.
+- Degradado de los bordes con `mask-image` (clase `.marquesina` en globals.css): no depende del color de fondo ni del tema.
+- "Reducir movimiento": no anima y muestra dos líneas (`motion-reduce:line-clamp-2`).
+- Usado en: tarjetas y carrito del punto de venta, Catálogo, Inventario, Bodega (stock y vencimientos) y campanita.
+  Prueba: `e2e/revision-marquesina.spec.ts`.
+
 ## Botón atrás por niveles
 
 - `lib/navegacion/niveles.ts` (`padreDe`, probado): apartados del menú → inicio del rol; pantallas internas → un nivel arriba.

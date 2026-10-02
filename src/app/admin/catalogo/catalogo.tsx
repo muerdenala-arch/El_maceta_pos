@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils";
 import { ImportarProductos } from "./importar-productos";
 import { Buscador, Resaltar, SinResultados } from "@/components/busqueda/buscador";
 import { coincide } from "@/lib/busqueda";
+import { Marquesina } from "@/components/texto/marquesina";
 import { Textarea } from "@/components/ui/textarea";
 import type { DatosProducto } from "@/lib/validaciones/admin";
 import { eliminarCategoria, guardarCategoria, guardarProducto } from "./acciones";
@@ -153,6 +154,7 @@ export function Catalogo({ productos, categorias }: { productos: Producto[]; cat
                 <button
                   type="button"
                   onClick={() => setEditando(p)}
+                  data-desplazar
                   className={cn(
                     "group flex h-full w-full flex-col overflow-hidden rounded-3xl border bg-card text-left shadow-sm transition-[transform,box-shadow] duration-150 hover:-translate-y-0.5 hover:shadow-md focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none",
                     !p.activo && "opacity-55",
@@ -175,9 +177,9 @@ export function Catalogo({ productos, categorias }: { productos: Producto[]; cat
                         <Resaltar texto={nombreCategoria.get(p.categoriaId)} consulta={busqueda} />
                       </span>
                     )}
-                    <span className="line-clamp-2 leading-snug font-bold">
+                    <Marquesina titulo={p.nombre} className="leading-snug font-bold">
                       <Resaltar texto={p.nombre} consulta={busqueda} />
-                    </span>
+                    </Marquesina>
                     <span className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">
                       {[p.marca, p.sabor, p.presentacion].filter(Boolean).length > 0 ? <Resaltar texto={[p.marca, p.sabor, p.presentacion].filter(Boolean).join(" · ")} consulta={busqueda} /> : " "}
                     </span>

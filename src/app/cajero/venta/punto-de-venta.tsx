@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Buscador, Resaltar, SinResultados } from "@/components/busqueda/buscador";
 import { coincide } from "@/lib/busqueda";
+import { Marquesina } from "@/components/texto/marquesina";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -267,9 +268,9 @@ export function PuntoDeVenta({
                   onClick={() => agregar(p)}
                   className="flex flex-1 flex-col p-3 text-left transition-colors hover:bg-accent/60 active:bg-accent disabled:cursor-not-allowed"
                 >
-                  <span className="line-clamp-2 leading-snug font-bold">
+                  <Marquesina siempre titulo={p.nombre} className="leading-snug font-bold">
                     <Resaltar texto={p.nombre} consulta={busqueda} />
-                  </span>
+                  </Marquesina>
                   <span className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">{detalle(p) ? <Resaltar texto={detalle(p)} consulta={busqueda} /> : " "}</span>
                   <span className="mt-auto flex items-center justify-between gap-2 pt-2">
                     <span className="cifras font-display text-lg font-extrabold">{formatoBs(p.precioVenta)}</span>
@@ -418,12 +419,13 @@ function PanelCarrito({
               exit={{ opacity: 0, x: -16 }}
               transition={{ duration: 0.18 }}
               className="flex items-center gap-3 rounded-2xl bg-muted/50 p-2.5"
+              data-desplazar
             >
               <span className="flex size-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-muted">
                 {l.producto.fotoUrl ? <img src={l.producto.fotoUrl} alt="" className="size-full object-cover" /> : <Package className="size-5 text-muted-foreground" />}
               </span>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-bold">{l.producto.nombre}</p>
+                <Marquesina className="text-sm font-bold">{l.producto.nombre}</Marquesina>
                 <p className="cifras text-xs text-muted-foreground">{formatoBs(l.producto.precioVenta)} c/u</p>
                 {conPromo?.promocion && (
                   <p className="mt-0.5 flex items-center gap-1 truncate text-xs font-bold text-exito">

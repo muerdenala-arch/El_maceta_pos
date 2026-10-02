@@ -4,6 +4,7 @@ import { Boxes, PackagePlus, SlidersHorizontal, Truck } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Buscador, Resaltar, SinResultados } from "@/components/busqueda/buscador";
 import { coincide } from "@/lib/busqueda";
+import { Marquesina } from "@/components/texto/marquesina";
 import { EncabezadoPagina } from "@/components/formularios/encabezado-pagina";
 import { DialogoAjuste, DialogoIngreso, type UbicacionLigera } from "@/components/inventario/dialogos-inventario";
 import { Miniatura, detalleProducto } from "@/components/inventario/selector-producto";
@@ -94,15 +95,16 @@ export function TablaInventario({ ubicaciones, columnas, productos, stock, enCam
                 <tr
                   key={p.id}
                   ref={esResaltado ? filaResaltada : undefined}
+                  data-desplazar
                   className={cn("border-b last:border-0", esResaltado && "fila-resaltada", !p.activo && "opacity-60")}
                 >
                   <td className="sticky left-0 z-10 bg-card px-4 py-2.5">
-                    <div className="flex min-w-48 items-center gap-3">
+                    <div className="flex max-w-56 min-w-48 items-center gap-3 sm:max-w-72">
                       <Miniatura url={p.fotoUrl} />
                       <div className="min-w-0">
-                        <p className="truncate font-semibold">
+                        <Marquesina titulo={p.nombre} className="font-semibold">
                           <Resaltar texto={p.nombre} consulta={busqueda} />
-                        </p>
+                        </Marquesina>
                         <p className="truncate text-xs text-muted-foreground">
                           <Resaltar texto={detalleProducto(p) || "—"} consulta={busqueda} />
                           {p.stockMinimo > 0 && ` · mín. ${p.stockMinimo}`}

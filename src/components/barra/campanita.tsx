@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { marcarAlertaLeida, marcarAlertaRevisada, marcarTodasLeidas, obtenerAlertas } from "@/lib/alertas/acciones";
 import type { AlertaCampanita } from "@/lib/alertas/consultas";
+import { Marquesina } from "@/components/texto/marquesina";
 import { cn } from "@/lib/utils";
 
 function hace(iso: string) {
@@ -118,7 +119,7 @@ export function Campanita({ noLeidas: inicial = 0 }: { noLeidas?: number }) {
               {lista.map((a) => {
                 const e = ESTILO_ALERTA[a.tipo];
                 return (
-                  <li key={a.id} className={cn("group relative flex gap-3 px-4 py-3 transition-colors hover:bg-accent", !a.leida && "bg-primary/8")}>
+                  <li key={a.id} data-desplazar className={cn("group relative flex gap-3 px-4 py-3 transition-colors hover:bg-accent", !a.leida && "bg-primary/8")}>
                     <span className={cn("mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-xl", e.clase)}>
                       <e.icono className="size-4" />
                     </span>
@@ -127,7 +128,7 @@ export function Campanita({ noLeidas: inicial = 0 }: { noLeidas?: number }) {
                         {e.titulo}
                         {!a.leida && <span className="size-2 rounded-full bg-primary" aria-label="Sin leer" />}
                       </span>
-                      <span className="mt-0.5 block text-sm leading-snug">{a.mensaje}</span>
+                      <Marquesina className="mt-0.5 text-sm leading-snug">{a.mensaje}</Marquesina>
                       <span className="mt-1 block text-xs text-muted-foreground">
                         {hace(a.fecha)}
                         {a.sucursal && ` · ${a.sucursal}`}

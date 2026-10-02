@@ -15,6 +15,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Buscador, Resaltar, SinResultados } from "@/components/busqueda/buscador";
 import { coincide } from "@/lib/busqueda";
+import { Marquesina } from "@/components/texto/marquesina";
 import { EncabezadoPagina } from "@/components/formularios/encabezado-pagina";
 import { useAccion } from "@/components/formularios/use-accion";
 import {
@@ -202,12 +203,12 @@ function StockBodega({
           const c = cantidad(p.id);
           const suyos = lotes.filter((l) => l.productoId === p.id);
           return (
-            <li key={p.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
+            <li key={p.id} data-desplazar className="flex flex-wrap items-center gap-3 px-4 py-3">
               <Miniatura url={p.fotoUrl} className="size-11" />
               <div className="min-w-0 flex-1 basis-48">
-                <p className="truncate font-semibold">
+                <Marquesina titulo={p.nombre} className="font-semibold">
                   <Resaltar texto={p.nombre} consulta={busqueda} />
-                </p>
+                </Marquesina>
                 <p className="truncate text-xs text-muted-foreground">
                   <Resaltar texto={detalleProducto(p) || "—"} consulta={busqueda} />
                 </p>
@@ -387,6 +388,7 @@ function Vencimientos({
               <li
                 key={l.id}
                 ref={l.id === idPrimeroResaltado ? primero : undefined}
+                data-desplazar
                 className={cn("flex flex-wrap items-center gap-3 px-4 py-3", l.productoId === resaltar && "fila-resaltada")}
               >
                 <span
@@ -398,10 +400,10 @@ function Vencimientos({
                   {dias <= DIAS_AVISO ? <AlertTriangle className="size-5" /> : <CalendarClock className="size-5" />}
                 </span>
                 <div className="min-w-0 flex-1 basis-48">
-                  <p className="truncate font-semibold">
+                  <Marquesina titulo={l.producto} className="font-semibold">
                     <Resaltar texto={l.producto} consulta={busqueda} />
                     {l.presentacion && <span className="font-normal text-muted-foreground"> · {l.presentacion}</span>}
-                  </p>
+                  </Marquesina>
                   <p className="text-sm text-muted-foreground">
                     <Resaltar texto={l.ubicacion} consulta={busqueda} />
                   </p>

@@ -271,3 +271,14 @@
     print-color-adjust: exact;
   }
 }
+
+/*
+ * <Marquesina>: degradado suave en los bordes cuando el nombre no entra (derecha en reposo; ambos lados al moverse).
+ * Es una máscara, no un color: sirve igual en modo claro y oscuro y sobre cualquier fondo.
+ */
+.marquesina[data-desborda] {
+  mask-image: linear-gradient(to right, #000 calc(100% - 1.5rem), transparent);
+}
+.marquesina[data-moviendo] {
+  mask-image: linear-gradient(to right, transparent, #000 0.75rem, #000 calc(100% - 1.5rem), transparent);
+}
