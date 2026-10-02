@@ -1,5 +1,5 @@
 import "server-only";
-import { and, asc, desc, eq, gt, gte, ilike, inArray, isNotNull, lte, ne, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, desc, eq, gt, gte, inArray, isNotNull, lte, ne, or, sql, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { db } from "@/db";
 import {
@@ -14,6 +14,7 @@ import {
   usuarios,
 } from "@/db/schema";
 import { ZONA_HORARIA } from "@/lib/formato";
+import { condicionBusqueda } from "@/lib/busqueda-sql";
 
 export type Ubicacion = { id: number; nombre: string; tipo: "sucursal" | "bodega" };
 
@@ -196,7 +197,8 @@ export async function listarMovimientos(f: FiltrosMovimientos) {
   const condiciones: SQL[] = [];
   if (f.ubicacionId) condiciones.push(eq(movimientosInventario.ubicacionId, f.ubicacionId));
   if (f.tipo) condiciones.push(sql`${movimientosInventario.tipo}::text = ${f.tipo}`);
-  if (f.producto) condiciones.push(ilike(productos.nombre, `%${f.producto.replace(/[%_\\]/g, "\\$&")}%`));
+  const busqueda = condicionBusqueda(f.producto, [productos.nombre, productos.marca, productos.presentacion, productos.codigoBarras, usuarios.nombre, movimientosInventario.motivo, movimientosInventario.referencia]);
+  if (busqueda) condiciones.push(busqueda);
   if (f.desde) condiciones.push(gte(movimientosInventario.fecha, sql`(${f.desde}::date at time zone ${ZONA_HORARIA})`));
   if (f.hasta) condiciones.push(lte(movimientosInventario.fecha, sql`((${f.hasta}::date + 1) at time zone ${ZONA_HORARIA})`));
   const pagina = Math.max(1, f.pagina ?? 1);

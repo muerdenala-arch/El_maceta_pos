@@ -1,7 +1,9 @@
 "use client";
 
-import { Check, PackageSearch, Search, Send, Truck, Warehouse } from "lucide-react";
+import { Check, PackageSearch, Send, Truck, Warehouse } from "lucide-react";
 import { useMemo, useState } from "react";
+import { Buscador, Resaltar, SinResultados } from "@/components/busqueda/buscador";
+import { coincide } from "@/lib/busqueda";
 import { Campo } from "@/components/formularios/campo";
 import { DialogoFormulario } from "@/components/formularios/dialogo-formulario";
 import { EncabezadoPagina } from "@/components/formularios/encabezado-pagina";
@@ -34,10 +36,9 @@ export function ConsultaBodega({ sucursal, bodegaId, productos, stock, enCamino,
   const esBajo = (p: ProductoInventario) => aqui(p.id) <= 0 || (p.stockMinimo > 0 && aqui(p.id) < p.stockMinimo);
 
   const visibles = useMemo(() => {
-    const q = busqueda.trim().toLowerCase();
     return productos.filter(
       (p) =>
-        (!q || [p.nombre, p.marca, p.sabor, p.presentacion, p.codigoBarras].some((t) => t?.toLowerCase().includes(q))) &&
+        coincide(busqueda, [p.nombre, p.marca, p.sabor, p.presentacion, p.codigoBarras]) &&
         (!soloBajo || esBajo(p)),
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps -- esBajo deriva de stock
@@ -48,11 +49,7 @@ export function ConsultaBodega({ sucursal, bodegaId, productos, stock, enCamino,
       <EncabezadoPagina icono={Warehouse} titulo="Bodega" descripcion={`Stock de ${sucursal.nombre} y de la bodega central`} />
 
       <div className="flex flex-wrap items-center gap-3">
-        <label className="relative block w-full max-w-sm">
-          <span className="sr-only">Buscar</span>
-          <Search className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Buscar producto o código" className="h-12 rounded-full pl-10 text-base" />
-        </label>
+        <Buscador grande valor={busqueda} onCambiar={setBusqueda} etiqueta="Buscar producto" placeholder="Buscar producto, marca o código" />
         <label className="flex items-center gap-2 text-sm font-semibold">
           <Switch checked={soloBajo} onCheckedChange={setSoloBajo} />
           Solo lo que falta
@@ -67,8 +64,12 @@ export function ConsultaBodega({ sucursal, bodegaId, productos, stock, enCamino,
             <li key={p.id} className="flex flex-wrap items-center gap-3 rounded-3xl border bg-card p-3 shadow-sm sm:px-4">
               <Miniatura url={p.fotoUrl} className="size-14 rounded-2xl" />
               <div className="min-w-0 flex-1 basis-40">
-                <p className="font-bold leading-snug">{p.nombre}</p>
-                <p className="truncate text-sm text-muted-foreground">{detalleProducto(p) || "—"}</p>
+                <p className="font-bold leading-snug">
+                  <Resaltar texto={p.nombre} consulta={busqueda} />
+                </p>
+                <p className="truncate text-sm text-muted-foreground">
+                  <Resaltar texto={detalleProducto(p) || "—"} consulta={busqueda} />
+                </p>
                 {llegando > 0 && (
                   <p className="mt-0.5 flex items-center gap-1 text-xs font-semibold text-exito">
                     <Truck className="size-3.5" /> {llegando} en camino
@@ -100,9 +101,15 @@ export function ConsultaBodega({ sucursal, bodegaId, productos, stock, enCamino,
           );
         })}
         {visibles.length === 0 && (
-          <li className="flex flex-col items-center gap-2 rounded-3xl border border-dashed p-10 text-center text-muted-foreground">
-            <PackageSearch className="size-8" />
-            No hay productos que coincidan.
+          <li>
+            {busqueda.trim() ? (
+              <SinResultados consulta={busqueda} onLimpiar={() => setBusqueda("")} />
+            ) : (
+              <p className="flex flex-col items-center gap-2 rounded-3xl border border-dashed p-10 text-center text-muted-foreground">
+                <PackageSearch className="size-8" />
+                No falta nada por ahora.
+              </p>
+            )}
           </li>
         )}
       </ul>

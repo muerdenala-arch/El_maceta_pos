@@ -8,12 +8,13 @@ import {
   Inbox,
   Package,
   PackagePlus,
-  Search,
   Truck,
   Warehouse,
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Buscador, Resaltar, SinResultados } from "@/components/busqueda/buscador";
+import { coincide } from "@/lib/busqueda";
 import { EncabezadoPagina } from "@/components/formularios/encabezado-pagina";
 import { useAccion } from "@/components/formularios/use-accion";
 import {
@@ -37,7 +38,6 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { cancelarTransferencia, recibirTransferencia, resolverSolicitud } from "@/lib/inventario/acciones";
 import type { LoteVigente, ProductoInventario, SolicitudReposicion, Transferencia } from "@/lib/inventario/consultas";
 import { diasParaVencer } from "@/lib/inventario/lotes";
@@ -189,19 +189,14 @@ function StockBodega({
 }) {
   const [busqueda, setBusqueda] = useState("");
   const visibles = useMemo(() => {
-    const q = busqueda.trim().toLowerCase();
     return productos
-      .filter((p) => !q || [p.nombre, p.marca, p.sabor, p.presentacion, p.codigoBarras].some((t) => t?.toLowerCase().includes(q)))
+      .filter((p) => coincide(busqueda, [p.nombre, p.marca, p.sabor, p.presentacion, p.codigoBarras]))
       .sort((a, b) => Number(cantidad(b.id) > 0) - Number(cantidad(a.id) > 0));
   }, [productos, busqueda, cantidad]);
 
   return (
     <div className="space-y-4">
-      <label className="relative block max-w-sm">
-        <span className="sr-only">Buscar</span>
-        <Search className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input value={busqueda} onChange={(e) => setBusqueda(e.target.value)} placeholder="Buscar producto o código" className="h-11 rounded-full pl-10" />
-      </label>
+      <Buscador valor={busqueda} onCambiar={setBusqueda} etiqueta="Buscar producto" placeholder="Buscar producto, marca o código" />
       <ul className="divide-y rounded-3xl border bg-card shadow-sm">
         {visibles.map((p) => {
           const c = cantidad(p.id);
@@ -210,8 +205,12 @@ function StockBodega({
             <li key={p.id} className="flex flex-wrap items-center gap-3 px-4 py-3">
               <Miniatura url={p.fotoUrl} className="size-11" />
               <div className="min-w-0 flex-1 basis-48">
-                <p className="truncate font-semibold">{p.nombre}</p>
-                <p className="truncate text-xs text-muted-foreground">{detalleProducto(p) || "—"}</p>
+                <p className="truncate font-semibold">
+                  <Resaltar texto={p.nombre} consulta={busqueda} />
+                </p>
+                <p className="truncate text-xs text-muted-foreground">
+                  <Resaltar texto={detalleProducto(p) || "—"} consulta={busqueda} />
+                </p>
               </div>
               <div className="flex flex-wrap gap-1.5">
                 {suyos.map((l) => {
@@ -234,7 +233,11 @@ function StockBodega({
             </li>
           );
         })}
-        {visibles.length === 0 && <li className="p-10 text-center text-muted-foreground">Sin productos.</li>}
+        {visibles.length === 0 && (
+          <li className="p-6 text-center text-muted-foreground">
+            {busqueda.trim() ? <SinResultados className="border-0 p-2" consulta={busqueda} onLimpiar={() => setBusqueda("")} /> : "Sin productos."}
+          </li>
+        )}
       </ul>
     </div>
   );

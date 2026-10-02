@@ -1,7 +1,7 @@
 "use client";
 
 /* eslint-disable @next/next/no-img-element -- fotos propias (Blob o locales) ya comprimidas */
-import { Barcode, Check, FileSpreadsheet, Package, PackagePlus, Pencil, Search, Tags, Trash2, X } from "lucide-react";
+import { Barcode, Check, FileSpreadsheet, Package, PackagePlus, Pencil, Tags, Trash2, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Campo } from "@/components/formularios/campo";
 import { DialogoFormulario } from "@/components/formularios/dialogo-formulario";
@@ -19,6 +19,8 @@ import { formatoBs } from "@/lib/formato";
 import { COMPRESION_PRODUCTO } from "@/lib/imagen-cliente";
 import { cn } from "@/lib/utils";
 import { ImportarProductos } from "./importar-productos";
+import { Buscador, Resaltar, SinResultados } from "@/components/busqueda/buscador";
+import { coincide } from "@/lib/busqueda";
 import { Textarea } from "@/components/ui/textarea";
 import type { DatosProducto } from "@/lib/validaciones/admin";
 import { eliminarCategoria, guardarCategoria, guardarProducto } from "./acciones";
@@ -62,14 +64,11 @@ export function Catalogo({ productos, categorias }: { productos: Producto[]; cat
   const nombreCategoria = useMemo(() => new Map(categorias.map((c) => [c.id, c.nombre])), [categorias]);
 
   const visibles = useMemo(() => {
-    const q = busqueda.trim().toLowerCase();
     return productos.filter(
       (p) =>
         (inactivos || p.activo) &&
         (categoria === "todas" || (categoria === "sin" ? p.categoriaId === null : p.categoriaId === categoria)) &&
-        (!q ||
-          [p.nombre, p.marca, p.sabor, p.presentacion, p.codigoBarras, p.categoriaId ? nombreCategoria.get(p.categoriaId) : ""]
-            .some((t) => t?.toLowerCase().includes(q))),
+        coincide(busqueda, [p.nombre, p.marca, p.sabor, p.presentacion, p.codigoBarras, p.descripcion, p.categoriaId ? nombreCategoria.get(p.categoriaId) : null]),
     );
   }, [productos, busqueda, categoria, inactivos, nombreCategoria]);
 
@@ -97,16 +96,7 @@ export function Catalogo({ productos, categorias }: { productos: Producto[]; cat
       </EncabezadoPagina>
 
       <div className="mt-6 flex flex-wrap items-center gap-3">
-        <label className="relative block w-full max-w-sm">
-          <span className="sr-only">Buscar producto</span>
-          <Search className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
-            placeholder="Nombre, marca, sabor o código de barras"
-            className="h-11 rounded-full pl-10"
-          />
-        </label>
+        <Buscador valor={busqueda} onCambiar={setBusqueda} etiqueta="Buscar producto" placeholder="Nombre, marca, categoría o código" />
         {cantidadInactivos > 0 && (
           <label className="flex items-center gap-2 text-sm font-semibold">
             <Switch checked={inactivos} onCheckedChange={setInactivos} />
@@ -137,7 +127,9 @@ export function Catalogo({ productos, categorias }: { productos: Producto[]; cat
         ))}
       </div>
 
-      {visibles.length === 0 ? (
+      {visibles.length === 0 && busqueda.trim() ? (
+        <SinResultados className="mt-6" consulta={busqueda} onLimpiar={() => setBusqueda("")} />
+      ) : visibles.length === 0 ? (
         <div className="mt-6 flex flex-col items-center gap-3 rounded-3xl border border-dashed p-12 text-center text-muted-foreground">
           <Package className="size-10" />
           {productos.length === 0 ? (
@@ -180,12 +172,14 @@ export function Catalogo({ productos, categorias }: { productos: Producto[]; cat
                   <div className="flex flex-1 flex-col p-3.5">
                     {p.categoriaId && (
                       <span className="mb-1 truncate text-[11px] font-bold tracking-wide text-primary uppercase">
-                        {nombreCategoria.get(p.categoriaId)}
+                        <Resaltar texto={nombreCategoria.get(p.categoriaId)} consulta={busqueda} />
                       </span>
                     )}
-                    <span className="line-clamp-2 leading-snug font-bold">{p.nombre}</span>
+                    <span className="line-clamp-2 leading-snug font-bold">
+                      <Resaltar texto={p.nombre} consulta={busqueda} />
+                    </span>
                     <span className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">
-                      {[p.marca, p.sabor, p.presentacion].filter(Boolean).join(" · ") || " "}
+                      {[p.marca, p.sabor, p.presentacion].filter(Boolean).length > 0 ? <Resaltar texto={[p.marca, p.sabor, p.presentacion].filter(Boolean).join(" · ")} consulta={busqueda} /> : " "}
                     </span>
                     <span className="mt-auto flex items-end justify-between gap-2 pt-3">
                       <span className="cifras font-display text-lg font-extrabold">{formatoBs(p.precioVenta)}</span>

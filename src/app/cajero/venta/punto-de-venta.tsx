@@ -1,11 +1,13 @@
 "use client";
 
 /* eslint-disable @next/next/no-img-element -- fotos propias, ya comprimidas */
-import { Minus, Package, Plus, ReceiptText, Search, ShoppingCart, Tag, Trash2, X, ZoomIn } from "lucide-react";
+import { Minus, Package, Plus, ReceiptText, ShoppingCart, Tag, Trash2, ZoomIn } from "lucide-react";
 import Link from "next/link";
 import { AnimatePresence, motion } from "motion/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Buscador, Resaltar, SinResultados } from "@/components/busqueda/buscador";
+import { coincide } from "@/lib/busqueda";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,6 +27,7 @@ import { VentaExitosa } from "./venta-exitosa";
 type Linea = { productoId: number; cantidad: number };
 
 const detalle = (p: ProductoPos) => [p.marca, p.sabor, p.presentacion].filter(Boolean).join(" · ");
+const camposBusqueda = (p: ProductoPos) => [p.nombre, p.marca, p.sabor, p.presentacion, p.categoria, p.codigoBarras];
 
 export type VentaMostrada = VentaRealizada | VentaLocalRealizada;
 
@@ -131,12 +134,7 @@ export function PuntoDeVenta({
   }, [productos, cobrando, realizada]);
 
   const visibles = useMemo(() => {
-    const palabras = busqueda.trim().toLowerCase().split(/\s+/).filter(Boolean);
-    return productos.filter(
-      (p) =>
-        (!categoria || p.categoria === categoria) &&
-        palabras.every((w) => [p.nombre, p.marca, p.sabor, p.presentacion, p.categoria, p.codigoBarras].some((t) => t?.toLowerCase().includes(w))),
-    );
+    return productos.filter((p) => (!categoria || p.categoria === categoria) && coincide(busqueda, camposBusqueda(p)));
   }, [productos, busqueda, categoria]);
 
   const lineas = carrito
@@ -185,33 +183,26 @@ export function PuntoDeVenta({
             <ReceiptText className="size-4" /> Ventas de hoy
           </Link>
         </div>
-        <label className="relative block">
-          <span className="sr-only">Buscar producto</span>
-          <Search className="pointer-events-none absolute top-1/2 left-4 size-5 -translate-y-1/2 text-muted-foreground" />
-          <input
-            ref={buscador}
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key !== "Enter") return;
-              const codigo = busqueda.trim();
-              const exacto = productos.find((p) => p.codigoBarras && p.codigoBarras === codigo);
-              const unico = visibles.length === 1 ? visibles[0] : null;
-              const elegido = exacto ?? unico;
-              if (elegido) {
-                agregar(elegido);
-                setBusqueda("");
-              }
-            }}
-            placeholder="Buscar por nombre, marca o categoría · escanear código"
-            className="h-14 w-full rounded-2xl border bg-card pr-12 pl-12 text-base shadow-sm outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/40"
-          />
-          {busqueda && (
-            <button type="button" onClick={() => setBusqueda("")} aria-label="Limpiar búsqueda" className="absolute top-1/2 right-3 -translate-y-1/2 rounded-full p-1.5 text-muted-foreground hover:bg-accent">
-              <X className="size-5" />
-            </button>
-          )}
-        </label>
+        <Buscador
+          grande
+          className="max-w-none"
+          refCampo={buscador}
+          valor={busqueda}
+          onCambiar={setBusqueda}
+          etiqueta="Buscar producto"
+          placeholder="Buscar por nombre, marca o categoría · escanear código"
+          // Enter: código de barras exacto o único resultado → al carrito (con lo escrito, sin esperar al filtro).
+          onEnter={(texto) => {
+            const codigo = texto.trim();
+            const exacto = productos.find((p) => p.codigoBarras && p.codigoBarras === codigo);
+            const candidatos = codigo ? productos.filter((p) => (!categoria || p.categoria === categoria) && coincide(texto, camposBusqueda(p))) : [];
+            const elegido = exacto ?? (candidatos.length === 1 ? candidatos[0] : null);
+            if (!elegido) return false;
+            agregar(elegido);
+            setBusqueda("");
+            return true;
+          }}
+        />
 
         {categorias.length > 0 && (
           <div className="sin-barra -mx-4 mt-3 flex gap-2 overflow-x-auto px-4 sm:mx-0 sm:px-0" role="tablist" aria-label="Categorías">
@@ -276,8 +267,10 @@ export function PuntoDeVenta({
                   onClick={() => agregar(p)}
                   className="flex flex-1 flex-col p-3 text-left transition-colors hover:bg-accent/60 active:bg-accent disabled:cursor-not-allowed"
                 >
-                  <span className="line-clamp-2 leading-snug font-bold">{p.nombre}</span>
-                  <span className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">{detalle(p) || " "}</span>
+                  <span className="line-clamp-2 leading-snug font-bold">
+                    <Resaltar texto={p.nombre} consulta={busqueda} />
+                  </span>
+                  <span className="mt-0.5 line-clamp-1 text-xs text-muted-foreground">{detalle(p) ? <Resaltar texto={detalle(p)} consulta={busqueda} /> : " "}</span>
                   <span className="mt-auto flex items-center justify-between gap-2 pt-2">
                     <span className="cifras font-display text-lg font-extrabold">{formatoBs(p.precioVenta)}</span>
                     <span className="flex size-9 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm" aria-hidden>
@@ -289,8 +282,14 @@ export function PuntoDeVenta({
             );
           })}
           {visibles.length === 0 && (
-            <li className="col-span-full rounded-3xl border border-dashed p-12 text-center text-muted-foreground">
-              {productos.length === 0 ? "No hay productos activos en el catálogo." : "No hay productos que coincidan."}
+            <li className="col-span-full">
+              {busqueda.trim() ? (
+                <SinResultados consulta={busqueda} onLimpiar={() => setBusqueda("")} />
+              ) : (
+                <p className="rounded-3xl border border-dashed p-12 text-center text-muted-foreground">
+                  {productos.length === 0 ? "No hay productos activos en el catálogo." : "No hay productos en esta categoría."}
+                </p>
+              )}
             </li>
           )}
         </ul>

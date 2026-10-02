@@ -1,12 +1,13 @@
 "use client";
 
-import { Boxes, PackagePlus, Search, SlidersHorizontal, Truck } from "lucide-react";
+import { Boxes, PackagePlus, SlidersHorizontal, Truck } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Buscador, Resaltar, SinResultados } from "@/components/busqueda/buscador";
+import { coincide } from "@/lib/busqueda";
 import { EncabezadoPagina } from "@/components/formularios/encabezado-pagina";
 import { DialogoAjuste, DialogoIngreso, type UbicacionLigera } from "@/components/inventario/dialogos-inventario";
 import { Miniatura, detalleProducto } from "@/components/inventario/selector-producto";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import type { ProductoInventario } from "@/lib/inventario/consultas";
 import { cn } from "@/lib/utils";
@@ -36,10 +37,9 @@ export function TablaInventario({ ubicaciones, columnas, productos, stock, enCam
   const columnasVenta = columnas.filter((c) => c.tipo === "sucursal");
 
   const visibles = useMemo(() => {
-    const q = busqueda.trim().toLowerCase();
     return productos.filter(
       (p) =>
-        (!q || [p.nombre, p.marca, p.sabor, p.presentacion, p.codigoBarras].some((t) => t?.toLowerCase().includes(q))) &&
+        coincide(busqueda, [p.nombre, p.marca, p.sabor, p.presentacion, p.codigoBarras]) &&
         (!soloBajo || columnasVenta.some((c) => bajo(p, c.id)) || columnas.some((c) => cant(p.id, c.id) < 0)),
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps -- bajo/cant derivan de stock y columnas
@@ -66,16 +66,7 @@ export function TablaInventario({ ubicaciones, columnas, productos, stock, enCam
       {children}
 
       <div className="flex flex-wrap items-center gap-3">
-        <label className="relative block w-full max-w-sm">
-          <span className="sr-only">Buscar producto</span>
-          <Search className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
-            placeholder="Buscar producto o código"
-            className="h-11 rounded-full pl-10"
-          />
-        </label>
+        <Buscador valor={busqueda} onCambiar={setBusqueda} etiqueta="Buscar producto" placeholder="Buscar producto, marca o código" />
         <label className="flex items-center gap-2 text-sm font-semibold">
           <Switch checked={soloBajo} onCheckedChange={setSoloBajo} />
           Solo stock bajo {cantidadBajos > 0 && <span className="cifras text-aviso-foreground rounded-full bg-aviso px-2 text-xs">{cantidadBajos}</span>}
@@ -109,9 +100,11 @@ export function TablaInventario({ ubicaciones, columnas, productos, stock, enCam
                     <div className="flex min-w-48 items-center gap-3">
                       <Miniatura url={p.fotoUrl} />
                       <div className="min-w-0">
-                        <p className="truncate font-semibold">{p.nombre}</p>
+                        <p className="truncate font-semibold">
+                          <Resaltar texto={p.nombre} consulta={busqueda} />
+                        </p>
                         <p className="truncate text-xs text-muted-foreground">
-                          {detalleProducto(p) || "—"}
+                          <Resaltar texto={detalleProducto(p) || "—"} consulta={busqueda} />
                           {p.stockMinimo > 0 && ` · mín. ${p.stockMinimo}`}
                         </p>
                       </div>
@@ -149,8 +142,14 @@ export function TablaInventario({ ubicaciones, columnas, productos, stock, enCam
             })}
             {visibles.length === 0 && (
               <tr>
-                <td colSpan={columnas.length + 2} className="p-10 text-center text-muted-foreground">
-                  {productos.length === 0 ? "Todavía no hay productos en el catálogo." : "No hay productos que coincidan."}
+                <td colSpan={columnas.length + 2} className="p-6 text-center text-muted-foreground">
+                  {productos.length === 0 ? (
+                    "Todavía no hay productos en el catálogo."
+                  ) : busqueda.trim() ? (
+                    <SinResultados className="border-0 p-2" consulta={busqueda} onLimpiar={() => setBusqueda("")} />
+                  ) : (
+                    "No hay productos con stock bajo."
+                  )}
                 </td>
               </tr>
             )}

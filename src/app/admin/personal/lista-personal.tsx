@@ -1,7 +1,9 @@
 "use client";
 
-import { KeyRound, LockOpen, Pencil, Search, Store, UserPlus, Users } from "lucide-react";
+import { KeyRound, LockOpen, Pencil, Store, UserPlus, Users } from "lucide-react";
 import { useMemo, useState } from "react";
+import { Buscador, Resaltar, SinResultados } from "@/components/busqueda/buscador";
+import { coincide } from "@/lib/busqueda";
 import { Campo } from "@/components/formularios/campo";
 import { DialogoFormulario } from "@/components/formularios/dialogo-formulario";
 import { EncabezadoPagina } from "@/components/formularios/encabezado-pagina";
@@ -52,11 +54,7 @@ export function ListaPersonal({
   const desbloquear = useAccion(desbloquearUsuario, { mensajeExito: "Usuario desbloqueado" });
 
   const visibles = useMemo(() => {
-    const q = busqueda.trim().toLowerCase();
-    if (!q) return personas;
-    return personas.filter((p) =>
-      [p.nombre, p.usuario, p.sucursal ?? ""].some((t) => t.toLowerCase().includes(q)),
-    );
+    return personas.filter((p) => coincide(busqueda, [p.nombre, p.usuario, p.sucursal, p.rol === "admin" ? "Administrador" : "Cajero"]));
   }, [personas, busqueda]);
 
   return (
@@ -68,16 +66,7 @@ export function ListaPersonal({
         </Button>
       </EncabezadoPagina>
 
-      <label className="relative mt-6 block max-w-sm">
-        <span className="sr-only">Buscar</span>
-        <Search className="pointer-events-none absolute top-1/2 left-3.5 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          value={busqueda}
-          onChange={(e) => setBusqueda(e.target.value)}
-          placeholder="Buscar por nombre, usuario o sucursal"
-          className="h-11 rounded-full pl-10"
-        />
-      </label>
+      <Buscador className="mt-6" valor={busqueda} onCambiar={setBusqueda} placeholder="Buscar por nombre, usuario, rol o sucursal" />
 
       <ul className="mt-5 space-y-3">
         {visibles.map((p) => (
@@ -98,10 +87,14 @@ export function ListaPersonal({
             </span>
             <div className="min-w-0 flex-1 basis-48">
               <p className="flex flex-wrap items-center gap-2 font-bold">
-                <span className="truncate">{p.nombre}</span>
+                <span className="truncate">
+                  <Resaltar texto={p.nombre} consulta={busqueda} />
+                </span>
                 {p.id === yo && <Badge variant="outline">Tú</Badge>}
               </p>
-              <p className="truncate text-sm text-muted-foreground">@{p.usuario}</p>
+              <p className="truncate text-sm text-muted-foreground">
+                @<Resaltar texto={p.usuario} consulta={busqueda} />
+              </p>
             </div>
             <div className="flex flex-wrap items-center gap-2 text-sm">
               <Badge variant={p.rol === "admin" ? "default" : "secondary"}>
@@ -110,7 +103,7 @@ export function ListaPersonal({
               {p.rol === "cajero" && (
                 <span className="flex items-center gap-1.5 text-muted-foreground">
                   <Store className="size-4" />
-                  {p.sucursal ?? "Sin sucursal"}
+                  <Resaltar texto={p.sucursal ?? "Sin sucursal"} consulta={busqueda} />
                 </span>
               )}
               {p.bloqueadoHasta && (
@@ -147,7 +140,9 @@ export function ListaPersonal({
           </li>
         ))}
         {visibles.length === 0 && (
-          <li className="rounded-3xl border border-dashed p-10 text-center text-muted-foreground">Sin resultados.</li>
+          <li>
+            <SinResultados consulta={busqueda} onLimpiar={() => setBusqueda("")} />
+          </li>
         )}
       </ul>
 

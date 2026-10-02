@@ -7,6 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import { Resaltar } from "@/components/busqueda/buscador";
+import { coincide } from "@/lib/busqueda";
 
 export type ProductoLigero = {
   id: number;
@@ -93,13 +95,7 @@ export function SelectorProducto({
           filter={(value, search) => {
             const p = productos.find((x) => String(x.id) === value);
             if (!p) return 0;
-            const texto = [p.nombre, p.marca, p.sabor, p.presentacion, p.codigoBarras].filter(Boolean).join(" ").toLowerCase();
-            return search
-              .toLowerCase()
-              .split(/\s+/)
-              .every((palabra) => texto.includes(palabra))
-              ? 1
-              : 0;
+            return coincide(search, [p.nombre, p.marca, p.sabor, p.presentacion, p.codigoBarras]) ? 1 : 0;
           }}
         >
           <CommandInput
@@ -116,7 +112,7 @@ export function SelectorProducto({
             }}
           />
           <CommandList>
-            <CommandEmpty>Sin resultados.</CommandEmpty>
+            <CommandEmpty>No se encontraron resultados para “{busqueda.trim()}”</CommandEmpty>
             <CommandGroup>
               {productos.map((p) => (
                 <CommandItem
@@ -128,8 +124,12 @@ export function SelectorProducto({
                 >
                   <Miniatura url={p.fotoUrl} className="size-8" />
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate font-semibold">{p.nombre}</span>
-                    <span className="block truncate text-xs text-muted-foreground">{detalleProducto(p)}</span>
+                    <span className="block truncate font-semibold">
+                      <Resaltar texto={p.nombre} consulta={busqueda} />
+                    </span>
+                    <span className="block truncate text-xs text-muted-foreground">
+                      <Resaltar texto={detalleProducto(p)} consulta={busqueda} />
+                    </span>
                   </span>
                   {extra?.(p)}
                   {p.id === valor && <Check className="size-4 text-primary" />}
