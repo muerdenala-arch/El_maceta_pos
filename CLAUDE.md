@@ -259,6 +259,18 @@ Credenciales de prueba locales: en `.env.local` (`SEED_*`), nunca en el código 
   `Llaves` y `ClasificacionTorneo` (`components/eventos`) sirven también a la página pública (solo nombres y marcadores).
   Excel: hojas Clasificación, Combates y Competidores. Prueba e2e: `e2e/pulseada.spec.ts`.
 
+## Buscador único
+
+- **Toda lista o tabla nueva usa `<Buscador>`** (`components/busqueda/buscador.tsx`): filtra al escribir (espera de 200 ms, sin
+  Enter), ✕ y Esc limpian. Se pinta con `<Resaltar texto consulta>` y, sin resultados, `<SinResultados consulta onLimpiar>`.
+- Reglas puras y probadas en `lib/busqueda.ts`: `coincide(consulta, campos)` (sin mayúsculas ni tildes; todas las palabras,
+  en cualquier campo) y `tramos()` para resaltar sobre el texto original.
+- Listas en memoria: estado local + `coincide`. Listas paginadas en el servidor (Reportes → Ventas, Auditoría → Acciones,
+  Historial de movimientos): la consulta va en la URL (`useBusquedaUrl("q")`, con `replace`) y se filtra con
+  `condicionBusqueda(consulta, columnas)` de `lib/busqueda-sql.ts` (mismas reglas con `translate`, sin extensión `unaccent`).
+- Punto de venta: filtra sobre los productos ya cargados (también sin internet); `onEnter` agrega el código exacto o el único resultado.
+- Pruebas: `lib/busqueda.test.ts`, `test/busqueda.integracion.test.ts`, `e2e/revision-buscador.spec.ts` (corre después de criterios).
+
 ## Botón atrás por niveles
 
 - `lib/navegacion/niveles.ts` (`padreDe`, probado): apartados del menú → inicio del rol; pantallas internas → un nivel arriba.

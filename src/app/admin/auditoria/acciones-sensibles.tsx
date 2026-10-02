@@ -10,6 +10,7 @@ import { formatoBs } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 import { ACCIONES_SENSIBLES } from "@/lib/auditoria-acciones";
 import { FiltroFechas } from "./filtro-fechas";
+import { Buscador, Resaltar, SinResultados } from "@/components/busqueda/buscador";
 
 export type EventoAuditoria = {
   id: number;
@@ -79,7 +80,9 @@ export function AccionesSensibles({
   pagina,
   hayMas,
   hoy,
+  consulta,
 }: {
+  consulta: string;
   hoy: string;
   eventos: EventoAuditoria[];
   nombres: Nombres;
@@ -119,6 +122,7 @@ export function AccionesSensibles({
             ))}
           </SelectContent>
         </Select>
+        <Buscador className="w-72" valor={consulta} onCambiar={(q) => ir({ q: q.trim() || null, pagina: null })} etiqueta="Buscar acciones" placeholder="Usuario, producto, motivo…" />
       </div>
 
       <ul className="divide-y rounded-3xl border bg-card shadow-sm">
@@ -130,14 +134,22 @@ export function AccionesSensibles({
               <div className="min-w-0 flex-1 basis-64">
                 <p className="flex flex-wrap items-center gap-2">
                   <Badge variant={a?.grave ? "destructive" : "secondary"}>{a?.titulo ?? e.accion}</Badge>
-                  <span className="text-sm font-semibold">{e.usuario ?? "Desconocido"}</span>
+                  <span className="text-sm font-semibold">
+                    <Resaltar texto={e.usuario ?? "Desconocido"} consulta={consulta} />
+                  </span>
                 </p>
-                <p className="mt-1 text-sm">{describir(e, nombres)}</p>
+                <p className="mt-1 text-sm">
+                  <Resaltar texto={describir(e, nombres)} consulta={consulta} />
+                </p>
               </div>
             </li>
           );
         })}
-        {eventos.length === 0 && <li className="p-10 text-center text-muted-foreground">No hay acciones sensibles en estas fechas.</li>}
+        {eventos.length === 0 && (
+          <li className="p-6 text-center text-muted-foreground">
+            {consulta ? <SinResultados className="border-0 p-2" consulta={consulta} onLimpiar={() => ir({ q: null, pagina: null })} /> : "No hay acciones sensibles en estas fechas."}
+          </li>
+        )}
       </ul>
 
       {(pagina > 1 || hayMas) && (

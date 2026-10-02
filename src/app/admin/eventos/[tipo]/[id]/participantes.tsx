@@ -1,6 +1,8 @@
 "use client";
 
 import { Pencil, UserMinus, UserPlus, Users } from "lucide-react";
+import { Buscador, Resaltar, SinResultados } from "@/components/busqueda/buscador";
+import { coincide } from "@/lib/busqueda";
 import { useState } from "react";
 import { Campo } from "@/components/formularios/campo";
 import { DialogoFormulario } from "@/components/formularios/dialogo-formulario";
@@ -22,6 +24,8 @@ export function PestanaParticipantes({ evento, participantes }: Pick<DetalleReto
   const [baja, setBaja] = useState<ParticipanteListado | null>(null);
   const abierto = evento.estado !== "finalizado";
   const activos = participantes.filter((p) => p.activo).length;
+  const [busqueda, setBusqueda] = useState("");
+  const visibles = participantes.filter((p) => coincide(busqueda, [p.nombreCompleto, p.cedulaIdentidad, p.telefono, p.activo ? null : "De baja"]));
 
   return (
     <section className="space-y-4">
@@ -39,16 +43,22 @@ export function PestanaParticipantes({ evento, participantes }: Pick<DetalleReto
         )}
       </div>
 
+      {participantes.length > 0 && <Buscador valor={busqueda} onCambiar={setBusqueda} etiqueta="Buscar participantes" placeholder="Nombre, cédula o celular" />}
       <ul className="space-y-2">
-        {participantes.map((p) => (
+        {participantes.length > 0 && visibles.length === 0 && (
+          <li>
+            <SinResultados consulta={busqueda} onLimpiar={() => setBusqueda("")} />
+          </li>
+        )}
+        {visibles.map((p) => (
           <li key={p.id} className={cn("flex flex-wrap items-center gap-3 rounded-2xl border bg-card p-3 shadow-sm sm:px-4", !p.activo && "opacity-60")}>
             <div className="min-w-0 flex-1 basis-56">
               <p className="flex flex-wrap items-center gap-2 font-semibold">
-                {p.nombreCompleto}
+                <Resaltar texto={p.nombreCompleto} consulta={busqueda} />
                 {!p.activo && <Badge variant="destructive">De baja</Badge>}
               </p>
               <p className="cifras text-sm text-muted-foreground">
-                CI {p.cedulaIdentidad} · {p.telefono} · inicial {kg(p.pesoInicial)}
+                CI <Resaltar texto={p.cedulaIdentidad} consulta={busqueda} /> · <Resaltar texto={p.telefono} consulta={busqueda} /> · inicial {kg(p.pesoInicial)}
               </p>
               {!p.activo && p.motivoBaja && <p className="text-sm text-destructive">Motivo: {p.motivoBaja}</p>}
             </div>

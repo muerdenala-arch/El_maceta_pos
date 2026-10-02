@@ -121,6 +121,9 @@ describe("reportes de ventas", () => {
     const [cajero] = await ventasPorCajero(f);
     expect(cajero).toMatchObject({ cajero: "Ana Norte", cantidad: 2, anuladas: 1, total: "820.00" });
     expect(await listarVentas(f, { limite: 10 })).toHaveLength(3);
+    // Buscador del reporte: por cajero o sucursal, sin mayúsculas ni tildes.
+    expect(await listarVentas(f, { limite: 10, busqueda: "ANA nórte" })).toHaveLength(3);
+    expect(await listarVentas(f, { limite: 10, busqueda: "no-existe" })).toHaveLength(0);
   });
 
   it("exporta a Excel con montos numéricos y a PDF", async () => {

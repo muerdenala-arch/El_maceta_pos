@@ -1,5 +1,6 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import Link from "next/link";
+import { Resaltar } from "@/components/busqueda/buscador";
 import { Button } from "@/components/ui/button";
 import { aCentavos } from "@/lib/dinero";
 import { formatoBs } from "@/lib/formato";
@@ -37,7 +38,7 @@ function Vacio({ columnas, texto }: { columnas: number; texto: string }) {
   );
 }
 
-export function TablaProductos({ filas }: { filas: VentasProducto[] }) {
+export function TablaProductos({ filas, consulta = "" }: { filas: VentasProducto[]; consulta?: string }) {
   const maximo = Math.max(...filas.map((f) => Number(f.neto)), 0);
   return (
     <Tabla minimo="min-w-[52rem]">
@@ -60,8 +61,12 @@ export function TablaProductos({ filas }: { filas: VentasProducto[] }) {
               <div className="flex items-center gap-3">
                 <span className="cifras w-6 text-right text-xs font-bold text-muted-foreground">{i + 1}</span>
                 <div className="min-w-0">
-                  <p className="font-semibold">{p.nombre}</p>
-                  <p className="text-xs text-muted-foreground">{[p.marca, p.sabor, p.presentacion].filter(Boolean).join(" · ")}</p>
+                  <p className="font-semibold">
+                    <Resaltar texto={p.nombre} consulta={consulta} />
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    <Resaltar texto={[p.marca, p.sabor, p.presentacion].filter(Boolean).join(" · ")} consulta={consulta} />
+                  </p>
                   <div className="mt-1 h-1.5 w-40 overflow-hidden rounded-full bg-muted-foreground/15">
                     <div className="h-full rounded-full bg-primary" style={{ width: `${maximo > 0 ? (Number(p.neto) / maximo) * 100 : 0}%` }} />
                   </div>
@@ -130,7 +135,7 @@ export function TablaDias({ filas }: { filas: VentasDia[] }) {
   );
 }
 
-export function TablaCajeros({ filas }: { filas: VentasCajero[] }) {
+export function TablaCajeros({ filas, consulta = "" }: { filas: VentasCajero[]; consulta?: string }) {
   return (
     <Tabla minimo="min-w-[40rem]">
       <thead>
@@ -147,8 +152,12 @@ export function TablaCajeros({ filas }: { filas: VentasCajero[] }) {
         {filas.map((c) => (
           <tr key={`${c.id}-${c.sucursal}`} className="border-b last:border-0">
             <td className="py-2.5 pr-3 pl-4">
-              <p className="font-semibold">{c.cajero}</p>
-              <p className="text-xs text-muted-foreground">{c.sucursal}</p>
+              <p className="font-semibold">
+                <Resaltar texto={c.cajero} consulta={consulta} />
+              </p>
+              <p className="text-xs text-muted-foreground">
+                <Resaltar texto={c.sucursal} consulta={consulta} />
+              </p>
             </td>
             <td className={td}>{c.cantidad}</td>
             <td className={cn(td, c.anuladas > 0 && "font-bold text-destructive")}>{c.anuladas}</td>

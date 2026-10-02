@@ -22,6 +22,8 @@ import { baseLocal } from "@/lib/offline/base";
 import { encolar } from "@/lib/offline/sincronizar";
 import { esquemaGasto } from "@/lib/validaciones/caja";
 import { registrarGasto } from "../acciones";
+import { Buscador, Resaltar, SinResultados } from "@/components/busqueda/buscador";
+import { coincide } from "@/lib/busqueda";
 
 type Gasto = {
   id: number;
@@ -96,6 +98,8 @@ export function GastosCajero({ gastos: gastosServidor, cajaId, usuarioId }: { ga
     setDescripcion("");
   }
   const total = vigentes.length ? sumar(...vigentes.map((g) => g.monto)) : "0";
+  const [busqueda, setBusqueda] = useState("");
+  const visibles = gastos.filter((g) => coincide(busqueda, [g.categoria, g.descripcion, g.monto]));
 
   return (
     <div className="mx-auto grid max-w-5xl gap-6 lg:grid-cols-[1fr_22rem]">
@@ -169,8 +173,14 @@ export function GastosCajero({ gastos: gastosServidor, cajaId, usuarioId }: { ga
           <span className="font-bold">Gastos del turno</span>
           <span className="cifras font-display text-2xl font-extrabold">{formatoBs(total)}</span>
         </div>
+        {gastos.length > 3 && <Buscador className="max-w-none" valor={busqueda} onCambiar={setBusqueda} etiqueta="Buscar gastos" placeholder="Categoría o descripción" />}
         <ul className="space-y-2">
-          {gastos.map((g) => (
+          {gastos.length > 0 && visibles.length === 0 && (
+            <li>
+              <SinResultados consulta={busqueda} onLimpiar={() => setBusqueda("")} />
+            </li>
+          )}
+          {visibles.map((g) => (
             <li key={g.id} className={cn("flex items-center gap-3 rounded-2xl border bg-card p-3", g.anulado && "opacity-50")}>
               {g.fotoUrl ? (
                 <a href={g.fotoUrl} target="_blank" rel="noreferrer" className="size-11 shrink-0 overflow-hidden rounded-xl">
@@ -183,12 +193,17 @@ export function GastosCajero({ gastos: gastosServidor, cajaId, usuarioId }: { ga
               )}
               <div className="min-w-0 flex-1">
                 <p className="flex items-center gap-2 font-semibold">
-                  {g.categoria} {g.anulado && <Badge variant="destructive">Anulado</Badge>}
+                  <Resaltar texto={g.categoria} consulta={busqueda} /> {g.anulado && <Badge variant="destructive">Anulado</Badge>}
                   {"pendiente" in g && g.pendiente && <Badge className="bg-aviso text-aviso-foreground">Sin enviar</Badge>}
                 </p>
                 <p className="truncate text-xs text-muted-foreground">
                   {hora(g.fecha)}
-                  {g.descripcion && ` · ${g.descripcion}`}
+                  {g.descripcion && (
+                    <>
+                      {" · "}
+                      <Resaltar texto={g.descripcion} consulta={busqueda} />
+                    </>
+                  )}
                 </p>
               </div>
               <span className={cn("cifras font-display font-extrabold", g.anulado && "line-through")}>{formatoBs(g.monto)}</span>

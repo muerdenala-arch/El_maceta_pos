@@ -14,6 +14,8 @@ import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import type { DatosSucursal } from "@/lib/validaciones/admin";
 import { cambiarEstadoSucursal, guardarSucursal } from "./acciones";
+import { Buscador, Resaltar, SinResultados } from "@/components/busqueda/buscador";
+import { coincide } from "@/lib/busqueda";
 
 type Sucursal = {
   id: number;
@@ -34,6 +36,8 @@ const VACIO: DatosSucursal = { nombre: "", direccion: "", telefono: "", encargad
 export function ListaSucursales({ sucursales }: { sucursales: Sucursal[] }) {
   const [editando, setEditando] = useState<Sucursal | "nueva" | null>(null);
   const cambiarEstado = useAccion(cambiarEstadoSucursal);
+  const [busqueda, setBusqueda] = useState("");
+  const visibles = sucursales.filter((s) => coincide(busqueda, [s.nombre, s.direccion, s.telefono, s.encargado, s.tipo === "bodega" ? "Bodega central" : "Sucursal"]));
 
   return (
     <div className="mx-auto max-w-6xl">
@@ -44,8 +48,10 @@ export function ListaSucursales({ sucursales }: { sucursales: Sucursal[] }) {
         </Button>
       </EncabezadoPagina>
 
-      <div className="mt-7 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {sucursales.map((s) => (
+      <Buscador className="mt-6" valor={busqueda} onCambiar={setBusqueda} etiqueta="Buscar sucursales" placeholder="Nombre, dirección, teléfono o encargado" />
+      {visibles.length === 0 && <SinResultados className="mt-5" consulta={busqueda} onLimpiar={() => setBusqueda("")} />}
+      <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+        {visibles.map((s) => (
           <article
             key={s.id}
             className={cn("flex flex-col rounded-3xl border bg-card p-5 shadow-sm", !s.activo && "opacity-60")}
@@ -60,7 +66,9 @@ export function ListaSucursales({ sucursales }: { sucursales: Sucursal[] }) {
                 {s.tipo === "bodega" ? <Warehouse className="size-5" /> : <Store className="size-5" />}
               </span>
               <div className="min-w-0 flex-1">
-                <h2 className="truncate text-lg font-bold">{s.nombre}</h2>
+                <h2 className="truncate text-lg font-bold">
+                  <Resaltar texto={s.nombre} consulta={busqueda} />
+                </h2>
                 <div className="mt-1 flex flex-wrap gap-1.5">
                   {s.tipo === "bodega" && <Badge variant="secondary">Bodega central</Badge>}
                   {!s.activo && <Badge variant="destructive">Inactiva</Badge>}
@@ -72,9 +80,9 @@ export function ListaSucursales({ sucursales }: { sucursales: Sucursal[] }) {
             </div>
 
             <ul className="mt-4 space-y-2 text-sm">
-              <Dato icono={MapPin} valor={s.direccion} vacio="Sin dirección" />
-              <Dato icono={Phone} valor={s.telefono} vacio="Sin teléfono" />
-              <Dato icono={UserRound} valor={s.encargado} vacio="Sin encargado" />
+              <Dato icono={MapPin} valor={s.direccion} vacio="Sin dirección" consulta={busqueda} />
+              <Dato icono={Phone} valor={s.telefono} vacio="Sin teléfono" consulta={busqueda} />
+              <Dato icono={UserRound} valor={s.encargado} vacio="Sin encargado" consulta={busqueda} />
               {s.tipo === "sucursal" && (
                 <>
                   <Dato icono={Printer} valor={NOMBRES_IMPRESION[s.tamanoImpresion]} />
@@ -109,11 +117,11 @@ export function ListaSucursales({ sucursales }: { sucursales: Sucursal[] }) {
   );
 }
 
-function Dato({ icono: Icono, valor, vacio }: { icono: typeof MapPin; valor: string | null; vacio?: string }) {
+function Dato({ icono: Icono, valor, vacio, consulta = "" }: { icono: typeof MapPin; valor: string | null; vacio?: string; consulta?: string }) {
   return (
     <li className="flex items-center gap-2.5">
       <Icono className="size-4 shrink-0 text-muted-foreground" />
-      <span className={cn("truncate", !valor && "text-muted-foreground")}>{valor ?? vacio}</span>
+      <span className={cn("truncate", !valor && "text-muted-foreground")}>{valor ? <Resaltar texto={valor} consulta={consulta} /> : vacio}</span>
     </li>
   );
 }

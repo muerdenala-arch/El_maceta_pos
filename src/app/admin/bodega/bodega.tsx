@@ -248,29 +248,39 @@ function ListaTransferencias({ transferencias }: { transferencias: Transferencia
   const cancelar = useAccion(cancelarTransferencia, { mensajeExito: "Transferencia cancelada: el stock volvió al origen" });
   const [porCancelar, setPorCancelar] = useState<Transferencia | null>(null);
   const ocupado = recibir.pendiente || cancelar.pendiente;
+  const [busqueda, setBusqueda] = useState("");
+  const estado = (t: Transferencia) => (t.estado === "enviada" ? "En camino" : t.estado === "recibida" ? "Recibida" : "Cancelada");
+  const visibles = transferencias.filter((t) =>
+    coincide(busqueda, [`T-${t.id}`, t.origen, t.destino, t.envia, t.recibe, estado(t), t.nota, ...t.lineas.flatMap((l) => [l.producto, l.presentacion])]),
+  );
 
   if (transferencias.length === 0) {
     return <p className="rounded-3xl border border-dashed p-10 text-center text-muted-foreground">Todavía no hay transferencias.</p>;
   }
   return (
     <>
+      <Buscador className="mb-4" valor={busqueda} onCambiar={setBusqueda} etiqueta="Buscar transferencias" placeholder="Producto, sucursal, estado o T-número" />
+      {visibles.length === 0 && <SinResultados consulta={busqueda} onLimpiar={() => setBusqueda("")} />}
       <ul className="grid gap-3 lg:grid-cols-2">
-        {transferencias.map((t) => (
+        {visibles.map((t) => (
           <li key={t.id} className={cn("flex flex-col rounded-3xl border bg-card p-4 shadow-sm", t.estado !== "enviada" && "opacity-75")}>
             <div className="flex flex-wrap items-center gap-2">
               <span className="font-mono text-xs text-muted-foreground">T-{t.id}</span>
               <Badge variant={t.estado === "enviada" ? "default" : t.estado === "recibida" ? "secondary" : "destructive"}>
-                {t.estado === "enviada" ? "En camino" : t.estado === "recibida" ? "Recibida" : "Cancelada"}
+                {estado(t)}
               </Badge>
               <span className="ml-auto text-xs text-muted-foreground">{fechaCorta(t.enviadaEn)} · {t.envia}</span>
             </div>
             <p className="mt-2 flex items-center gap-2 font-bold">
-              {t.origen} <ArrowRight className="size-4 text-primary" /> {t.destino}
+              <Resaltar texto={t.origen} consulta={busqueda} /> <ArrowRight className="size-4 text-primary" /> <Resaltar texto={t.destino} consulta={busqueda} />
             </p>
             <ul className="mt-2 space-y-0.5 text-sm">
               {t.lineas.map((l, i) => (
                 <li key={i} className="flex justify-between gap-3">
-                  <span className="truncate">{l.producto}{l.presentacion && <span className="text-muted-foreground"> · {l.presentacion}</span>}</span>
+                  <span className="truncate">
+                    <Resaltar texto={l.producto} consulta={busqueda} />
+                    {l.presentacion && <span className="text-muted-foreground"> · {l.presentacion}</span>}
+                  </span>
                   <span className="cifras font-semibold">{l.cantidad}</span>
                 </li>
               ))}
@@ -339,11 +349,13 @@ function Vencimientos({
     // Sin llaves devolvería la promesa de scrollIntoView (Chrome) y React la tomaría como limpieza.
     primero.current?.scrollIntoView({ behavior: "smooth", block: "center" });
   }, []);
-  const visibles = lotes.filter((l) => ubicacion === "todas" || l.ubicacionId === ubicacion);
+  const [busqueda, setBusqueda] = useState("");
+  const visibles = lotes.filter((l) => (ubicacion === "todas" || l.ubicacionId === ubicacion) && coincide(busqueda, [l.producto, l.presentacion, l.ubicacion]));
   const idPrimeroResaltado = visibles.find((l) => l.productoId === resaltar)?.id;
 
   return (
     <div className="space-y-4">
+      <Buscador valor={busqueda} onCambiar={setBusqueda} etiqueta="Buscar lotes" placeholder="Buscar producto o ubicación" />
       <div className="sin-barra flex gap-2 overflow-x-auto" role="tablist" aria-label="Filtrar por ubicación">
         {[{ id: "todas" as const, nombre: "Todas" }, ...ubicaciones].map((u) => (
           <button
@@ -361,7 +373,9 @@ function Vencimientos({
           </button>
         ))}
       </div>
-      {visibles.length === 0 ? (
+      {visibles.length === 0 && busqueda.trim() ? (
+        <SinResultados consulta={busqueda} onLimpiar={() => setBusqueda("")} />
+      ) : visibles.length === 0 ? (
         <p className="rounded-3xl border border-dashed p-10 text-center text-muted-foreground">
           No hay lotes con fecha de vencimiento registrada. Se cargan en el ingreso de mercadería.
         </p>
@@ -384,8 +398,13 @@ function Vencimientos({
                   {dias <= DIAS_AVISO ? <AlertTriangle className="size-5" /> : <CalendarClock className="size-5" />}
                 </span>
                 <div className="min-w-0 flex-1 basis-48">
-                  <p className="truncate font-semibold">{l.producto}{l.presentacion && <span className="font-normal text-muted-foreground"> · {l.presentacion}</span>}</p>
-                  <p className="text-sm text-muted-foreground">{l.ubicacion}</p>
+                  <p className="truncate font-semibold">
+                    <Resaltar texto={l.producto} consulta={busqueda} />
+                    {l.presentacion && <span className="font-normal text-muted-foreground"> · {l.presentacion}</span>}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    <Resaltar texto={l.ubicacion} consulta={busqueda} />
+                  </p>
                 </div>
                 <div className="text-right">
                   <p className={cn("text-sm font-bold", dias < 0 && "text-destructive")}>

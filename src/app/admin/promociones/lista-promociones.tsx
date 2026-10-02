@@ -16,6 +16,8 @@ import { describirBeneficio } from "@/lib/promociones/motor";
 import { cn } from "@/lib/utils";
 import type { DatosPromocion } from "@/lib/validaciones/promociones";
 import { crearCupon, eliminarCupon, guardarPromocion } from "./acciones";
+import { Buscador, Resaltar, SinResultados } from "@/components/busqueda/buscador";
+import { coincide } from "@/lib/busqueda";
 
 type Cupon = { id: number; codigo: string; usosMaximos: number | null; usosActuales: number };
 type Promo = {
@@ -76,6 +78,18 @@ export function ListaPromociones({
 }) {
   const [editando, setEditando] = useState<Promo | "nueva" | null>(null);
   const [cuponesDe, setCuponesDe] = useState<Promo | null>(null);
+  const [busqueda, setBusqueda] = useState("");
+  const visibles = promociones.filter((p) =>
+    coincide(busqueda, [
+      p.nombre,
+      describirBeneficio(p),
+      alcanceTexto(p),
+      p.sucursal ?? "Todas las sucursales",
+      estado(p, hoy).texto,
+      p.requiereCupon ? "Con cupón" : "Automática",
+      ...p.cupones.map((c) => c.codigo),
+    ]),
+  );
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -95,8 +109,12 @@ export function ListaPromociones({
           <p>Crea tu primera promoción: un porcentaje, un monto por unidad o un combo como 2x1.</p>
         </div>
       ) : (
+        <>
+        <Buscador valor={busqueda} onCambiar={setBusqueda} etiqueta="Buscar promociones" placeholder="Nombre, código de cupón, producto o estado" />
+        {visibles.length === 0 && <SinResultados consulta={busqueda} onLimpiar={() => setBusqueda("")} />}
         <ul className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {promociones.map((p) => {
+          {visibles.map((p) => {
+            const cuponHallado = busqueda.trim() ? p.cupones.find((c) => coincide(busqueda, [c.codigo])) : undefined;
             const e = estado(p, hoy);
             return (
               <li key={p.id} className={cn("flex flex-col rounded-3xl border bg-card p-5 shadow-sm", e.texto !== "Vigente" && "opacity-75")}>
@@ -105,16 +123,25 @@ export function ListaPromociones({
                     {p.tipo === "combo" ? <Shapes className="size-5" /> : p.tipo === "porcentaje" ? <Percent className="size-5" /> : <Tag className="size-5" />}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className="font-bold leading-snug">{p.nombre}</p>
-                    <p className="font-display text-lg font-extrabold text-primary">{describirBeneficio(p)}</p>
+                    <p className="font-bold leading-snug">
+                      <Resaltar texto={p.nombre} consulta={busqueda} />
+                    </p>
+                    <p className="font-display text-lg font-extrabold text-primary">
+                      <Resaltar texto={describirBeneficio(p)} consulta={busqueda} />
+                    </p>
                   </div>
                   <Button variant="ghost" size="icon" aria-label={`Editar ${p.nombre}`} onClick={() => setEditando(p)}>
                     <Pencil className="size-4" />
                   </Button>
                 </div>
                 <ul className="mt-3 mb-4 space-y-1.5 text-sm text-muted-foreground">
-                  <li className="flex items-center gap-2"><Tag className="size-4 shrink-0" /> <span className="truncate">{alcanceTexto(p)}</span></li>
-                  <li className="flex items-center gap-2"><Store className="size-4 shrink-0" /> {p.sucursal ?? "Todas las sucursales"}</li>
+                  <li className="flex items-center gap-2"><Tag className="size-4 shrink-0" /> <span className="truncate"><Resaltar texto={alcanceTexto(p)} consulta={busqueda} /></span></li>
+                  <li className="flex items-center gap-2"><Store className="size-4 shrink-0" /> <Resaltar texto={p.sucursal ?? "Todas las sucursales"} consulta={busqueda} /></li>
+                  {cuponHallado && (
+                    <li className="flex items-center gap-2">
+                      <TicketPercent className="size-4 shrink-0" /> Cupón <span className="font-mono font-semibold text-foreground"><Resaltar texto={cuponHallado.codigo} consulta={busqueda} /></span>
+                    </li>
+                  )}
                   <li className="flex items-center gap-2"><CalendarRange className="size-4 shrink-0" /> {fechaCorta(p.desde)} – {fechaCorta(p.hasta)}</li>
                 </ul>
                 <div className="mt-auto flex flex-wrap items-center gap-2 border-t pt-3">
@@ -128,6 +155,7 @@ export function ListaPromociones({
             );
           })}
         </ul>
+        </>
       )}
 
       {editando && (

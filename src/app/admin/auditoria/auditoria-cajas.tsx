@@ -1,12 +1,14 @@
 "use client";
 
 import { AlertTriangle, CheckCircle2, Clock } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { aCentavos, sumar } from "@/lib/dinero";
 import { formatoBs } from "@/lib/formato";
 import { cn } from "@/lib/utils";
 import { FiltroFechas } from "./filtro-fechas";
+import { Buscador, Resaltar, SinResultados } from "@/components/busqueda/buscador";
+import { coincide } from "@/lib/busqueda";
 
 export type CajaAuditada = {
   id: number;
@@ -47,6 +49,9 @@ export function AuditoriaCajas({
     fila.current?.scrollIntoView({ behavior: "smooth", block: "center" });
   }, []);
 
+  const [busqueda, setBusqueda] = useState("");
+  const visibles = cajas.filter((c) => coincide(busqueda, [c.cajero, c.sucursal, c.estado === "abierta" ? "Abierta" : "Cerrada"]));
+
   const cerradas = cajas.filter((c) => c.estado === "cerrada" && c.diferencia !== null);
   const conDiferencia = cerradas.filter((c) => aCentavos(c.diferencia!) !== 0n);
   const neto = cerradas.length ? sumar(...cerradas.map((c) => c.diferencia!)) : "0";
@@ -54,7 +59,10 @@ export function AuditoriaCajas({
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <FiltroFechas desde={desde} hasta={hasta} hoy={hoy} />
+        <div className="flex flex-wrap items-center gap-3">
+          <FiltroFechas desde={desde} hasta={hasta} hoy={hoy} />
+          <Buscador className="w-64" valor={busqueda} onCambiar={setBusqueda} etiqueta="Buscar cajas" placeholder="Cajero o sucursal" />
+        </div>
         <p className="text-sm text-muted-foreground">
           {cajas.length} caja{cajas.length === 1 ? "" : "s"} · {conDiferencia.length} con diferencia · neto{" "}
           <strong className={cn("cifras", aCentavos(neto) < 0n ? "text-destructive" : "text-foreground")}>{formatoBs(neto)}</strong>
@@ -77,13 +85,17 @@ export function AuditoriaCajas({
             </tr>
           </thead>
           <tbody>
-            {cajas.map((c) => {
+            {visibles.map((c) => {
               const dif = c.diferencia !== null ? aCentavos(c.diferencia) : null;
               return (
                 <tr key={c.id} ref={c.id === resaltar ? fila : undefined} className={cn("border-b last:border-0", c.id === resaltar && "fila-resaltada")}>
                   <td className="px-4 py-3">
-                    <p className="font-semibold">{c.cajero}</p>
-                    <p className="text-xs text-muted-foreground">{c.sucursal}</p>
+                    <p className="font-semibold">
+                      <Resaltar texto={c.cajero} consulta={busqueda} />
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      <Resaltar texto={c.sucursal} consulta={busqueda} />
+                    </p>
                   </td>
                   <td className="cifras px-3 py-3 whitespace-nowrap text-muted-foreground">
                     {fechaHora(c.apertura)} → {c.cierre ? fechaHora(c.cierre) : <Badge className="bg-exito text-exito-foreground">Abierta</Badge>}
@@ -115,10 +127,10 @@ export function AuditoriaCajas({
                 </tr>
               );
             })}
-            {cajas.length === 0 && (
+            {visibles.length === 0 && (
               <tr>
-                <td colSpan={9} className="p-10 text-center text-muted-foreground">
-                  No hay cajas en estas fechas.
+                <td colSpan={9} className="p-6 text-center text-muted-foreground">
+                  {cajas.length > 0 ? <SinResultados className="border-0 p-2" consulta={busqueda} onLimpiar={() => setBusqueda("")} /> : "No hay cajas en estas fechas."}
                 </td>
               </tr>
             )}

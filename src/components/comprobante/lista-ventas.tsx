@@ -2,7 +2,9 @@
 
 import { ChevronRight } from "lucide-react";
 import { useState } from "react";
+import { Resaltar, SinResultados } from "@/components/busqueda/buscador";
 import { Badge } from "@/components/ui/badge";
+import { coincide } from "@/lib/busqueda";
 import { numeroComprobante } from "@/lib/comprobante/datos";
 import { formatoBs } from "@/lib/formato";
 import { cn } from "@/lib/utils";
@@ -19,7 +21,11 @@ export type VentaResumida = {
   cajero?: string;
   sucursal?: string;
   estadoPago?: "pagado" | "qr_por_confirmar";
+  /** Nombres de los productos vendidos (para buscar por producto). */
+  productos?: string | null;
 };
+
+export const numeroCorto = (numero: number) => numeroComprobante(numero).replace(/^0+/, "");
 
 const hora = (iso: string) =>
   new Date(iso).toLocaleTimeString("es-BO", { timeZone: "America/La_Paz", hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
@@ -32,7 +38,12 @@ export function ListaVentas({
   admin,
   ventaInicial = null,
   conFecha = false,
+  consulta = "",
+  onLimpiar,
 }: {
+  /** Búsqueda vigente: resalta coincidencias y cambia el mensaje de lista vacía. */
+  consulta?: string;
+  onLimpiar?: () => void;
   ventas: VentaResumida[];
   /** Permite confirmar pagos QR y anular ventas desde el comprobante. */
   admin?: boolean;
@@ -55,10 +66,12 @@ export function ListaVentas({
                 v.estado === "anulada" && "opacity-60",
               )}
             >
-              <span className="cifras w-16 font-mono text-sm text-muted-foreground">#{numeroComprobante(v.numero).replace(/^0+/, "")}</span>
+              <span className="cifras w-16 font-mono text-sm text-muted-foreground">
+                #<Resaltar texto={numeroCorto(v.numero)} consulta={consulta} />
+              </span>
               <div className="min-w-0 flex-1">
                 <p className="truncate font-semibold">
-                  {v.cliente ?? "Cliente sin nombre"}
+                  <Resaltar texto={v.cliente ?? "Cliente sin nombre"} consulta={consulta} />
                   {v.estado === "anulada" && <Badge variant="destructive" className="ml-2">Anulada</Badge>}
                   {v.estado === "completada" && v.estadoPago === "qr_por_confirmar" && (
                     <Badge className="ml-2 bg-aviso text-aviso-foreground">QR por confirmar</Badge>
@@ -66,16 +79,39 @@ export function ListaVentas({
                 </p>
                 <p className="truncate text-xs text-muted-foreground">
                   {conFecha ? fechaHora(v.fecha) : hora(v.fecha)} · {v.metodoPago === "qr" ? "QR" : "Efectivo"}
-                  {v.cajero && ` · ${v.cajero}`}
-                  {v.sucursal && ` · ${v.sucursal}`}
+                  {v.cajero && (
+                    <>
+                      {" · "}
+                      <Resaltar texto={v.cajero} consulta={consulta} />
+                    </>
+                  )}
+                  {v.sucursal && (
+                    <>
+                      {" · "}
+                      <Resaltar texto={v.sucursal} consulta={consulta} />
+                    </>
+                  )}
                 </p>
+                {consulta.trim() && v.productos && coincide(consulta, [v.productos]) && (
+                  <p className="truncate text-xs text-muted-foreground">
+                    <Resaltar texto={v.productos} consulta={consulta} />
+                  </p>
+                )}
               </div>
               <span className={cn("cifras font-display text-lg font-extrabold", v.estado === "anulada" && "line-through")}>{formatoBs(v.total)}</span>
               <ChevronRight className="size-4 text-muted-foreground" />
             </button>
           </li>
         ))}
-        {ventas.length === 0 && <li className="rounded-2xl border border-dashed p-10 text-center text-muted-foreground">No hay ventas.</li>}
+        {ventas.length === 0 && (
+          <li>
+            {consulta.trim() && onLimpiar ? (
+              <SinResultados consulta={consulta} onLimpiar={onLimpiar} />
+            ) : (
+              <p className="rounded-2xl border border-dashed p-10 text-center text-muted-foreground">No hay ventas.</p>
+            )}
+          </li>
+        )}
       </ul>
       {abierta !== null && <DialogoComprobante ventaId={abierta} admin={admin} onCerrar={() => setAbierta(null)} />}
     </>

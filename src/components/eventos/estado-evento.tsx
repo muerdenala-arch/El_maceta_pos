@@ -9,6 +9,9 @@ const ESTILO: Record<EstadoEvento, { texto: string; clase: string }> = {
   finalizado: { texto: "Finalizado", clase: "bg-ficha-naranja text-ficha-naranja-foreground" },
 };
 
+/** Texto de cada estado (también para buscar por estado). */
+export const NOMBRES_ESTADO: Record<EstadoEvento, string> = { borrador: ESTILO.borrador.texto, en_curso: ESTILO.en_curso.texto, finalizado: ESTILO.finalizado.texto };
+
 export function EstadoEventoBadge({ estado, className }: { estado: EstadoEvento; className?: string }) {
   return <Badge className={cn(ESTILO[estado].clase, className)}>{ESTILO[estado].texto}</Badge>;
 }

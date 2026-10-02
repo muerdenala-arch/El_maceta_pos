@@ -1,7 +1,7 @@
 import { and, desc, eq, sql } from "drizzle-orm";
 import type { Metadata } from "next";
 import { db } from "@/db";
-import { clientes, ventas } from "@/db/schema";
+import { clientes, detalleVenta, productos, ventas } from "@/db/schema";
 import { requerirSesion } from "@/lib/auth/sesion";
 import { hoyEnBolivia, ZONA_HORARIA } from "@/lib/formato";
 import { ListaVentasDia } from "./lista-ventas-dia";
@@ -20,6 +20,8 @@ export default async function PaginaVentasDelDia() {
       metodoPago: ventas.metodoPago,
       estado: ventas.estado,
       cliente: clientes.nombre,
+      // Para buscar una venta por lo que se vendió.
+      productos: sql<string | null>`(select string_agg(${productos.nombre}, ', ') from ${detalleVenta} join ${productos} on ${productos.id} = ${detalleVenta.productoId} where ${detalleVenta.ventaId} = ${ventas.id})`,
     })
     .from(ventas)
     .leftJoin(clientes, eq(clientes.id, ventas.clienteId))

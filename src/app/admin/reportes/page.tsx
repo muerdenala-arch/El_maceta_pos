@@ -1,11 +1,11 @@
 import { BarChart3, Banknote, CircleDollarSign, PiggyBank, QrCode, ReceiptText, Tag, TrendingUp } from "lucide-react";
 import type { Metadata } from "next";
-import { ListaVentas } from "@/components/comprobante/lista-ventas";
 import { EncabezadoPagina } from "@/components/formularios/encabezado-pagina";
 import { Pestanas } from "@/components/inventario/pestanas";
 import { TarjetaEstadistica } from "@/components/panel/tarjeta-estadistica";
 import { BarraFiltros } from "@/components/reportes/barra-filtros";
-import { margen, Paginacion, TablaCajeros, TablaDias, TablaProductos } from "@/components/reportes/tablas";
+import { CajerosConBuscador, ProductosConBuscador, VentasConBuscador } from "@/components/reportes/buscables";
+import { margen, Paginacion, TablaDias } from "@/components/reportes/tablas";
 import { requerirSesion } from "@/lib/auth/sesion";
 import { aCentavos, deCentavos, restar } from "@/lib/dinero";
 import { formatoBs, hoyEnBolivia } from "@/lib/formato";
@@ -29,20 +29,21 @@ export default async function PaginaReporteVentas(props: PageProps<"/admin/repor
   const vista: Vista = VISTAS.find((v) => v === sp.vista) ?? "ventas";
   const pagina = Math.max(1, Math.floor(Number(sp.pagina)) || 1);
   const ventaInicial = Number(sp.venta) || null;
+  const busqueda = typeof sp.q === "string" ? sp.q.slice(0, 100) : "";
 
   const [opciones, r, contenido] = await Promise.all([
     opcionesFiltros(),
     resumenVentas(f),
     vista === "productos"
-      ? ventasPorProducto(f).then((filas) => <TablaProductos filas={filas} />)
+      ? ventasPorProducto(f).then((filas) => <ProductosConBuscador filas={filas} />)
       : vista === "dias"
         ? ventasPorDia(f).then((filas) => <TablaDias filas={filas} />)
         : vista === "cajeros"
-          ? ventasPorCajero(f).then((filas) => <TablaCajeros filas={filas} />)
-          : listarVentas(f, { limite: POR_PAGINA + 1, desplazamiento: (pagina - 1) * POR_PAGINA }).then((filas) => (
+          ? ventasPorCajero(f).then((filas) => <CajerosConBuscador filas={filas} />)
+          : listarVentas(f, { limite: POR_PAGINA + 1, desplazamiento: (pagina - 1) * POR_PAGINA, busqueda }).then((filas) => (
               <div className="space-y-3">
-                <ListaVentas admin conFecha={f.desde !== f.hasta} ventaInicial={ventaInicial} ventas={filas.slice(0, POR_PAGINA)} />
-                <Paginacion pagina={pagina} hayMas={filas.length > POR_PAGINA} href={(p) => `/admin/reportes?${aParametros(f, { vista, pagina: String(p) })}`} />
+                <VentasConBuscador admin conFecha={f.desde !== f.hasta} ventaInicial={ventaInicial} ventas={filas.slice(0, POR_PAGINA)} />
+                <Paginacion pagina={pagina} hayMas={filas.length > POR_PAGINA} href={(p) => `/admin/reportes?${aParametros(f, { vista, pagina: String(p), q: busqueda })}`} />
               </div>
             )),
   ]);

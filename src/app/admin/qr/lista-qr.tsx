@@ -15,6 +15,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import { guardarQr } from "./acciones";
+import { Buscador, Resaltar, SinResultados } from "@/components/busqueda/buscador";
+import { coincide } from "@/lib/busqueda";
 
 type Qr = { id: number; nombre: string; imagenUrl: string; sucursalId: number | null; sucursal: string | null; activo: boolean };
 type Opcion = { id: number; nombre: string };
@@ -25,6 +27,8 @@ const COMPRESION_QR = { ladoMaximo: 1000, calidad: 1 };
 export function ListaQr({ qrs, sucursales }: { qrs: Qr[]; sucursales: Opcion[] }) {
   const [editando, setEditando] = useState<Qr | "nuevo" | null>(null);
   const cambiar = useAccion(guardarQr);
+  const [busqueda, setBusqueda] = useState("");
+  const visibles = qrs.filter((q) => coincide(busqueda, [q.nombre, q.sucursal ?? "Todas las sucursales", q.activo ? "Activo" : "Inactivo"]));
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
@@ -40,21 +44,26 @@ export function ListaQr({ qrs, sucursales }: { qrs: Qr[]; sucursales: Opcion[] }
           <p>Sube la imagen del QR de tu banco para cobrar por transferencia.</p>
         </div>
       ) : (
+        <>
+        <Buscador valor={busqueda} onCambiar={setBusqueda} etiqueta="Buscar QR" placeholder="Nombre o sucursal" />
+        {visibles.length === 0 && <SinResultados consulta={busqueda} onLimpiar={() => setBusqueda("")} />}
         <ul className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {qrs.map((q) => (
+          {visibles.map((q) => (
             <li key={q.id} className={cn("flex flex-col overflow-hidden rounded-3xl border bg-card shadow-sm", !q.activo && "opacity-60")}>
               <div className="bg-white p-6">
                 <img src={q.imagenUrl} alt={`QR ${q.nombre}`} className="mx-auto aspect-square w-full max-w-56 object-contain" />
               </div>
               <div className="flex flex-1 flex-col gap-3 p-4">
                 <div className="flex items-start gap-2">
-                  <p className="flex-1 font-bold">{q.nombre}</p>
+                  <p className="flex-1 font-bold">
+                    <Resaltar texto={q.nombre} consulta={busqueda} />
+                  </p>
                   <Button variant="ghost" size="icon" aria-label={`Editar ${q.nombre}`} onClick={() => setEditando(q)}>
                     <Pencil className="size-4" />
                   </Button>
                 </div>
                 <p className="flex items-center gap-2 text-sm text-muted-foreground">
-                  <Store className="size-4" /> {q.sucursal ?? "Todas las sucursales"}
+                  <Store className="size-4" /> <Resaltar texto={q.sucursal ?? "Todas las sucursales"} consulta={busqueda} />
                 </p>
                 <label className="mt-auto flex items-center justify-between border-t pt-3 text-sm font-semibold">
                   {q.activo ? <Badge className="bg-exito text-exito-foreground">Activo</Badge> : <Badge variant="secondary">Inactivo</Badge>}
@@ -71,6 +80,7 @@ export function ListaQr({ qrs, sucursales }: { qrs: Qr[]; sucursales: Opcion[] }
             </li>
           ))}
         </ul>
+        </>
       )}
 
       {editando && (

@@ -13,6 +13,8 @@ import { formatoBs } from "@/lib/formato";
 import type { GastoListado } from "@/lib/reportes/gastos";
 import { cn } from "@/lib/utils";
 import { anularGasto } from "./acciones";
+import { Buscador, Resaltar, SinResultados } from "@/components/busqueda/buscador";
+import { coincide } from "@/lib/busqueda";
 
 type Gasto = GastoListado;
 
@@ -24,11 +26,14 @@ const fechaHora = (iso: string) =>
 /** Gastos con su foto; los de una caja todavía abierta se pueden anular (con motivo). */
 export function ListaGastos({ gastos, conFecha }: { gastos: GastoListado[]; conFecha: boolean }) {
   const [anulando, setAnulando] = useState<Gasto | null>(null);
+  const [busqueda, setBusqueda] = useState("");
+  const visibles = gastos.filter((g) => coincide(busqueda, [g.categoria, g.descripcion, g.cajero, g.sucursal, g.monto, g.anulado ? "Anulado" : null, g.motivoAnulacion]));
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
+      {gastos.length > 0 && <Buscador valor={busqueda} onCambiar={setBusqueda} etiqueta="Buscar gastos" placeholder="Categoría, descripción, cajero o sucursal" />}
       <ul className="space-y-2">
-        {gastos.map((g) => (
+        {visibles.map((g) => (
           <li key={g.id} className={cn("flex flex-wrap items-center gap-3 rounded-3xl border bg-card p-3 shadow-sm sm:px-4", g.anulado && "opacity-60")}>
             {g.fotoUrl ? (
               <a href={g.fotoUrl} target="_blank" rel="noreferrer" className="size-14 shrink-0 overflow-hidden rounded-2xl" title="Ver comprobante">
@@ -41,13 +46,17 @@ export function ListaGastos({ gastos, conFecha }: { gastos: GastoListado[]; conF
             )}
             <div className="min-w-0 flex-1 basis-48">
               <p className="flex flex-wrap items-center gap-2 font-bold">
-                {g.categoria}
+                <Resaltar texto={g.categoria} consulta={busqueda} />
                 {g.anulado && <Badge variant="destructive">Anulado</Badge>}
               </p>
               <p className="text-sm text-muted-foreground">
-                {conFecha ? fechaHora(g.fecha) : hora(g.fecha)} · {g.cajero} · {g.sucursal}
+                {conFecha ? fechaHora(g.fecha) : hora(g.fecha)} · <Resaltar texto={g.cajero} consulta={busqueda} /> · <Resaltar texto={g.sucursal} consulta={busqueda} />
               </p>
-              {g.descripcion && <p className="text-sm">{g.descripcion}</p>}
+              {g.descripcion && (
+                <p className="text-sm">
+                  <Resaltar texto={g.descripcion} consulta={busqueda} />
+                </p>
+              )}
               {g.anulado && g.motivoAnulacion && <p className="text-sm text-destructive">Motivo: {g.motivoAnulacion}</p>}
             </div>
             <span className={cn("cifras font-display text-xl font-extrabold", g.anulado && "line-through")}>{formatoBs(g.monto)}</span>
@@ -59,6 +68,11 @@ export function ListaGastos({ gastos, conFecha }: { gastos: GastoListado[]; conF
           </li>
         ))}
         {gastos.length === 0 && <li className="rounded-3xl border border-dashed p-10 text-center text-muted-foreground">Sin gastos con estos filtros.</li>}
+        {gastos.length > 0 && visibles.length === 0 && (
+          <li>
+            <SinResultados consulta={busqueda} onLimpiar={() => setBusqueda("")} />
+          </li>
+        )}
       </ul>
 
       {anulando && <DialogoAnular gasto={anulando} onCerrar={() => setAnulando(null)} />}

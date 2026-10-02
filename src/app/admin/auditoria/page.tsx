@@ -10,6 +10,7 @@ import { totalesCaja } from "@/lib/caja/consultas";
 import { fechaValida, hoyEnBolivia, ZONA_HORARIA } from "@/lib/formato";
 import { obtenerSucursalVista } from "@/lib/sucursal-vista";
 import { ACCIONES_SENSIBLES } from "@/lib/auditoria-acciones";
+import { condicionBusqueda } from "@/lib/busqueda-sql";
 import { AccionesSensibles, type EventoAuditoria } from "./acciones-sensibles";
 import { AuditoriaCajas, type CajaAuditada } from "./auditoria-cajas";
 
@@ -91,11 +92,18 @@ export default async function PaginaAuditoria(props: PageProps<"/admin/auditoria
 
   const accion = typeof sp.accion === "string" && sp.accion in ACCIONES_SENSIBLES ? sp.accion : null;
   const pagina = Math.max(1, Number(sp.pagina) || 1);
+  const consulta = typeof sp.q === "string" ? sp.q.slice(0, 100) : "";
   const filas = await db
     .select({ id: auditoria.id, fecha: auditoria.fecha, accion: auditoria.accion, detalle: auditoria.detalle, usuario: usuarios.nombre, dispositivo: auditoria.dispositivo })
     .from(auditoria)
     .leftJoin(usuarios, eq(usuarios.id, auditoria.usuarioId))
-    .where(and(rango(auditoria.fecha), accion ? eq(auditoria.accion, accion) : inArray(auditoria.accion, Object.keys(ACCIONES_SENSIBLES))))
+    .where(
+      and(
+        rango(auditoria.fecha),
+        accion ? eq(auditoria.accion, accion) : inArray(auditoria.accion, Object.keys(ACCIONES_SENSIBLES)),
+        condicionBusqueda(consulta, [usuarios.nombre, auditoria.accion, auditoria.detalle]),
+      ),
+    )
     .orderBy(desc(auditoria.fecha), desc(auditoria.id))
     .limit(POR_PAGINA + 1)
     .offset((pagina - 1) * POR_PAGINA);
@@ -127,7 +135,7 @@ export default async function PaginaAuditoria(props: PageProps<"/admin/auditoria
     <div className="mx-auto max-w-7xl space-y-6">
       <EncabezadoPagina icono={ScrollText} titulo="Auditoría" descripcion="Aperturas y cierres de caja, y acciones sensibles" />
       {pestanas}
-      <AccionesSensibles hoy={hoy} eventos={eventos} nombres={nombres} desde={desde} hasta={hasta} accion={accion} pagina={pagina} hayMas={filas.length > POR_PAGINA} />
+      <AccionesSensibles hoy={hoy} eventos={eventos} nombres={nombres} desde={desde} hasta={hasta} accion={accion} pagina={pagina} hayMas={filas.length > POR_PAGINA} consulta={consulta} />
     </div>
   );
 }

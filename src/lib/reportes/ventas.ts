@@ -3,6 +3,7 @@ import { and, desc, eq, gte, lt, sql, type SQL } from "drizzle-orm";
 import { db } from "@/db";
 import { clientes, detalleVenta, gastos, productos, sucursales, usuarios, ventas } from "@/db/schema";
 import type { VentaResumida } from "@/components/comprobante/lista-ventas";
+import { condicionBusqueda } from "@/lib/busqueda-sql";
 import { inicioDiaBolivia, ZONA_HORARIA } from "@/lib/formato";
 import type { FiltrosReporte } from "./filtros";
 
@@ -177,7 +178,7 @@ export type VentaListada = VentaResumida & {
 };
 
 /** Ventas del filtro, de la más reciente a la más antigua (incluye anuladas). */
-export async function listarVentas(f: FiltrosReporte, { limite, desplazamiento = 0 }: { limite: number; desplazamiento?: number }) {
+export async function listarVentas(f: FiltrosReporte, { limite, desplazamiento = 0, busqueda }: { limite: number; desplazamiento?: number; busqueda?: string }) {
   const filas = await db
     .select({
       id: ventas.id,
@@ -199,7 +200,7 @@ export async function listarVentas(f: FiltrosReporte, { limite, desplazamiento =
     .innerJoin(usuarios, eq(usuarios.id, ventas.cajeroId))
     .innerJoin(sucursales, eq(sucursales.id, ventas.sucursalId))
     .leftJoin(clientes, eq(clientes.id, ventas.clienteId))
-    .where(condiciones(f))
+    .where(and(condiciones(f), condicionBusqueda(busqueda, [ventas.numeroComprobante, clientes.nombre, clientes.telefono, usuarios.nombre, sucursales.nombre])))
     .orderBy(desc(ventas.fecha), desc(ventas.id))
     .limit(limite)
     .offset(desplazamiento);

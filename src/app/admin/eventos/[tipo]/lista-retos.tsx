@@ -3,8 +3,10 @@
 import { ArrowLeft, CalendarDays, ChevronRight, Plus, Scale, Users } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Buscador, Resaltar, SinResultados } from "@/components/busqueda/buscador";
+import { coincide } from "@/lib/busqueda";
 import { useState } from "react";
-import { fechaCorta, EstadoEventoBadge } from "@/components/eventos/estado-evento";
+import { fechaCorta, EstadoEventoBadge, NOMBRES_ESTADO } from "@/components/eventos/estado-evento";
 import { Campo } from "@/components/formularios/campo";
 import { DialogoFormulario } from "@/components/formularios/dialogo-formulario";
 import { EncabezadoPagina } from "@/components/formularios/encabezado-pagina";
@@ -44,6 +46,8 @@ export function ListaRetos({
   hoy: string;
 }) {
   const [nuevo, setNuevo] = useState(false);
+  const [busqueda, setBusqueda] = useState("");
+  const visibles = retos.filter((r) => coincide(busqueda, [r.nombre, r.sucursal, NOMBRES_ESTADO[r.estado]]));
 
   return (
     <div className="mx-auto max-w-5xl space-y-6">
@@ -60,8 +64,14 @@ export function ListaRetos({
         </Button>
       </EncabezadoPagina>
 
+      {retos.length > 0 && <Buscador valor={busqueda} onCambiar={setBusqueda} etiqueta={`Buscar ${juego.plural}`} placeholder="Nombre, sucursal o estado" />}
       <ul className="space-y-3">
-        {retos.map((r) => (
+        {retos.length > 0 && visibles.length === 0 && (
+          <li>
+            <SinResultados consulta={busqueda} onLimpiar={() => setBusqueda("")} />
+          </li>
+        )}
+        {visibles.map((r) => (
           <li key={r.id}>
             <Link
               href={`/admin/eventos/${juego.slug}/${r.id}`}
@@ -69,7 +79,9 @@ export function ListaRetos({
             >
               <div className="min-w-0 flex-1 basis-56">
                 <p className="flex flex-wrap items-center gap-2">
-                  <span className="truncate font-display text-lg font-extrabold">{r.nombre}</span>
+                  <span className="truncate font-display text-lg font-extrabold">
+                    <Resaltar texto={r.nombre} consulta={busqueda} />
+                  </span>
                   <EstadoEventoBadge estado={r.estado} />
                 </p>
                 <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-sm text-muted-foreground">
@@ -80,7 +92,11 @@ export function ListaRetos({
                     </span>
                     · {r.duracionDias} días
                   </span>
-                  {r.sucursal && <span>{r.sucursal}</span>}
+                  {r.sucursal && (
+                    <span>
+                      <Resaltar texto={r.sucursal} consulta={busqueda} />
+                    </span>
+                  )}
                   <span>Gana por {r.criterioGanador === "porcentaje" ? "% perdido" : "kilos perdidos"}</span>
                 </p>
               </div>

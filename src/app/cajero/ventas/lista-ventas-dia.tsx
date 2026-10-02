@@ -8,7 +8,9 @@ import { Comprobante } from "@/components/comprobante/comprobante";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import type { DatosComprobante } from "@/lib/comprobante/datos";
 import { baseLocal } from "@/lib/offline/base";
-import { ListaVentas, type VentaResumida } from "@/components/comprobante/lista-ventas";
+import { Buscador } from "@/components/busqueda/buscador";
+import { ListaVentas, numeroCorto, type VentaResumida } from "@/components/comprobante/lista-ventas";
+import { coincide } from "@/lib/busqueda";
 import { EncabezadoPagina } from "@/components/formularios/encabezado-pagina";
 import { sumar } from "@/lib/dinero";
 import { formatoBs } from "@/lib/formato";
@@ -22,6 +24,10 @@ export function ListaVentasDia({ ventas, usuarioId }: { ventas: VentaResumida[];
   );
   const [abierta, setAbierta] = useState<DatosComprobante | null>(null);
   const completadas = ventas.filter((v) => v.estado === "completada");
+  const [busqueda, setBusqueda] = useState("");
+  const visibles = ventas.filter((v) =>
+    coincide(busqueda, [numeroCorto(v.numero), v.cliente ?? "Cliente sin nombre", v.metodoPago === "qr" ? "QR" : "Efectivo", v.productos, v.estado === "anulada" ? "Anulada" : null]),
+  );
   return (
     <div className="mx-auto max-w-3xl space-y-5">
       <EncabezadoPagina
@@ -55,7 +61,8 @@ export function ListaVentasDia({ ventas, usuarioId }: { ventas: VentaResumida[];
           </ul>
         </section>
       )}
-      <ListaVentas ventas={ventas} />
+      {ventas.length > 0 && <Buscador grande className="max-w-none" valor={busqueda} onCambiar={setBusqueda} etiqueta="Buscar ventas" placeholder="N.º de venta, cliente o producto" />}
+      <ListaVentas ventas={visibles} consulta={busqueda} onLimpiar={() => setBusqueda("")} />
       <Dialog open={!!abierta} onOpenChange={(v) => !v && setAbierta(null)}>
         <DialogContent className="max-h-[94dvh] overflow-y-auto rounded-3xl sm:max-w-md">
           <DialogTitle className="font-display text-xl font-extrabold">Comprobante provisional</DialogTitle>

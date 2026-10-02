@@ -3,8 +3,10 @@
 import { ArrowLeft, BicepsFlexed, CalendarDays, ChevronRight, Plus, Users } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { Buscador, Resaltar, SinResultados } from "@/components/busqueda/buscador";
+import { coincide } from "@/lib/busqueda";
 import { useState } from "react";
-import { EstadoEventoBadge, fechaCorta } from "@/components/eventos/estado-evento";
+import { EstadoEventoBadge, fechaCorta, NOMBRES_ESTADO } from "@/components/eventos/estado-evento";
 import { Campo } from "@/components/formularios/campo";
 import { DialogoFormulario } from "@/components/formularios/dialogo-formulario";
 import { EncabezadoPagina } from "@/components/formularios/encabezado-pagina";
@@ -33,6 +35,8 @@ export function ListaTorneos({
   hoy: string;
 }) {
   const [nuevo, setNuevo] = useState(false);
+  const [busqueda, setBusqueda] = useState("");
+  const visibles = torneos.filter((t) => coincide(busqueda, [t.nombre, t.sucursal, FORMATOS[t.formato].titulo, NOMBRES_ESTADO[t.estado]]));
   return (
     <div className="mx-auto max-w-5xl space-y-6">
       <Link href="/admin/eventos" className="inline-flex items-center gap-1.5 text-sm font-semibold text-muted-foreground hover:text-foreground">
@@ -44,8 +48,14 @@ export function ListaTorneos({
         </Button>
       </EncabezadoPagina>
 
+      {torneos.length > 0 && <Buscador valor={busqueda} onCambiar={setBusqueda} etiqueta="Buscar torneos" placeholder="Nombre, formato, sucursal o estado" />}
       <ul className="space-y-3">
-        {torneos.map((t) => (
+        {torneos.length > 0 && visibles.length === 0 && (
+          <li>
+            <SinResultados consulta={busqueda} onLimpiar={() => setBusqueda("")} />
+          </li>
+        )}
+        {visibles.map((t) => (
           <li key={t.id}>
             <Link
               href={`/admin/eventos/${juego.slug}/${t.id}`}
@@ -53,7 +63,9 @@ export function ListaTorneos({
             >
               <div className="min-w-0 flex-1 basis-56">
                 <p className="flex flex-wrap items-center gap-2">
-                  <span className="truncate font-display text-lg font-extrabold">{t.nombre}</span>
+                  <span className="truncate font-display text-lg font-extrabold">
+                    <Resaltar texto={t.nombre} consulta={busqueda} />
+                  </span>
                   <EstadoEventoBadge estado={t.estado} />
                 </p>
                 <p className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-sm text-muted-foreground">
@@ -64,7 +76,11 @@ export function ListaTorneos({
                   <span>
                     {FORMATOS[t.formato].titulo} · al mejor de {t.mejorDe}
                   </span>
-                  {t.sucursal && <span>{t.sucursal}</span>}
+                  {t.sucursal && (
+                    <span>
+                      <Resaltar texto={t.sucursal} consulta={busqueda} />
+                    </span>
+                  )}
                 </p>
               </div>
               <span className="inline-flex items-center gap-1.5 text-sm font-bold">

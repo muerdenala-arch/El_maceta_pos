@@ -1,6 +1,8 @@
 "use client";
 
 import { AlertTriangle, ChevronDown, Flag, History, Pencil, Save } from "lucide-react";
+import { Buscador, Resaltar, SinResultados } from "@/components/busqueda/buscador";
+import { coincide } from "@/lib/busqueda";
 import { useMemo, useState } from "react";
 import { fechaCorta } from "@/components/eventos/estado-evento";
 import { Campo } from "@/components/formularios/campo";
@@ -81,8 +83,13 @@ export function PestanaPesajes({ evento, participantes, pesajes, hoy }: Pick<Det
     enviar(false);
   };
 
+  const [busqueda, setBusqueda] = useState("");
+  const filasVisibles = filas.filter((f) => coincide(busqueda, [f.p.nombreCompleto]));
+  const historialVisible = participantes.filter((p) => coincide(busqueda, [p.nombreCompleto]));
+
   return (
     <section className="space-y-6">
+      {participantes.length > 0 && <Buscador valor={busqueda} onCambiar={setBusqueda} etiqueta="Buscar participante" placeholder="Buscar participante" />}
       {enCurso ? (
         <div className="space-y-3 rounded-3xl border bg-card p-4 shadow-sm sm:p-5">
           <div className="flex flex-wrap items-end gap-3">
@@ -110,9 +117,11 @@ export function PestanaPesajes({ evento, participantes, pesajes, hoy }: Pick<Det
                 </tr>
               </thead>
               <tbody>
-                {filas.map((f) => (
+                {filasVisibles.map((f) => (
                   <tr key={f.p.id} className="border-b last:border-0">
-                    <td className="py-2 pr-3 font-semibold">{f.p.nombreCompleto}</td>
+                    <td className="py-2 pr-3 font-semibold">
+                      <Resaltar texto={f.p.nombreCompleto} consulta={busqueda} />
+                    </td>
                     <td className="cifras px-3 py-2 text-right text-muted-foreground">{kg(aCentikg(f.p.pesoInicial))}</td>
                     <td className="cifras px-3 py-2 text-right">
                       {f.ultimo ? (
@@ -150,10 +159,10 @@ export function PestanaPesajes({ evento, participantes, pesajes, hoy }: Pick<Det
                     </td>
                   </tr>
                 ))}
-                {filas.length === 0 && (
+                {filasVisibles.length === 0 && (
                   <tr>
-                    <td colSpan={4} className="p-8 text-center text-muted-foreground">
-                      No hay participantes activos.
+                    <td colSpan={4} className="p-6 text-center text-muted-foreground">
+                      {filas.length > 0 ? <SinResultados className="border-0 p-2" consulta={busqueda} onLimpiar={() => setBusqueda("")} /> : "No hay participantes activos."}
                     </td>
                   </tr>
                 )}
@@ -178,12 +187,14 @@ export function PestanaPesajes({ evento, participantes, pesajes, hoy }: Pick<Det
         <h2 className="flex items-center gap-2 text-base font-extrabold">
           <History className="size-5 text-primary" /> Historial por participante
         </h2>
-        {participantes.map((p) => {
+        {historialVisible.map((p) => {
           const suyos = porParticipante.get(p.id) ?? [];
           return (
             <details key={p.id} className="group rounded-2xl border bg-card shadow-sm">
               <summary className="flex cursor-pointer list-none items-center gap-3 px-4 py-3">
-                <span className={cn("min-w-0 flex-1 truncate font-semibold", !p.activo && "text-muted-foreground line-through")}>{p.nombreCompleto}</span>
+                <span className={cn("min-w-0 flex-1 truncate font-semibold", !p.activo && "text-muted-foreground line-through")}>
+                  <Resaltar texto={p.nombreCompleto} consulta={busqueda} />
+                </span>
                 <span className="text-xs text-muted-foreground">
                   {suyos.length} pesaje{suyos.length === 1 ? "" : "s"}
                 </span>
