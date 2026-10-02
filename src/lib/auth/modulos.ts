@@ -1,13 +1,14 @@
 /**
  * Apartados del administrador a los que también entra el encargado de sucursal (puro; probado en modulos.test.ts).
- * Cada uno tiene un **candado** que maneja el administrador: cerrado (por defecto) = el encargado lo ve pero no puede
- * cambiar nada; abierto = puede trabajar en él, siempre dentro de su sucursal y sin ver costos.
+ * Cada uno tiene un **candado** que maneja el administrador: cerrado (por defecto) = el encargado no tiene ese apartado
+ * (no sale en su menú ni abre escribiendo la dirección); abierto = lo ve y trabaja en él, siempre dentro de su sucursal
+ * y sin ver costos.
  */
 export const MODULOS_ENCARGADO = ["catalogo", "inventario", "bodega", "promociones", "combos", "eventos", "qr", "sucursales", "auditoria", "configuracion"] as const;
 export type ModuloEncargado = (typeof MODULOS_ENCARGADO)[number];
 
-/** Auditoría es solo consulta: no tiene candado. */
-export const MODULOS_CON_CANDADO: readonly ModuloEncargado[] = MODULOS_ENCARGADO.filter((m) => m !== "auditoria");
+/** Todos tienen candado (Auditoría, al abrirse, es solo consulta de las cajas de su sucursal). */
+export const MODULOS_CON_CANDADO: readonly ModuloEncargado[] = MODULOS_ENCARGADO;
 
 export const NOMBRES_MODULO: Record<ModuloEncargado, string> = {
   catalogo: "Catálogo",

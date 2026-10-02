@@ -452,6 +452,32 @@ Credenciales de prueba locales: en `.env.local` (`SEED_*`), nunca en el código 
 - Pruebas: `test/mejoras.integracion.test.ts` (envío simulado con `vi.mock("web-push")`), `sueldos/calculo.test.ts`,
   `e2e/revision-mejoras.spec.ts`. El envío real a un teléfono solo se prueba a mano (`docs/pruebas-manuales.md`).
 
+## Ajustes posteriores (pedidos por el dueño al usar la app)
+
+- **Candado cerrado = el apartado no existe para el encargado** (antes era "solo lectura"): no sale en su menú
+  (`navEncargadoCompartido` filtrado por `candados`) y `requerirModulo` lo redirige a su inicio. Abierto = le aparece y trabaja
+  en él. Todos los apartados compartidos tienen candado, también Auditoría (al abrirse, solo las cajas de su sucursal).
+  El modo solo lectura (`ZonaModulo soloLectura`, `SoloEdicion`, `DialogoFormulario`, `useAccion`) quedó sin uso pero funcional.
+- **Pantallas de PIN sin botón** (`TecladoPin sinBoton`): ni "Ingresar" ni "Desbloquear". Al volver a la app
+  (`guardia-bloqueo.tsx`) se ve igual que el ingreso, sin "Sesión bloqueada"; la capa sigue encima del contenido (el carrito no
+  se pierde). El PIN se prueba solo: se compara sin gastar intentos con el verificador local (`coincidePinLocal`,
+  `lib/offline/pin-local.ts`) y al coincidir se desbloquea; si no coincide se envía al servidor al llegar a 6 dígitos (0,5 s) o
+  tras 1,6 s sin teclear. Enter sigue funcionando.
+- **Inventario**: tocar la fila de un producto abre directo `DialogoAjuste` con ese producto y la sucursal que se está viendo
+  (o la única columna de venta); tocar una cantidad abre el ajuste de esa ubicación.
+- **Sueldos por trabajador** (migraciones 0015 y 0016): tabla `empleados` (nombre, cargo, sucursal, `usuario_id` opcional,
+  `fecha_ingreso`, `sueldo_mensual`, `fecha_baja`, `motivo_baja`) + `eventos_empleado` (ingreso | baja | reincorporacion, con fecha,
+  motivo y quién lo registró). `sueldos_mes` y `movimientos_sueldo` cuelgan de `empleado_id`. Todo usuario del sistema es un
+  trabajador (`asegurarEmpleados()` agrega los que falten al abrir la pantalla); también se crean trabajadores sin usuario.
+  "Cumple su mes" = mismo día del mes de su ingreso (`proximoPago`, puro y probado; último día si el mes es más corto).
+  Baja (`darDeBajaTrabajador`): fecha no futura ni anterior al ingreso, motivo obligatorio, queda en el historial, sale de la
+  planilla de los meses siguientes ("Ver dados de baja" los muestra) y **desactiva su usuario** con las reglas de Personal
+  (por eso nadie se da de baja a sí mismo ni al último administrador). `reincorporarTrabajador` quita la baja y reinicia su
+  fecha de ingreso; el usuario se reactiva a mano en Personal.
+- **Migraciones con columnas renombradas**: `drizzle-kit generate` pregunta de forma interactiva y aquí no hay terminal. Se
+  hace en dos pasos: primero una migración que solo agrega (dejando las columnas viejas en el schema, y con el traspaso de datos
+  escrito a mano), luego otra que solo quita.
+
 ## Botón atrás por niveles
 
 - `lib/navegacion/niveles.ts` (`padreDe`, probado): apartados del menú → inicio del rol; pantallas internas → un nivel arriba.

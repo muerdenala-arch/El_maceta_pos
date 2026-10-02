@@ -82,7 +82,6 @@ describe("por defecto todos los apartados tienen candado", () => {
 
     await comoUsuario(b.admin);
     expect(await cambiarCandado({ modulo: "personal", abierto: true })).toEqual({ ok: false, error: "Apartado inválido" });
-    expect(await cambiarCandado({ modulo: "auditoria", abierto: true })).toEqual({ ok: false, error: "Apartado inválido" });
     expect(await abrir("catalogo")).toEqual(["catalogo"]);
     expect(await abrir("catalogo")).toEqual(["catalogo"]); // repetir no duplica
     const [a] = (await db.select().from(auditoria).where(eq(auditoria.accion, "candado_encargado"))).slice(-1);
@@ -180,7 +179,7 @@ describe("QR, sucursales y configuración con el candado abierto", () => {
     const [c] = await db.select().from(configuracion).where(eq(configuracion.id, 1));
     expect(c).toMatchObject({ nombreComercial: "El Maseta Norte", descuentoManualMaximo: "5.00", descuentoManualMaximoEncargado: "15.00" });
     // Guardar la configuración no toca los candados.
-    expect(c.encargadoModulosAbiertos.sort()).toEqual(["bodega", "configuracion", "inventario", "qr", "sucursales"]);
+    expect([...c.encargadoModulosAbiertos].sort()).toEqual(["bodega", "configuracion", "inventario", "qr", "sucursales"]);
   });
 });
 

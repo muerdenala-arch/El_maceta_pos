@@ -10,8 +10,8 @@ import { MODULOS_CON_CANDADO, modulosValidos, NOMBRES_MODULO, type ModuloEncarga
 import { autorizar } from "./sesion";
 
 /**
- * Abre o cierra el candado de un apartado para los encargados (solo el administrador). Cerrado: el encargado lo ve
- * pero no puede cambiar nada. Vale para todos los encargados y queda en auditoría.
+ * Abre o cierra el candado de un apartado para los encargados (solo el administrador). Cerrado: el apartado desaparece
+ * del menú del encargado y no puede entrar. Vale para todos los encargados y queda en auditoría.
  */
 export async function cambiarCandado(entrada: { modulo: string; abierto: boolean }): Promise<Resultado<{ abiertos: ModuloEncargado[] }>> {
   return conPermiso(async () => {

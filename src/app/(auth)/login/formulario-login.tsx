@@ -106,6 +106,7 @@ export function FormularioLogin() {
         ocupado={ocupado}
         error={error}
         intentoError={intentoError}
+        sinBoton
       />
     </form>
   );

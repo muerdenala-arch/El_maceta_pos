@@ -34,6 +34,20 @@ export async function guardarCredencialLocal(usuario: string, usuarioId: number,
   }
 }
 
+/**
+ * ¿Este PIN es el guardado en el dispositivo? No cuenta intentos: lo usa la pantalla de PIN para saber, mientras se
+ * escribe, cuándo el PIN ya está completo. null = no hay verificador guardado para ese usuario.
+ */
+export async function coincidePinLocal(usuario: string, pin: string): Promise<boolean | null> {
+  try {
+    const c = await baseLocal().credenciales.get(usuario.toLowerCase());
+    if (!c) return null;
+    return (await derivar(pin, deHex(c.sal), c.iteraciones)) === c.hash;
+  } catch {
+    return null;
+  }
+}
+
 export type ResultadoPinLocal = "ok" | "incorrecto" | "bloqueado" | "sin-credencial";
 
 export async function verificarPinLocal(usuario: string, pin: string): Promise<ResultadoPinLocal> {

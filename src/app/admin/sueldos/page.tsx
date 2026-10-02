@@ -1,19 +1,27 @@
 import type { Metadata } from "next";
 import { requerirSesion } from "@/lib/auth/sesion";
 import { hoyEnBolivia } from "@/lib/formato";
+import { listarUbicaciones } from "@/lib/inventario/consultas";
 import { periodoDe, periodoValido, periodoVecino } from "@/lib/sueldos/calculo";
-import { planillaDelMes } from "@/lib/sueldos/consultas";
+import { asegurarEmpleados, planillaDelMes } from "@/lib/sueldos/consultas";
 import { Sueldos } from "./sueldos";
 
 export const metadata: Metadata = { title: "Sueldos" };
 
-/** Sueldos del personal (solo administrador): sueldo mensual, adelantos, descuentos, bonos y pagos de cada mes. */
+/**
+ * Sueldos del personal (solo administrador): trabajadores (con o sin usuario en el sistema), desde cuándo trabajan y
+ * cuándo cumplen su mes, sueldo, adelantos, descuentos, bonos y pagos de cada mes, y bajas con su motivo.
+ */
 export default async function PaginaSueldos(props: PageProps<"/admin/sueldos">) {
   await requerirSesion("admin");
-  const actual = periodoDe(hoyEnBolivia());
-  const pedido = (await props.searchParams).mes;
+  const hoy = hoyEnBolivia();
+  const actual = periodoDe(hoy);
+  const sp = await props.searchParams;
   // Hasta el mes que viene (para dejar adelantos anotados); nunca más allá.
   const tope = periodoVecino(actual, 1);
-  const periodo = periodoValido(pedido) && pedido <= tope ? pedido : actual;
-  return <Sueldos periodo={periodo} actual={actual} tope={tope} filas={await planillaDelMes(periodo)} />;
+  const periodo = periodoValido(sp.mes) && sp.mes <= tope ? sp.mes : actual;
+  const conBajas = sp.bajas === "1";
+  await asegurarEmpleados();
+  const [filas, ubicaciones] = await Promise.all([planillaDelMes(periodo, { conBajas }), listarUbicaciones()]);
+  return <Sueldos periodo={periodo} actual={actual} tope={tope} hoy={hoy} conBajas={conBajas} filas={filas} sucursales={ubicaciones.map((u) => ({ id: u.id, nombre: u.nombre }))} />;
 }

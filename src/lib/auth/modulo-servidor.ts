@@ -3,7 +3,9 @@ import { eq } from "drizzle-orm";
 import { cache } from "react";
 import { db } from "@/db";
 import { configuracion, sucursales } from "@/db/schema";
+import { redirect } from "next/navigation";
 import { modulosValidos, type ModuloEncargado } from "./modulos";
+import { inicioSegunRol } from "./rutas";
 import { autorizar, ErrorAutorizacion, ErrorCandado, requerirSesion, type Sesion } from "./sesion";
 
 /** Apartados con el candado abierto para los encargados (una consulta por petición). */
@@ -16,18 +18,18 @@ export type AccesoModulo = {
   sesion: Sesion;
   /** Es el encargado (no ve costos y solo trabaja con su sucursal). */
   encargado: boolean;
-  /** Encargado con el candado cerrado: ve, pero no cambia nada. */
+  /** Se ve pero no se cambia nada. Hoy siempre false: con el candado cerrado el encargado ni siquiera entra. */
   soloLectura: boolean;
   /** Sucursal del encargado (null para el administrador). */
   sucursalId: number | null;
 };
 
-/** Para las páginas de un apartado compartido: administrador, o encargado (en solo lectura si el candado está cerrado). */
+/** Para las páginas de un apartado compartido: administrador, o encargado con el candado abierto (cerrado → a su inicio). */
 export async function requerirModulo(modulo: ModuloEncargado): Promise<AccesoModulo> {
   const sesion = await requerirSesion("admin", "encargado");
   if (sesion.rol === "admin") return { sesion, encargado: false, soloLectura: false, sucursalId: null };
-  const soloLectura = modulo === "auditoria" || !(await modulosAbiertos()).includes(modulo);
-  return { sesion, encargado: true, soloLectura, sucursalId: sesion.sucursalId };
+  if (!(await modulosAbiertos()).includes(modulo)) redirect(inicioSegunRol(sesion.rol));
+  return { sesion, encargado: true, soloLectura: false, sucursalId: sesion.sucursalId };
 }
 
 /**
@@ -38,7 +40,7 @@ export async function autorizarModulo(modulo: ModuloEncargado): Promise<Sesion> 
   const sesion = await autorizar("admin", "encargado");
   if (sesion.rol === "admin") return sesion;
   if (!sesion.sucursalId) throw new ErrorAutorizacion("Sin sucursal");
-  if (modulo === "auditoria" || !(await modulosAbiertos()).includes(modulo)) throw new ErrorCandado("Apartado con candado");
+  if (!(await modulosAbiertos()).includes(modulo)) throw new ErrorCandado("Apartado con candado");
   return sesion;
 }
 

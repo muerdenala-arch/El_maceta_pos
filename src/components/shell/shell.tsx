@@ -17,7 +17,7 @@ import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/s
 import { cn } from "@/lib/utils";
 import { NOMBRES_ROL, type Rol } from "@/lib/auth/constantes";
 import { moduloDeRuta, MODULOS_CON_CANDADO, type ModuloEncargado } from "@/lib/auth/modulos";
-import { BotonCandado, IndicadorCandado } from "./candado";
+import { BotonCandado } from "./candado";
 import { navAdmin, navCajero, navEncargado, navEncargadoCompartido, navEncargadoInferior } from "./navegacion";
 import { SelectorSucursal } from "./selector-sucursal";
 
@@ -30,7 +30,7 @@ export type PropsShell = {
   sucursalActual: number | null;
   /** Admin y encargado: contador de la campanita y numeritos por módulo del menú. */
   alertas?: { noLeidas: number; porModulo: Record<string, number> };
-  /** Apartados con el candado abierto para los encargados (el administrador los abre y cierra desde su menú). */
+  /** Apartados con el candado abierto para los encargados: solo esos salen en su menú (el administrador los abre y cierra desde el suyo). */
   candados?: ModuloEncargado[];
   children: React.ReactNode;
 };
@@ -126,7 +126,9 @@ function ContenidoLateral({
 }: PropsShell & { alNavegar?: () => void }) {
   const router = useRouter();
   const pathname = usePathname();
-  const items = rol === "admin" ? navAdmin : rol === "encargado" ? [...navEncargado, ...navEncargadoCompartido] : navCajero;
+  // El encargado solo tiene en su menú los apartados compartidos que el administrador dejó con el candado abierto.
+  const items =
+    rol === "admin" ? navAdmin : rol === "encargado" ? [...navEncargado, ...navEncargadoCompartido.filter((i) => candados.includes(moduloDeRuta(i.href)!))] : navCajero;
   const activo = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
   /** Apartado con candado al que corresponde un enlace del menú (null si no tiene). */
   const conCandado = (href: string) => {
@@ -170,7 +172,7 @@ function ContenidoLateral({
 
       <nav className="flex-1 space-y-1 overflow-y-auto px-3 pb-3">
         {items.map(({ href, titulo, icono: Icono }) => {
-          const modulo = rol === "cajero" ? null : conCandado(href);
+          const modulo = rol === "admin" ? conCandado(href) : null;
           const abierto = !!modulo && candados.includes(modulo);
           return (
           <div key={href} className="relative">
@@ -198,7 +200,6 @@ function ContenidoLateral({
                 {alertas.porModulo[href]}
               </span>
             )}
-            {modulo && rol === "encargado" && <IndicadorCandado abierto={abierto} />}
           </Link>
           {modulo && rol === "admin" && <BotonCandado modulo={modulo} titulo={titulo} abierto={abierto} />}
           </div>

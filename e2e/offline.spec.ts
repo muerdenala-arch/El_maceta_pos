@@ -96,13 +96,13 @@ test("vende sin internet y sincroniza al volver, sin duplicados", async ({ page,
   await test.step("sin internet: al reabrir pide el PIN y lo valida en el dispositivo", async () => {
     await page.evaluate(() => sessionStorage.removeItem("maseta:desbloqueado"));
     await page.goto("/cajero/venta");
-    await expect(page.getByText("Sesión bloqueada")).toBeVisible();
+    await expect(page.getByRole("dialog", { name: "Pantalla bloqueada" })).toBeVisible();
     await page.keyboard.type("0000");
     await page.keyboard.press("Enter");
     await expect(page.getByText("PIN incorrecto")).toBeVisible();
     await page.keyboard.type(PIN);
     await page.keyboard.press("Enter");
-    await expect(page.getByText("Sesión bloqueada")).toBeHidden();
+    await expect(page.getByRole("dialog", { name: "Pantalla bloqueada" })).toBeHidden();
   });
 
   // Copia de la cola para reenviarla después y comprobar que no se duplica nada.

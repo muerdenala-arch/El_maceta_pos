@@ -2,6 +2,7 @@ import * as XLSX from "xlsx";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { eventos } from "@/db/schema";
+import { modulosAbiertos } from "@/lib/auth/modulo-servidor";
 import { obtenerSesion } from "@/lib/auth/sesion";
 import { aCentikg, tablaPosiciones } from "@/lib/eventos/calculos";
 import { obtenerEvento, participantesDe, pesajesDe, type ParticipanteListado } from "@/lib/eventos/consultas";
@@ -17,7 +18,9 @@ import { estadoTorneo } from "@/lib/eventos/torneo-datos";
 export async function GET(_req: Request, ctx: RouteContext<"/api/admin/eventos/[id]/excel">) {
   const sesion = await obtenerSesion();
   if (!sesion) return Response.json({ error: "Sesión vencida" }, { status: 401 });
-  if (sesion.rol === "cajero") return Response.json({ error: "Sin permiso" }, { status: 403 });
+  if (sesion.rol === "cajero" || (sesion.rol === "encargado" && !(await modulosAbiertos()).includes("eventos"))) {
+    return Response.json({ error: "Sin permiso" }, { status: 403 });
+  }
 
   const id = Number((await ctx.params).id);
   const [tipo] = Number.isInteger(id) && id > 0 ? await db.select({ t: eventos.tipoJuego }).from(eventos).where(eq(eventos.id, id)) : [];

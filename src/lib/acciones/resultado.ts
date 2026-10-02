@@ -37,7 +37,7 @@ export function esViolacionUnica(e: unknown, restriccion?: string): boolean {
   return false;
 }
 
-export const MENSAJE_CANDADO = "Este apartado tiene candado: solo el administrador puede hacer cambios";
+export const MENSAJE_CANDADO = "Este apartado está cerrado con candado: pídele al administrador que lo abra";
 
 /** Envuelve una acción: los errores de permiso se devuelven como resultado en vez de romper la pantalla. */
 export async function conPermiso<T>(fn: () => Promise<Resultado<T>>): Promise<Resultado<T>> {

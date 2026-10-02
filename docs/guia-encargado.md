@@ -33,12 +33,11 @@ No ve otras sucursales, costos ni ganancias, ni maneja al personal.
 - Todo queda registrado con tu nombre. **No compartas tu PIN**: quien lo tenga autoriza en tu nombre.
 - 5 PIN incorrectos seguidos bloquean las autorizaciones de ese cajero por 15 minutos.
 
-## Apartados con candado
-- En tu menú también están **Catálogo, Inventario de sucursales, Bodega central, Promociones y cupones, Combos, Eventos,
-  QR de cobro, Sucursales, Auditoría de caja y Configuración**.
-- Los que tienen un **candado** son de solo consulta: puedes verlos, pero no cambiar nada. El administrador abre o cierra
-  el candado de cada apartado cuando lo necesite.
-- Con el candado abierto trabajas solo con tu sucursal (y la bodega central), y nunca ves ni cambias costos.
+## Apartados que te abre el administrador
+- El administrador decide qué apartados suyos te aparecen: **Catálogo, Inventario de sucursales, Bodega central, Promociones
+  y cupones, Combos, Eventos, QR de cobro, Sucursales, Auditoría de caja y Configuración**.
+- Si no ves alguno en tu menú es porque tiene el candado cerrado: pídele que lo abra.
+- En los que tengas, trabajas solo con tu sucursal (y la bodega central), y nunca ves ni cambias costos.
 
 ## Avisos en tu celular
 - Toca la **campanita** → **Activar**. Desde entonces, cuando un producto de tu sucursal quede bajo o agotado te llega una

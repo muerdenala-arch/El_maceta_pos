@@ -8,13 +8,13 @@ import type { ModuloEncargado } from "@/lib/auth/modulos";
 import { cn } from "@/lib/utils";
 
 /**
- * Candado de un apartado en el menú del administrador: cerrado = los encargados lo ven pero no pueden cambiar nada;
- * abierto = pueden trabajar en él. Un toque lo cambia (vale para todos los encargados y queda en auditoría).
+ * Candado de un apartado en el menú del administrador: cerrado = los encargados no tienen ese apartado (no les aparece);
+ * abierto = les aparece y pueden trabajar en él. Un toque lo cambia (vale para todos los encargados y queda en auditoría).
  */
 export function BotonCandado({ modulo, titulo, abierto }: { modulo: ModuloEncargado; titulo: string; abierto: boolean }) {
   const [ocupado, iniciar] = useTransition();
   const Icono = abierto ? LockOpen : Lock;
-  const explicacion = abierto ? `${titulo}: los encargados pueden hacer cambios. Toca para cerrar el candado.` : `${titulo}: los encargados solo pueden ver. Toca para abrir el candado.`;
+  const explicacion = abierto ? `${titulo}: los encargados lo tienen en su menú. Toca para cerrar el candado y quitárselo.` : `${titulo}: los encargados no lo ven. Toca para abrir el candado y dárselo.`;
   return (
     <button
       type="button"
@@ -27,7 +27,7 @@ export function BotonCandado({ modulo, titulo, abierto }: { modulo: ModuloEncarg
         iniciar(async () => {
           try {
             const r = await cambiarCandado({ modulo, abierto: !abierto });
-            if (r.ok) toast.success(abierto ? `${titulo}: candado cerrado. Los encargados solo pueden ver.` : `${titulo}: candado abierto. Los encargados pueden hacer cambios.`);
+            if (r.ok) toast.success(abierto ? `${titulo}: candado cerrado. Ya no les aparece a los encargados.` : `${titulo}: candado abierto. Ahora les aparece a los encargados.`);
             else toast.error(r.error);
           } catch {
             toast.error("No se pudo cambiar el candado. Revisa tu conexión.");
@@ -41,15 +41,5 @@ export function BotonCandado({ modulo, titulo, abierto }: { modulo: ModuloEncarg
     >
       <Icono className="size-4" strokeWidth={2.2} />
     </button>
-  );
-}
-
-/** En el menú del encargado: el apartado está en solo lectura (candado cerrado). */
-export function IndicadorCandado({ abierto }: { abierto: boolean }) {
-  if (abierto) return null;
-  return (
-    <span title="Con candado: solo puedes ver" className="flex size-6 items-center justify-center text-sidebar-foreground/45">
-      <Lock className="size-3.5" strokeWidth={2.2} aria-label="Solo lectura" />
-    </span>
   );
 }

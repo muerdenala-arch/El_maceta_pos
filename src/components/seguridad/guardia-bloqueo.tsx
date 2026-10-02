@@ -9,8 +9,8 @@ import { Logo } from "@/components/marca/logo";
 import { escribirAlmacen, leerAlmacen } from "@/lib/almacen";
 import { cerrarSesion, desbloquear } from "@/lib/auth/acciones";
 import { CLAVE_DESBLOQUEO, MINUTOS_INACTIVIDAD } from "@/lib/auth/constantes";
-import { guardarCredencialLocal, verificarPinLocal } from "@/lib/offline/pin-local";
-import { TecladoPin } from "./teclado-pin";
+import { coincidePinLocal, guardarCredencialLocal, verificarPinLocal } from "@/lib/offline/pin-local";
+import { PIN_MAX, PIN_MIN, TecladoPin } from "./teclado-pin";
 
 const EVENTOS_ACTIVIDAD = ["pointerdown", "keydown", "touchstart", "wheel", "mousemove"] as const;
 const LIMITE_MS = MINUTOS_INACTIVIDAD * 60_000;
@@ -116,13 +116,14 @@ function PantallaBloqueo({
   };
 
   const fallar = (mensaje: string) => {
+    actual.current = "";
     setPin("");
     setError(mensaje);
     setIntentoError((n) => n + 1);
   };
 
   /** Sin conexión: contra el verificador guardado en el dispositivo (sección 8 del plan). */
-  const desbloquearSinConexion = async () => {
+  const desbloquearSinConexion = async (pin: string) => {
     const r = await verificarPinLocal(usuario, pin).catch(() => "sin-credencial" as const);
     if (r === "ok") return onDesbloqueado();
     if (r === "incorrecto") return fallar("PIN incorrecto");
@@ -130,14 +131,41 @@ function PantallaBloqueo({
     fallar("Sin conexión y sin PIN guardado en este dispositivo: conéctate para desbloquear.");
   };
 
-  const enviar = () =>
+  // Sin botón: el PIN se prueba solo. Mientras se escribe se compara (sin gastar intentos) con el verificador guardado
+  // en este equipo, y en cuanto coincide se desbloquea. Si no coincide, se envía al completar 6 dígitos o tras una
+  // pausa (PIN de 4 o 5 dígitos equivocado, o equipo sin verificador guardado).
+  const temporizadores = useRef<ReturnType<typeof setTimeout>[]>([]);
+  const actual = useRef("");
+  const cancelar = () => {
+    temporizadores.current.forEach(clearTimeout);
+    temporizadores.current = [];
+  };
+  useEffect(() => cancelar, []);
+
+  const alEscribir = (v: string) => {
+    setPin(v);
+    actual.current = v;
+    setError(null);
+    cancelar();
+    if (v.length < PIN_MIN || ocupado) return;
+    const sigue = () => actual.current === v;
+    temporizadores.current = [
+      setTimeout(async () => {
+        if (sigue() && (await coincidePinLocal(usuario, v)) && sigue()) enviar(v);
+      }, 120),
+      setTimeout(() => sigue() && enviar(v), v.length === PIN_MAX ? 500 : 1600),
+    ];
+  };
+
+  const enviar = (pin: string) => {
+    cancelar();
     iniciar(async () => {
-      if (!navigator.onLine) return desbloquearSinConexion();
+      if (!navigator.onLine) return desbloquearSinConexion(pin);
       let r;
       try {
         r = await desbloquear(pin);
       } catch {
-        return desbloquearSinConexion(); // la red se cortó en el intento
+        return desbloquearSinConexion(pin); // la red se cortó en el intento
       }
       if (r.ok) {
         await guardarCredencialLocal(usuario, usuarioId, pin);
@@ -146,6 +174,7 @@ function PantallaBloqueo({
       fallar(r.error);
       if (r.sesionCerrada) setTimeout(irAlLogin, 2500);
     });
+  };
 
   return (
     <motion.div
@@ -161,24 +190,20 @@ function PantallaBloqueo({
       <FondoAmbiental />
       <div className="m-auto w-full max-w-[26rem] rounded-[2rem] border bg-card/90 px-7 pt-8 pb-7 shadow-2xl sm:px-8">
         <div className="flex flex-col items-center text-center">
-          <Logo nombre={marca.nombre} url={marca.logoUrl} className="size-20 p-1" />
-          <p className="mt-4 text-xs font-semibold tracking-[0.2em] text-muted-foreground uppercase">
-            Sesión bloqueada
-          </p>
-          <h2 className="mt-1 text-2xl font-extrabold">{nombre}</h2>
-          <p className="mt-5 mb-3 text-sm font-semibold text-muted-foreground">Ingresa tu PIN para continuar</p>
+          {/* Igual que la pantalla de ingreso: solo se pide el PIN (lo que estaba en pantalla sigue ahí debajo). */}
+          <Logo nombre={marca.nombre} url={marca.logoUrl} className="size-24 p-1 shadow-lg" />
+          <h2 className="mt-5 text-2xl font-extrabold tracking-tight uppercase">{marca.nombre}</h2>
+          <p className="mt-1 text-sm font-semibold text-muted-foreground">{nombre}</p>
+          <p className="mt-5 mb-3 text-sm font-semibold text-muted-foreground">Ingresa tu PIN</p>
         </div>
         <TecladoPin
           valor={pin}
-          onCambiar={(v) => {
-            setPin(v);
-            setError(null);
-          }}
-          onEnviar={enviar}
+          onCambiar={alEscribir}
+          onEnviar={() => enviar(actual.current)}
           ocupado={ocupado}
           error={error}
           intentoError={intentoError}
-          textoBoton="Desbloquear"
+          sinBoton
         />
         <button
           type="button"
@@ -189,7 +214,7 @@ function PantallaBloqueo({
           className="mx-auto mt-4 flex items-center gap-2 text-sm font-semibold text-muted-foreground hover:text-foreground"
         >
           <LogOut className="size-4" />
-          ¿No eres tú? Cerrar sesión
+          Entrar con otro usuario
         </button>
       </div>
     </motion.div>

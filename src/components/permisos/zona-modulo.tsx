@@ -9,7 +9,8 @@ const Contexto = createContext(false);
 export const useSoloLectura = () => useContext(Contexto);
 
 /**
- * Envuelve la pantalla de un apartado compartido con el encargado. Con el candado cerrado avisa arriba, oculta los
+ * Envuelve la pantalla de un apartado compartido con el encargado. Modo "solo lectura" (hoy sin uso: con el candado
+ * cerrado el encargado no entra al apartado; se conserva por si se quiere volver a un candado de solo consulta): avisa arriba, oculta los
  * botones de crear (`<SoloEdicion>`), deja los formularios sin guardar y `useAccion` no envía nada. El servidor
  * rechaza igual cualquier cambio (autorizarModulo): esto es solo la parte visible.
  */

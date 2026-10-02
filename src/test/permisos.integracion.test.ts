@@ -49,6 +49,9 @@ const PERMITIDOS: Record<string, Rol[] | "publica"> = {
   cambiarSucursalVista: ["admin"],
   cambiarCandado: ["admin"],
   guardarSueldo: ["admin"],
+  guardarTrabajador: ["admin"],
+  darDeBajaTrabajador: ["admin"],
+  reincorporarTrabajador: ["admin"],
   registrarMovimientoSueldo: ["admin"],
   anularMovimientoSueldo: ["admin"],
   // Campanita: el encargado solo ve y marca las de stock de su sucursal (encargado.integracion.test.ts)

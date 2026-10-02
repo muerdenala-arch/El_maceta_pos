@@ -107,8 +107,6 @@ export const usuarios = pgTable(
      * encontrando al usuario de una vez, y que dos personas no tengan el mismo PIN. null = se calcula al ingresar.
      */
     pinHuella: varchar("pin_huella", { length: 80 }),
-    /** Sueldo mensual vigente (apartado Sueldos, solo administrador). */
-    sueldoMensual: dinero("sueldo_mensual").notNull().default("0"),
     creadoEn: creadoEn(),
   },
   (t) => [
@@ -786,19 +784,57 @@ export const ventasCombos = pgTable(
 // ---------- Sueldos (solo administrador) ----------
 
 export const tipoMovimientoSueldoEnum = pgEnum("tipo_movimiento_sueldo", ["adelanto", "descuento", "bono", "pago"]);
+export const tipoEventoEmpleadoEnum = pgEnum("tipo_evento_empleado", ["ingreso", "baja", "reincorporacion"]);
+
+/**
+ * Trabajador en la planilla de sueldos. Puede ser alguien con usuario en el sistema (`usuario_id`) o no (limpieza,
+ * reparto…). No se borra: se da de baja con fecha y motivo.
+ */
+export const empleados = pgTable(
+  "empleados",
+  {
+    id: serial("id").primaryKey(),
+    nombre: varchar("nombre", { length: 120 }).notNull(),
+    cargo: varchar("cargo", { length: 80 }),
+    usuarioId: integer("usuario_id").references(() => usuarios.id),
+    sucursalId: integer("sucursal_id").references(() => sucursales.id),
+    /** Día que empezó a trabajar: su día del mes marca cuándo "cumple su mes" para pagarle. */
+    fechaIngreso: date("fecha_ingreso"),
+    sueldoMensual: dinero("sueldo_mensual").notNull().default("0"),
+    fechaBaja: date("fecha_baja"),
+    motivoBaja: text("motivo_baja"),
+    creadoEn: creadoEn(),
+  },
+  (t) => [uniqueIndex("empleados_usuario_uq").on(t.usuarioId).where(sql`${t.usuarioId} is not null`)],
+);
+
+/** Historial del trabajador: cuándo entró, cuándo se le dio de baja (y por qué) y si volvió. */
+export const eventosEmpleado = pgTable("eventos_empleado", {
+  id: serial("id").primaryKey(),
+  empleadoId: integer("empleado_id")
+    .notNull()
+    .references(() => empleados.id),
+  tipo: tipoEventoEmpleadoEnum("tipo").notNull(),
+  fecha: date("fecha").notNull(),
+  motivo: text("motivo"),
+  registradoPor: integer("registrado_por")
+    .notNull()
+    .references(() => usuarios.id),
+  creadoEn: creadoEn(),
+});
 
 /** Sueldo de una persona en un mes ("2026-10"): se fija al registrar el primer movimiento o al editarlo para ese mes. */
 export const sueldosMes = pgTable(
   "sueldos_mes",
   {
     id: serial("id").primaryKey(),
-    usuarioId: integer("usuario_id")
+    empleadoId: integer("empleado_id")
       .notNull()
-      .references(() => usuarios.id),
+      .references(() => empleados.id),
     periodo: varchar("periodo", { length: 7 }).notNull(),
     monto: dinero("monto").notNull(),
   },
-  (t) => [uniqueIndex("sueldos_mes_usuario_periodo_uq").on(t.usuarioId, t.periodo)],
+  (t) => [uniqueIndex("sueldos_mes_empleado_periodo_uq").on(t.empleadoId, t.periodo)],
 );
 
 /** Adelantos, descuentos, bonos y pagos de sueldo. No se borran: se anulan con motivo. */
@@ -806,9 +842,9 @@ export const movimientosSueldo = pgTable(
   "movimientos_sueldo",
   {
     id: serial("id").primaryKey(),
-    usuarioId: integer("usuario_id")
+    empleadoId: integer("empleado_id")
       .notNull()
-      .references(() => usuarios.id),
+      .references(() => empleados.id),
     periodo: varchar("periodo", { length: 7 }).notNull(),
     tipo: tipoMovimientoSueldoEnum("tipo").notNull(),
     monto: dinero("monto").notNull(),
@@ -820,7 +856,7 @@ export const movimientosSueldo = pgTable(
     motivoAnulacion: text("motivo_anulacion"),
     fecha: timestamp("fecha", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("movimientos_sueldo_periodo_idx").on(t.periodo, t.usuarioId)],
+  (t) => [index("movimientos_sueldo_periodo_emp_idx").on(t.periodo, t.empleadoId)],
 );
 
 // ---------- Notificaciones en el celular (Web Push) ----------

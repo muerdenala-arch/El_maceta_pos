@@ -14,9 +14,9 @@ describe("apartados compartidos con el encargado", () => {
     }
   });
 
-  it("auditoría no tiene candado (es solo consulta) y la lista guardada se limpia", () => {
-    expect(MODULOS_CON_CANDADO).not.toContain("auditoria");
-    expect(modulosValidos(["qr", "personal", "catalogo", "qr", "auditoria"])).toEqual(["catalogo", "qr"]);
+  it("todos los apartados compartidos tienen candado y la lista guardada se limpia", () => {
+    expect(MODULOS_CON_CANDADO).toContain("auditoria");
+    expect(modulosValidos(["qr", "personal", "catalogo", "qr", "auditoria"])).toEqual(["catalogo", "qr", "auditoria"]);
     expect(modulosValidos(null)).toEqual([]);
   });
 });

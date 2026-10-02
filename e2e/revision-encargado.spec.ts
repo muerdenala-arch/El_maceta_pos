@@ -60,12 +60,11 @@ test("encargado: su panel y su menú; lo que es solo del administrador no abre, 
   await expect(menu.getByRole("link", { name: /^Inicio/ })).toHaveCount(0);
   const propios = ["Venta", "Reportes de venta", "Gastos de la sucursal", "Stock y pedidos", "Transferencias", "Cierre de caja"];
   const compartidos = ["Catálogo", "Inventario de sucursales", "Bodega central", "Promociones y cupones", "Combos", "Eventos", "QR de cobro", "Sucursales", "Auditoría de caja", "Configuración"];
-  for (const item of [...propios, ...compartidos]) {
-    await expect(menu.getByRole("link", { name: new RegExp(`^${item}`) })).toBeVisible(); // algunos llevan el número de alertas o el candado
+  for (const item of propios) {
+    await expect(menu.getByRole("link", { name: new RegExp(`^${item}`) })).toBeVisible(); // algunos llevan el número de alertas
   }
-  await expect(menu.getByRole("link", { name: /Personal/ })).toHaveCount(0);
-  // Por defecto todos los apartados compartidos (menos Auditoría, que es solo consulta) están con candado.
-  await expect(menu.getByLabel("Solo lectura")).toHaveCount(compartidos.length - 1);
+  // Por defecto todos los candados están cerrados: ningún apartado del administrador aparece en su menú.
+  for (const item of [...compartidos, "Personal", "Sueldos"]) await expect(menu.getByRole("link", { name: new RegExp(`^${item}`) })).toHaveCount(0);
   await page.screenshot({ path: "test-results/encargado-2-panel.png", fullPage: true });
 
   for (const ruta of ["/admin/dashboard", "/admin/personal", "/admin/reportes", "/admin/gastos"]) {
@@ -79,54 +78,62 @@ test("encargado: su panel y su menú; lo que es solo del administrador no abre, 
   expect((await page.request.get("/api/admin/plantilla-productos")).status()).toBe(403);
 });
 
-test("candados: con el candado cerrado el encargado solo ve; el administrador lo abre desde su menú y entonces puede trabajar, sin costos", async ({ page, browser }) => {
-  // Encargado, candado cerrado: ve el catálogo, sin costos y sin poder cambiar nada.
+test("candados: cerrado, el apartado no le aparece al encargado ni abre por la dirección; el administrador lo abre y entonces aparece, sin costos", async ({ page, browser }) => {
+  const destinoCerrado = /\/cajero\/(venta|apertura)/;
+  const menu = page.locator("aside nav");
   await ingresarEncargado(page);
-  const aviso = page.getByText("Apartado con candado: puedes consultarlo");
-  for (const ruta of ["/admin/catalogo", "/admin/inventario", "/admin/bodega", "/admin/promociones", "/admin/combos", "/admin/eventos", "/admin/qr", "/admin/sucursales", "/admin/configuracion"]) {
-    await page.goto(ruta);
-    await expect(aviso, ruta).toBeVisible();
+  // Candado cerrado: ni en el menú ni escribiendo la dirección.
+  for (const ruta of ["/admin/catalogo", "/admin/inventario", "/admin/bodega", "/admin/promociones", "/admin/combos", "/admin/eventos", "/admin/qr", "/admin/sucursales", "/admin/auditoria", "/admin/configuracion"]) {
+    await page.goto(ruta).catch(() => {});
+    await expect(page, ruta).toHaveURL(destinoCerrado);
+    await page.waitForLoadState("load");
   }
-  await page.goto("/admin/auditoria?vista=acciones");
-  await expect(page.getByRole("link", { name: "Acciones sensibles" })).toHaveCount(0); // solo las cajas de su sucursal
-  await page.goto("/admin/catalogo");
-  await expect(page.getByRole("button", { name: "Nuevo producto" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Importar Excel" })).toHaveCount(0);
-  expect(await page.content()).not.toContain("280.00"); // el costo no viaja al navegador
-  await page.locator("main li").filter({ hasText: "Whey E2E" }).getByRole("button").first().click();
-  const ficha = page.getByRole("dialog");
-  await expect(ficha.getByLabel("Nombre")).toBeDisabled();
-  await expect(ficha.getByText("Precio de costo")).toHaveCount(0);
-  await expect(ficha.getByRole("button", { name: /Guardar/ })).toHaveCount(0);
-  await page.screenshot({ path: "test-results/encargado-8-candado-cerrado.png" });
-  await ficha.getByRole("button", { name: "Cerrar", exact: true }).first().click();
+  await expect(menu.getByRole("link", { name: /^Catálogo/ })).toHaveCount(0);
 
-  // Administrador: abre el candado de Catálogo desde el menú.
+  // Administrador: abre los candados de Catálogo y Auditoría desde su menú.
   const admin = await (await browser.newContext()).newPage();
   await ingresarAdmin(admin);
-  const candado = admin.locator("aside").getByRole("switch", { name: /Candado de Catálogo/ });
-  await expect(candado).toHaveAttribute("aria-checked", "false");
-  await candado.click();
-  await expect(candado).toHaveAttribute("aria-checked", "true");
+  const candado = (apartado: string) => admin.locator("aside").getByRole("switch", { name: new RegExp(`Candado de ${apartado}`) });
+  await expect(admin.locator("aside").getByRole("switch", { name: /Candado de/ })).toHaveCount(10);
+  for (const apartado of ["Catálogo", "Auditoría de caja"]) {
+    await expect(candado(apartado)).toHaveAttribute("aria-checked", "false");
+    await candado(apartado).click();
+    await expect(candado(apartado)).toHaveAttribute("aria-checked", "true");
+  }
   await admin.screenshot({ path: "test-results/encargado-9-candado-admin.png" });
 
-  // Encargado: ahora crea un producto (sin campo de costo); los demás apartados siguen con candado.
-  await page.goto("/admin/catalogo");
-  await expect(aviso).toHaveCount(0);
+  // Encargado: ahora le aparecen esos dos (y solo esos) y puede crear un producto, sin ver costos.
+  await page.reload();
+  await expect(menu.getByRole("link", { name: /^Catálogo/ })).toBeVisible();
+  await expect(menu.getByRole("link", { name: /^Auditoría de caja/ })).toBeVisible();
+  await expect(menu.getByRole("link", { name: /^QR de cobro/ })).toHaveCount(0);
+  await page.screenshot({ path: "test-results/encargado-8-menu-con-candado-abierto.png", fullPage: true });
+  await menu.getByRole("link", { name: /^Catálogo/ }).click();
+  await expect(page.getByRole("heading", { name: "Catálogo" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Importar Excel" })).toHaveCount(0);
+  expect(await page.content()).not.toContain("280.00"); // el costo no viaja al navegador
   await page.getByRole("button", { name: "Nuevo producto" }).click();
+  const ficha = page.getByRole("dialog");
   await ficha.getByLabel("Nombre").fill(`Producto encargado ${N}`);
   await ficha.getByLabel("Precio de venta (Bs)").fill("45");
   await expect(ficha.getByText("Precio de costo")).toHaveCount(0);
   await ficha.getByRole("button", { name: /Guardar|Crear/ }).click();
   await expect(page.locator("main li").filter({ hasText: `Producto encargado ${N}` })).toBeVisible();
-  await page.goto("/admin/qr");
-  await expect(aviso).toBeVisible();
+  // Auditoría: solo las cajas de su sucursal, sin las acciones sensibles.
+  await page.goto("/admin/auditoria?vista=acciones");
+  await expect(page.getByRole("heading", { name: "Auditoría" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Acciones sensibles" })).toHaveCount(0);
+  await page.goto("/admin/qr").catch(() => {});
+  await expect(page).toHaveURL(destinoCerrado);
 
-  // El administrador lo cierra de nuevo: vuelve a solo lectura.
-  await candado.click();
-  await expect(candado).toHaveAttribute("aria-checked", "false");
-  await page.goto("/admin/catalogo");
-  await expect(aviso).toBeVisible();
+  // El administrador los cierra de nuevo: desaparecen otra vez.
+  for (const apartado of ["Catálogo", "Auditoría de caja"]) {
+    await candado(apartado).click();
+    await expect(candado(apartado)).toHaveAttribute("aria-checked", "false");
+  }
+  await page.goto("/admin/catalogo").catch(() => {});
+  await expect(page).toHaveURL(destinoCerrado);
+  await expect(menu.getByRole("link", { name: /^Catálogo/ })).toHaveCount(0);
   await admin.context().close();
 });
 

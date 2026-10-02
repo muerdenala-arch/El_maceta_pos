@@ -17,10 +17,10 @@ vi.mock("web-push", () => ({
 }));
 
 import { agregarGasto, anularGasto } from "@/app/admin/gastos/acciones";
-import { anularMovimientoSueldo, guardarSueldo, registrarMovimientoSueldo } from "@/app/admin/sueldos/acciones";
+import { anularMovimientoSueldo, darDeBajaTrabajador, guardarSueldo, guardarTrabajador, registrarMovimientoSueldo, reincorporarTrabajador } from "@/app/admin/sueldos/acciones";
 import { abrirCaja } from "@/app/cajero/acciones";
 import { db } from "@/db";
-import { alertas, auditoria, cajas, gastos, intentosIngreso, movimientosSueldo, suscripcionesPush, usuarios } from "@/db/schema";
+import { alertas, auditoria, cajas, empleados, gastos, intentosIngreso, movimientosSueldo, suscripcionesPush, usuarios } from "@/db/schema";
 import { iniciarSesion } from "@/lib/auth/acciones";
 import { totalesCaja } from "@/lib/caja/consultas";
 import { hoyEnBolivia } from "@/lib/formato";
@@ -28,7 +28,7 @@ import { guardarSuscripcionPush, quitarSuscripcionPush } from "@/lib/notificacio
 import { despacharAlertas } from "@/lib/notificaciones/despacho";
 import { listarGastos, resumenGastos } from "@/lib/reportes/gastos";
 import { periodoDe, periodoVecino } from "@/lib/sueldos/calculo";
-import { planillaDelMes } from "@/lib/sueldos/consultas";
+import { asegurarEmpleados, planillaDelMes } from "@/lib/sueldos/consultas";
 import { comoUsuario, PINES, prepararBase, type Base } from "./base";
 
 let b: Base;
@@ -122,58 +122,121 @@ describe("gastos sin caja (administrador y encargado)", () => {
   });
 });
 
-describe("sueldos", () => {
-  const mes = periodoDe(hoyEnBolivia());
+describe("sueldos y trabajadores", () => {
+  const hoy = hoyEnBolivia();
+  const mes = periodoDe(hoy);
   const anterior = periodoVecino(mes, -1);
-  const fila = async (periodo: string, usuarioId: number) => (await planillaDelMes(periodo)).find((f) => f.usuarioId === usuarioId)!;
+  const fila = async (periodo: string, empleadoId: number, conBajas = false) => (await planillaDelMes(periodo, { conBajas })).find((f) => f.empleadoId === empleadoId)!;
+  let ana: number; // la cajera de Norte, como trabajadora
+  let beto: number;
+  let rosa: number; // trabajadora sin usuario en el sistema
 
-  it("solo el administrador ve y registra sueldos", async () => {
+  it("cada usuario del sistema aparece solo en la planilla; solo el administrador la ve y la cambia", async () => {
+    await asegurarEmpleados();
+    await asegurarEmpleados(); // repetir no duplica
+    const todos = await db.select().from(empleados);
+    expect(todos.length).toBe((await db.select().from(usuarios)).length);
+    ana = todos.find((e) => e.usuarioId === b.cajeroNorte.id)!.id;
+    beto = todos.find((e) => e.usuarioId === b.cajeroSur.id)!.id;
+
     for (const u of [b.encargadoNorte, b.cajeroNorte]) {
       await comoUsuario(u);
-      expect(await guardarSueldo({ usuarioId: b.cajeroNorte.id, periodo: mes, monto: "9999" })).toEqual(SIN_PERMISO);
-      expect(await registrarMovimientoSueldo({ usuarioId: u.id, periodo: mes, tipo: "bono", monto: "500", nota: "" })).toEqual(SIN_PERMISO);
+      expect(await guardarSueldo({ empleadoId: ana, periodo: mes, monto: "9999" })).toEqual(SIN_PERMISO);
+      expect(await registrarMovimientoSueldo({ empleadoId: ana, periodo: mes, tipo: "bono", monto: "500", nota: "" })).toEqual(SIN_PERMISO);
+      expect(await guardarTrabajador({ nombre: "Intruso", cargo: "", sucursalId: null, fechaIngreso: hoy, sueldoMensual: "1" })).toEqual(SIN_PERMISO);
+      expect(await darDeBajaTrabajador({ id: beto, fecha: hoy, motivo: "Porque quiero" })).toEqual(SIN_PERMISO);
     }
-    expect((await db.select().from(usuarios).where(eq(usuarios.id, b.cajeroNorte.id)))[0].sueldoMensual).toBe("0.00");
+    expect((await db.select().from(empleados).where(eq(empleados.id, ana)))[0].sueldoMensual).toBe("0.00");
+  });
+
+  it("nuevo trabajador sin usuario, con su fecha de ingreso y sueldo; a los que ya trabajan se les pone desde cuando", async () => {
+    await comoUsuario(b.admin);
+    expect((await guardarTrabajador({ nombre: "", cargo: "", sucursalId: null, fechaIngreso: hoy, sueldoMensual: "100" })).ok).toBe(false);
+    expect(await guardarTrabajador({ nombre: "Rosa Limpieza", cargo: "Limpieza", sucursalId: b.norte.id, fechaIngreso: "2026-03-15", sueldoMensual: "1200" })).toEqual({ ok: true });
+    rosa = (await db.select().from(empleados).where(eq(empleados.nombre, "Rosa Limpieza")))[0].id;
+    expect(await fila(mes, rosa)).toMatchObject({ nombre: "Rosa Limpieza", cargo: "Limpieza", rol: null, sucursal: "Sucursal Norte", fechaIngreso: "2026-03-15", resumen: { sueldo: "1200.00", saldo: "1200.00" } });
+    expect((await fila(mes, rosa)).historial).toEqual([expect.objectContaining({ tipo: "ingreso", fecha: "2026-03-15" })]);
+
+    // A la cajera (ya trabajaba) se le pone su fecha; corregirla actualiza el historial en vez de duplicarlo.
+    const datos = { id: ana, nombre: "Ana Norte", cargo: "", sucursalId: b.norte.id, sueldoMensual: "0" };
+    expect(await guardarTrabajador({ ...datos, fechaIngreso: "2025-01-10" })).toEqual({ ok: true });
+    expect(await guardarTrabajador({ ...datos, fechaIngreso: "2025-01-20" })).toEqual({ ok: true });
+    const f = await fila(mes, ana);
+    expect(f).toMatchObject({ fechaIngreso: "2025-01-20", rol: "cajero" });
+    expect(f.historial.map((e) => [e.tipo, e.fecha])).toEqual([["ingreso", "2025-01-20"]]);
   });
 
   it("sueldo, adelanto, descuento, bono y pago: calcula lo que falta pagar", async () => {
     await comoUsuario(b.admin);
-    expect(await guardarSueldo({ usuarioId: b.cajeroNorte.id, periodo: mes, monto: "2500" })).toEqual({ ok: true });
-    const mov = (tipo: "adelanto" | "descuento" | "bono" | "pago", monto: string, nota = "") => registrarMovimientoSueldo({ usuarioId: b.cajeroNorte.id, periodo: mes, tipo, monto, nota });
+    expect(await guardarSueldo({ empleadoId: ana, periodo: mes, monto: "2500" })).toEqual({ ok: true });
+    const mov = (tipo: "adelanto" | "descuento" | "bono" | "pago", monto: string, nota = "") => registrarMovimientoSueldo({ empleadoId: ana, periodo: mes, tipo, monto, nota });
     expect(await mov("adelanto", "500")).toEqual({ ok: true });
     expect(await mov("bono", "150", "Meta del mes")).toEqual({ ok: true });
     expect((await mov("descuento", "100")).ok).toBe(false); // el descuento exige motivo
     expect(await mov("descuento", "100", "Falta injustificada")).toEqual({ ok: true });
     expect((await mov("pago", "0")).ok).toBe(false);
-    expect((await fila(mes, b.cajeroNorte.id)).resumen).toMatchObject({ sueldo: "2500.00", aPagar: "2550.00", entregado: "500.00", saldo: "2050.00" });
+    expect((await fila(mes, ana)).resumen).toMatchObject({ sueldo: "2500.00", aPagar: "2550.00", entregado: "500.00", saldo: "2050.00" });
     expect(await mov("pago", "2050")).toEqual({ ok: true });
-    expect((await fila(mes, b.cajeroNorte.id)).resumen.saldo).toBe("0.00");
+    expect((await fila(mes, ana)).resumen.saldo).toBe("0.00");
     expect((await db.select().from(auditoria).where(eq(auditoria.accion, "sueldo_movimiento"))).length).toBe(4);
   });
 
-  it("cambiar el sueldo no altera un mes que ya tenía su sueldo fijado; los movimientos se anulan con motivo", async () => {
+  it("cambiar el sueldo no altera un mes que ya tenia su sueldo fijado; los movimientos se anulan con motivo", async () => {
     await comoUsuario(b.admin);
-    // El mes anterior queda fijado con el sueldo de entonces (2500) al registrar un movimiento.
-    expect(await registrarMovimientoSueldo({ usuarioId: b.cajeroNorte.id, periodo: anterior, tipo: "adelanto", monto: "300", nota: "" })).toEqual({ ok: true });
-    expect(await guardarSueldo({ usuarioId: b.cajeroNorte.id, periodo: mes, monto: "3000" })).toEqual({ ok: true });
-    expect((await fila(anterior, b.cajeroNorte.id)).resumen).toMatchObject({ sueldo: "2500.00", saldo: "2200.00" });
-    expect((await fila(mes, b.cajeroNorte.id)).resumen).toMatchObject({ sueldo: "3000.00", saldo: "500.00" });
-    // Quien no tiene nada registrado usa su sueldo vigente.
-    expect((await fila(anterior, b.cajeroSur.id)).resumen.sueldo).toBe("0.00");
+    expect(await registrarMovimientoSueldo({ empleadoId: ana, periodo: anterior, tipo: "adelanto", monto: "300", nota: "" })).toEqual({ ok: true });
+    expect(await guardarSueldo({ empleadoId: ana, periodo: mes, monto: "3000" })).toEqual({ ok: true });
+    expect((await fila(anterior, ana)).resumen).toMatchObject({ sueldo: "2500.00", saldo: "2200.00" });
+    expect((await fila(mes, ana)).resumen).toMatchObject({ sueldo: "3000.00", saldo: "500.00" });
+    expect((await fila(anterior, beto)).resumen.sueldo).toBe("0.00");
 
     const [adelanto] = await db.select().from(movimientosSueldo).where(and(eq(movimientosSueldo.periodo, anterior), eq(movimientosSueldo.tipo, "adelanto")));
     expect((await anularMovimientoSueldo({ id: adelanto.id, motivo: "x" })).ok).toBe(false);
-    expect(await anularMovimientoSueldo({ id: adelanto.id, motivo: "Se registró en el mes equivocado" })).toEqual({ ok: true });
+    expect(await anularMovimientoSueldo({ id: adelanto.id, motivo: "Se registro en el mes equivocado" })).toEqual({ ok: true });
     expect(await anularMovimientoSueldo({ id: adelanto.id, motivo: "Otra vez" })).toEqual({ ok: false, error: "El movimiento no existe o ya estaba anulado" });
-    const despues = await fila(anterior, b.cajeroNorte.id);
+    const despues = await fila(anterior, ana);
     expect(despues.resumen.saldo).toBe("2500.00");
-    expect(despues.movimientos[0]).toMatchObject({ anulado: true, motivoAnulacion: "Se registró en el mes equivocado" });
+    expect(despues.movimientos[0]).toMatchObject({ anulado: true, motivoAnulacion: "Se registro en el mes equivocado" });
   });
 
-  it("no se registran meses más allá del siguiente", async () => {
+  it("no se registran meses mas alla del siguiente", async () => {
     await comoUsuario(b.admin);
-    expect((await registrarMovimientoSueldo({ usuarioId: b.cajeroNorte.id, periodo: periodoVecino(mes, 1), tipo: "adelanto", monto: "50", nota: "" })).ok).toBe(true);
-    expect(await registrarMovimientoSueldo({ usuarioId: b.cajeroNorte.id, periodo: periodoVecino(mes, 2), tipo: "adelanto", monto: "50", nota: "" })).toEqual({ ok: false, error: "Ese mes todavía no se puede registrar" });
+    expect((await registrarMovimientoSueldo({ empleadoId: ana, periodo: periodoVecino(mes, 1), tipo: "adelanto", monto: "50", nota: "" })).ok).toBe(true);
+    expect(await registrarMovimientoSueldo({ empleadoId: ana, periodo: periodoVecino(mes, 2), tipo: "adelanto", monto: "50", nota: "" })).toEqual({ ok: false, error: "Ese mes todavía no se puede registrar" });
+  });
+
+  it("baja con fecha y motivo: queda en el historial, sale de los meses siguientes y pierde el acceso al sistema", async () => {
+    await comoUsuario(b.admin);
+    expect((await darDeBajaTrabajador({ id: beto, fecha: hoy, motivo: "" })).ok).toBe(false); // motivo obligatorio
+    expect((await darDeBajaTrabajador({ id: beto, fecha: "2999-01-01", motivo: "Despido" })).ok).toBe(false); // no en el futuro
+    expect((await darDeBajaTrabajador({ id: rosa, fecha: "2026-01-01", motivo: "Antes de entrar" })).ok).toBe(false); // no antes de su ingreso
+    expect(await darDeBajaTrabajador({ id: beto, fecha: hoy, motivo: "Despido por faltas reiteradas" })).toEqual({ ok: true });
+
+    const f = await fila(mes, beto);
+    expect(f).toMatchObject({ fechaBaja: hoy, motivoBaja: "Despido por faltas reiteradas" });
+    expect(f.historial[0]).toMatchObject({ tipo: "baja", fecha: hoy, motivo: "Despido por faltas reiteradas", registradoPor: "Admin Prueba" });
+    // El mes siguiente ya no aparece (salvo que se pidan los dados de baja).
+    expect(await fila(periodoVecino(mes, 1), beto)).toBeUndefined();
+    expect(await fila(periodoVecino(mes, 1), beto, true)).toMatchObject({ fechaBaja: hoy });
+    // Su usuario quedo desactivado: ya no entra con su PIN.
+    expect((await db.select().from(usuarios).where(eq(usuarios.id, b.cajeroSur.id)))[0].activo).toBe(false);
+    expect(await darDeBajaTrabajador({ id: beto, fecha: hoy, motivo: "Otra vez" })).toEqual({ ok: false, error: "El trabajador no existe o ya estaba dado de baja" });
+    expect((await db.select().from(auditoria).where(eq(auditoria.accion, "trabajador_baja"))).at(-1)?.detalle).toMatchObject({ persona: "Beto Sur", motivo: "Despido por faltas reiteradas" });
+
+    // El administrador no puede darse de baja a si mismo (perderia su acceso).
+    const [yo] = await db.select().from(empleados).where(eq(empleados.usuarioId, b.admin.id));
+    const propia = await darDeBajaTrabajador({ id: yo.id, fecha: hoy, motivo: "Me voy" });
+    expect(!propia.ok && propia.error).toMatch(/No se pudo quitar su acceso/);
+    expect((await db.select().from(empleados).where(eq(empleados.id, yo.id)))[0].fechaBaja).toBeNull();
+  });
+
+  it("reincorporar: vuelve a la planilla y el historial conserva la baja anterior", async () => {
+    await comoUsuario(b.admin);
+    expect(await reincorporarTrabajador({ id: rosa, fecha: hoy })).toEqual({ ok: false, error: "El trabajador no existe o no estaba dado de baja" });
+    expect(await reincorporarTrabajador({ id: beto, fecha: hoy })).toEqual({ ok: true });
+    const f = await fila(periodoVecino(mes, 1), beto);
+    expect(f).toMatchObject({ fechaBaja: null, motivoBaja: null, fechaIngreso: hoy });
+    expect(f.historial.map((e) => e.tipo)).toEqual(["reincorporacion", "baja"]);
+    await db.update(usuarios).set({ activo: true }).where(eq(usuarios.id, b.cajeroSur.id));
   });
 });
 

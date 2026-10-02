@@ -61,11 +61,15 @@ export function TablaInventario({ ubicaciones, columnas, productos, stock, enCam
     // eslint-disable-next-line react-hooks/exhaustive-deps -- bajo/cant derivan de stock y columnas
   }, [productos, busqueda, soloBajo, stock, columnas]);
 
+  // Tocar la fila abre el ajuste de ese producto en la sucursal que se está viendo (o en la única columna).
+  const ubicacionPorDefecto = (columnasVenta.length === 1 ? columnasVenta[0] : columnas[0])?.id;
+  const ajustar = (productoId: number) => ubicacionPorDefecto !== undefined && setAjuste({ productoId, ubicacionId: ubicacionPorDefecto });
+
   const cantidadBajos = productos.filter((p) => columnasVenta.some((c) => bajo(p, c.id))).length;
 
   return (
     <>
-      <EncabezadoPagina icono={Boxes} titulo="Inventario" descripcion="Stock por producto y ubicación. Toca una cantidad para ajustarla.">
+      <EncabezadoPagina icono={Boxes} titulo="Inventario" descripcion="Stock por producto y ubicación. Toca un producto o una cantidad para ajustarla.">
         <Button variant="outline" size="lg" className="rounded-full" onClick={() => setAjuste("nuevo")}>
           <SlidersHorizontal className="size-5" />
           Ajustar stock
@@ -107,10 +111,11 @@ export function TablaInventario({ ubicaciones, columnas, productos, stock, enCam
                   key={esResaltado ? resaltado.clave : p.id}
                   ref={esResaltado ? resaltado.ref : undefined}
                   data-desplazar
-                  className={cn("border-b last:border-0", esResaltado && "fila-resaltada", !p.activo && "opacity-60")}
+                  onClick={() => ajustar(p.id)}
+                  className={cn("cursor-pointer border-b transition-colors last:border-0 hover:bg-accent/50", esResaltado && "fila-resaltada", !p.activo && "opacity-60")}
                 >
                   <td className="sticky left-0 z-10 bg-card px-4 py-2.5">
-                    <div className="flex max-w-56 min-w-48 items-center gap-3 sm:max-w-72">
+                    <button type="button" aria-label={`Ajustar stock de ${p.nombre}`} className="flex max-w-56 min-w-48 items-center gap-3 rounded-lg text-left focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none sm:max-w-72">
                       <Miniatura url={p.fotoUrl} />
                       <div className="min-w-0">
                         <Marquesina titulo={p.nombre} className="font-semibold">
@@ -121,7 +126,7 @@ export function TablaInventario({ ubicaciones, columnas, productos, stock, enCam
                           {p.stockMinimo > 0 && ` · mín. ${p.stockMinimo}${esFraccionado(p) ? ` ${nombreEnvase(p, p.stockMinimo)}` : ""}`}
                         </p>
                       </div>
-                    </div>
+                    </button>
                   </td>
                   {columnas.map((u) => {
                     const c = cant(p.id, u.id);
@@ -132,7 +137,10 @@ export function TablaInventario({ ubicaciones, columnas, productos, stock, enCam
                       <td key={u.id} className="px-2 py-2 text-right">
                         <button
                           type="button"
-                          onClick={() => setAjuste({ productoId: p.id, ubicacionId: u.id })}
+                          onClick={(e) => {
+                            e.stopPropagation(); // la fila abre la ubicación por defecto; la cantidad, la suya
+                            setAjuste({ productoId: p.id, ubicacionId: u.id });
+                          }}
                           title={`Ajustar ${p.nombre} en ${u.nombre}`}
                           className={cn(
                             "cifras inline-flex min-w-12 flex-col items-end rounded-lg px-2.5 py-1 font-display text-base font-bold transition-colors hover:bg-accent",

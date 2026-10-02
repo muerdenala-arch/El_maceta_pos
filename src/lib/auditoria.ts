@@ -59,6 +59,10 @@ export type AccionAuditoria =
   | "sueldo_editado"
   | "sueldo_movimiento"
   | "sueldo_movimiento_anulado"
+  | "trabajador_creado"
+  | "trabajador_editado"
+  | "trabajador_baja"
+  | "trabajador_reincorporado"
   // Módulo Eventos
   | "evento_creado"
   | "evento_iniciado"

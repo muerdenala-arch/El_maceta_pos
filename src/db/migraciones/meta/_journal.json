@@ -106,6 +106,20 @@
       "when": 1790942029544,
       "tag": "0014_gastos_sueldos_notificaciones",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1790946682350,
+      "tag": "0015_trabajadores",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1790946701951,
+      "tag": "0016_trabajadores_limpieza",
+      "breakpoints": true
     }
   ]
 }

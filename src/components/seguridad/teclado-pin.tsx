@@ -18,6 +18,8 @@ type Props = {
   error?: string | null;
   intentoError?: number;
   textoBoton?: string;
+  /** Sin botón de confirmar: la pantalla prueba el PIN sola al completarse (Enter sigue funcionando). */
+  sinBoton?: boolean;
 };
 
 /**
@@ -32,6 +34,7 @@ export function TecladoPin({
   error,
   intentoError = 0,
   textoBoton = "Ingresar",
+  sinBoton = false,
 }: Props) {
   const completo = valor.length >= PIN_MIN;
   // Refs para que el listener del teclado físico siempre vea el estado actual.
@@ -110,15 +113,21 @@ export function TecladoPin({
         </Tecla>
       </div>
 
-      <Button
-        type="button"
-        size="lg"
-        className="mt-5 h-12 w-full rounded-xl text-base font-bold"
-        disabled={!completo || ocupado}
-        onClick={onEnviar}
-      >
-        {ocupado ? "Verificando…" : textoBoton}
-      </Button>
+      {sinBoton ? (
+        <p className="mt-4 h-5 text-center text-sm font-semibold text-muted-foreground" aria-live="polite">
+          {ocupado ? "Verificando…" : ""}
+        </p>
+      ) : (
+        <Button
+          type="button"
+          size="lg"
+          className="mt-5 h-12 w-full rounded-xl text-base font-bold"
+          disabled={!completo || ocupado}
+          onClick={onEnviar}
+        >
+          {ocupado ? "Verificando…" : textoBoton}
+        </Button>
+      )}
     </div>
   );
 }

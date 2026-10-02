@@ -56,3 +56,45 @@ export function nombrePeriodo(periodo: string) {
   const [a, m] = periodo.split("-").map(Number);
   return new Date(Date.UTC(a, m - 1, 15)).toLocaleDateString("es-BO", { timeZone: "UTC", month: "long", year: "numeric" });
 }
+
+// ---------------------------------------------------------------- Día de pago ("cumple su mes")
+
+const diasDelMes = (anio: number, mes: number) => new Date(Date.UTC(anio, mes, 0)).getUTCDate();
+const iso = (a: number, m: number, d: number) => `${a}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+
+/**
+ * Próxima fecha en que la persona "cumple su mes" (mismo día del mes en que entró), desde `hoy` inclusive.
+ * Si entró un 31 y el mes tiene menos días, se toma el último día del mes. Nunca antes de un mes de trabajado.
+ * `dias` = cuántos faltan (0 = hoy).
+ */
+export function proximoPago(fechaIngreso: string, hoy: string): { fecha: string; dias: number } {
+  const [ai, mi, di] = fechaIngreso.split("-").map(Number);
+  const [ah, mh] = hoy.split("-").map(Number);
+  const enMes = (a: number, m: number) => iso(a, m, Math.min(di, diasDelMes(a, m)));
+  // Primer cumplemés: un mes después de entrar.
+  const primero = mi === 12 ? enMes(ai + 1, 1) : enMes(ai, mi + 1);
+  let fecha = enMes(ah, mh);
+  if (fecha < hoy) fecha = mh === 12 ? enMes(ah + 1, 1) : enMes(ah, mh + 1);
+  if (fecha < primero) fecha = primero;
+  const dias = Math.round((Date.parse(`${fecha}T12:00:00Z`) - Date.parse(`${hoy}T12:00:00Z`)) / 86_400_000);
+  return { fecha, dias };
+}
+
+/** "15/11/2026" */
+export const fechaCortaDia = (dia: string) => dia.split("-").reverse().join("/");
+
+/** Tiempo trabajado en palabras: "3 años y 2 meses", "5 meses", "12 días". */
+export function antiguedad(fechaIngreso: string, hasta: string) {
+  const [ai, mi, di] = fechaIngreso.split("-").map(Number);
+  const [ah, mh, dh] = hasta.split("-").map(Number);
+  if (hasta < fechaIngreso) return "aún no empieza";
+  let meses = (ah - ai) * 12 + (mh - mi) - (dh < di ? 1 : 0);
+  if (meses < 1) {
+    const dias = Math.round((Date.parse(`${hasta}T12:00:00Z`) - Date.parse(`${fechaIngreso}T12:00:00Z`)) / 86_400_000);
+    return dias === 1 ? "1 día" : `${dias} días`;
+  }
+  const anios = Math.floor(meses / 12);
+  meses %= 12;
+  const partes = [anios > 0 && `${anios} año${anios === 1 ? "" : "s"}`, meses > 0 && `${meses} mes${meses === 1 ? "" : "es"}`].filter(Boolean);
+  return partes.join(" y ");
+}
