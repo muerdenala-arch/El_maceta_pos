@@ -259,6 +259,27 @@ Credenciales de prueba locales: en `.env.local` (`SEED_*`), nunca en el código 
   `Llaves` y `ClasificacionTorneo` (`components/eventos`) sirven también a la página pública (solo nombres y marcadores).
   Excel: hojas Clasificación, Combates y Competidores. Prueba e2e: `e2e/pulseada.spec.ts`.
 
+## Venta fraccionada (frasco completo o unidades sueltas)
+
+- `productos.fraccionado` + `unidad_fraccion` (capsula|tableta|scoop|sobre) + `unidades_por_envase` + `precio_unidad` (migración 0009,
+  solo aditiva: por defecto nadie es fraccionado). Reglas puras y probadas en `lib/inventario/fraccion.ts`.
+- **El stock de un producto fraccionado se guarda siempre en la unidad suelta** (inventario, lotes, movimientos, transferencias).
+  Se muestra como "3 frascos + 45 cápsulas (405 cápsulas en total)" con `textoStock` / `<CantidadStock>`.
+- Decisiones del dueño: al activar el fraccionado el stock se convierte (× unidades por envase) en la misma transacción
+  (`convertirStockPorFraccion`; bloqueado con transferencias en camino; para quitarlo hay que tener envases completos);
+  se valida **por total de unidades** (un envase descuenta todas las suyas); ingresos, transferencias y solicitudes se escriben
+  en **envases completos** (el servidor multiplica); el ajuste cuenta envases + sueltas; **stock mínimo en envases**
+  (`minimoEnUnidades`, también en las alertas).
+- Venta: cada línea lleva `fraccion` (suelta) o no (envase); un producto puede ir de las dos formas en la misma venta.
+  Precio de la BD (`precio_unidad` o `precio_venta`), `detalle_venta.fraccion` + `unidad_fraccion`, costo proporcional
+  redondeado al centavo. **Las unidades sueltas no reciben promociones** (`aplicaA`). Anular devuelve las unidades que salieron.
+  Offline igual: la línea viaja con `fraccion` y la copia local descuenta en unidades (`unidadesPedidas`).
+- Punto de venta: tocar un producto fraccionado abre `DialogoFraccion` (frasco completo / por cápsulas + cantidad); el código de
+  barras escaneado agrega el envase. Comprobante y PDF: "30 cápsulas x Bs 1,50" (`cantidadLinea`).
+- Reportes: `unidades` = envases, `sueltas` + `netoSueltas` aparte (tabla de productos, Excel con columnas al final, PDF, dashboard).
+- Límite conocido: el historial de movimientos muestra la cantidad cruda (en unidades sueltas desde que el producto es fraccionado).
+- Pruebas: `fraccion.test.ts`, `test/fraccionada.integracion.test.ts`, `e2e/revision-fraccionada.spec.ts`.
+
 ## Buscador único
 
 - **Toda lista o tabla nueva usa `<Buscador>`** (`components/busqueda/buscador.tsx`): filtra al escribir (espera de 200 ms, sin
