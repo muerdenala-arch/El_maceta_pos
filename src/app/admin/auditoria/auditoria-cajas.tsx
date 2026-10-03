@@ -166,10 +166,10 @@ function DialogoCierre({ caja, onCerrar }: { caja: CajaAuditada; onCerrar: () =>
         Efectivo esperado en la caja: <strong className="cifras">{formatoBs(caja.esperado)}</strong>
       </p>
       <Campo etiqueta="Efectivo contado (Bs)" error={cerrar.campos.efectivoContado} ayuda="Lo que realmente había en la caja. Si no cuadra, queda la alerta de diferencia.">
-        {(p) => <Input {...p} inputMode="decimal" value={contado} onChange={(e) => setContado(e.target.value)} placeholder="0,00" autoFocus />}
+        {(p) => <Input {...p} inputMode="decimal" value={contado} onChange={(e) => (setContado(e.target.value), cerrar.limpiarCampo("efectivoContado"))} placeholder="0,00" autoFocus />}
       </Campo>
       <Campo etiqueta="Motivo" error={cerrar.campos.motivo}>
-        {(p) => <Textarea {...p} rows={2} maxLength={300} value={motivo} onChange={(e) => setMotivo(e.target.value)} placeholder="Ej. El cajero se retiró sin cerrar la caja" />}
+        {(p) => <Textarea {...p} rows={2} maxLength={300} value={motivo} onChange={(e) => (setMotivo(e.target.value), cerrar.limpiarCampo("motivo"))} placeholder="Ej. El cajero se retiró sin cerrar la caja" />}
       </Campo>
     </DialogoFormulario>
   );
