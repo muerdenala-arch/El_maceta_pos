@@ -1,4 +1,5 @@
 import { GuardiaBloqueo } from "@/components/seguridad/guardia-bloqueo";
+import { PulsoAvisos } from "@/components/shell/pulso-avisos";
 import { RefrescoAutomatico } from "@/components/shell/refresco-automatico";
 import { Shell } from "@/components/shell/shell";
 import { resumenAlertas } from "@/lib/alertas/consultas";
@@ -25,6 +26,7 @@ export default async function LayoutAdmin({ children }: LayoutProps<"/admin">) {
   return (
     <GuardiaBloqueo nombre={sesion.nombre} usuario={sesion.usuario} usuarioId={sesion.uid} marca={marca}>
       <RefrescoAutomatico />
+      <PulsoAvisos />
       <Shell
         rol={sesion.rol}
         candados={abiertos}

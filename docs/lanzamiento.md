@@ -48,3 +48,15 @@ Para que las pruebas no toquen datos reales, en Neon crear una rama `pruebas` y 
 5. **Personal**: crear los cajeros (usuario, PIN y sucursal).
 6. En cada celular de caja: abrir la página en Chrome → **Instalar aplicación** → entrar una vez con internet.
 7. Hacer las pruebas de `docs/pruebas-manuales.md` y capacitar a los cajeros con `docs/guia-cajero.md`.
+
+## Recordatorios puntuales con la app cerrada (al pasar a Vercel Pro)
+
+Los recordatorios y alertas se envían solos mientras la app esté abierta en algún equipo (por ejemplo, la caja de un cajero).
+Para que lleguen a su hora exacta aunque nadie tenga la app abierta hace falta un "cron" por minuto, que Vercel solo permite
+en el plan Pro. Cuando el plan esté activo, agregar en `vercel.json`:
+
+```json
+{ "regions": ["cle1"], "crons": [{ "path": "/api/recordatorios/despachar", "schedule": "* * * * *" }] }
+```
+
+y publicar. (En el plan Hobby esa línea hace fallar la publicación, por eso todavía no está.)

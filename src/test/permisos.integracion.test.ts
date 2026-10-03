@@ -54,6 +54,8 @@ const PERMITIDOS: Record<string, Rol[] | "publica"> = {
   reincorporarTrabajador: ["admin"],
   registrarMovimientoSueldo: ["admin"],
   anularMovimientoSueldo: ["admin"],
+  guardarRecordatorio: ["admin"], // y el encargado con el candado de Recordatorios abierto
+  eliminarRecordatorio: ["admin"],
   // Campanita: administrador y encargado ven lo mismo
   obtenerAlertas: ["admin", "encargado"],
   marcarAlertaLeida: ["admin", "encargado"],

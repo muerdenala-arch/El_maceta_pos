@@ -26,11 +26,11 @@ export async function guardarPromocion(entrada: DatosPromocion & { id?: number }
     const { desde, hasta, ...d } = v.data;
 
     // Las referencias deben existir.
-    if (d.productoId && !(await db.select({ id: productos.id }).from(productos).where(eq(productos.id, d.productoId))).length) {
-      return fallo("Revisa los datos marcados", { productoId: "El producto ya no existe" });
+    if (d.productoIds.length && (await db.select({ id: productos.id }).from(productos).where(inArray(productos.id, d.productoIds))).length !== d.productoIds.length) {
+      return fallo("Revisa los datos marcados", { productoIds: "Algún producto ya no existe" });
     }
-    if (d.categoriaId && !(await db.select({ id: categorias.id }).from(categorias).where(eq(categorias.id, d.categoriaId))).length) {
-      return fallo("Revisa los datos marcados", { categoriaId: "La categoría ya no existe" });
+    if (d.categoriaIds.length && (await db.select({ id: categorias.id }).from(categorias).where(inArray(categorias.id, d.categoriaIds))).length !== d.categoriaIds.length) {
+      return fallo("Revisa los datos marcados", { categoriaIds: "Alguna categoría ya no existe" });
     }
     if (
       d.sucursalId &&
@@ -41,6 +41,9 @@ export async function guardarPromocion(entrada: DatosPromocion & { id?: number }
 
     const datos = {
       ...d,
+      // Las columnas antiguas (uno solo) ya no se usan.
+      productoId: null,
+      categoriaId: null,
       // "todo" limitado a una sucursal se guarda como alcance "sucursal" (compatibilidad con el esquema).
       alcance: d.alcance === "todo" && d.sucursalId ? ("sucursal" as const) : d.alcance,
       fechaInicio: inicioDiaBolivia(desde),

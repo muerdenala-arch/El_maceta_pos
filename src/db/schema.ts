@@ -454,8 +454,13 @@ export const promociones = pgTable("promociones", {
    * a una sucursal; "sucursal" equivale a "todo" en esa sucursal.
    */
   alcance: alcancePromocionEnum("alcance").notNull().default("todo"),
+  /** Antiguos (un solo producto / categoría): ya no se escriben; ver `productoIds` / `categoriaIds`. */
   productoId: integer("producto_id").references(() => productos.id),
   categoriaId: integer("categoria_id").references(() => categorias.id),
+  /** Con alcance "producto": los productos que reciben el descuento (uno o varios). */
+  productoIds: integer("producto_ids").array().notNull().default(sql`'{}'::integer[]`),
+  /** Con alcance "categoria": las categorías que reciben el descuento (una o varias). */
+  categoriaIds: integer("categoria_ids").array().notNull().default(sql`'{}'::integer[]`),
   sucursalId: integer("sucursal_id").references(() => sucursales.id),
   /** true = requiere cupón; false = se aplica automáticamente. */
   requiereCupon: boolean("requiere_cupon").notNull().default(false),
@@ -875,4 +880,34 @@ export const suscripcionesPush = pgTable(
     creadoEn: creadoEn(),
   },
   (t) => [uniqueIndex("suscripciones_push_endpoint_uq").on(t.endpoint)],
+);
+
+// ---------- Recordatorios ----------
+
+/**
+ * Recordatorio personal (de quien lo crea): a su día y hora (Bolivia) le llega una notificación al celular.
+ * `proximaEn` = el próximo aviso; null cuando ya se envió y no se repite. Reglas en lib/recordatorios/calculo.ts.
+ */
+export const recordatorios = pgTable(
+  "recordatorios",
+  {
+    id: serial("id").primaryKey(),
+    usuarioId: integer("usuario_id")
+      .notNull()
+      .references(() => usuarios.id),
+    titulo: varchar("titulo", { length: 120 }).notNull(),
+    nota: text("nota"),
+    /** Día (Bolivia) del primer aviso; en los mensuales fija el día del mes. */
+    fecha: date("fecha").notNull(),
+    /** "HH:MM", hora de Bolivia. */
+    hora: varchar("hora", { length: 5 }).notNull(),
+    /** ninguna | diaria | semanal | mensual */
+    repeticion: varchar("repeticion", { length: 10 }).notNull().default("ninguna"),
+    proximaEn: timestamp("proxima_en", { withTimezone: true }),
+    /** Último aviso enviado y a cuántos dispositivos llegó (0 = no tenía notificaciones activadas). */
+    enviadoEn: timestamp("enviado_en", { withTimezone: true }),
+    dispositivos: integer("dispositivos").notNull().default(0),
+    creadoEn: creadoEn(),
+  },
+  (t) => [index("recordatorios_proxima_idx").on(t.proximaEn), index("recordatorios_usuario_idx").on(t.usuarioId)],
 );

@@ -1,7 +1,7 @@
 import "server-only";
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
 import { db, type Db } from "@/db";
-import { comboItems, combos, productos } from "@/db/schema";
+import { categorias, comboItems, combos, productos } from "@/db/schema";
 import { ErrorStock, type Tx } from "@/lib/inventario/stock";
 import { comboVigente, cotizar, COTIZACION_VACIA, type ComboPos, type CotizacionCombos, type ItemCombo, type TipoDescuentoCombo } from "./calculo";
 
@@ -110,4 +110,30 @@ export async function cotizarCombos(ejecutor: Ejecutor, pedidos: { comboId: numb
     filas.map((c) => ({ id: c.id, nombre: c.nombre, tipoDescuento: c.tipoDescuento as TipoDescuentoCombo, valorDescuento: c.valorDescuento, items: items.get(c.id) ?? [] })),
     catalogo,
   );
+}
+
+/** Productos activos con sus precios, para armar combos en la pantalla del administrador. */
+export async function catalogoParaCombos() {
+  return db
+    .select({
+      id: productos.id,
+      nombre: productos.nombre,
+      marca: productos.marca,
+      sabor: productos.sabor,
+      presentacion: productos.presentacion,
+      codigoBarras: productos.codigoBarras,
+      fotoUrl: productos.fotoUrl,
+      precioVenta: productos.precioVenta,
+      precioCosto: productos.precioCosto,
+      precioUnidad: productos.precioUnidad,
+      fraccionado: productos.fraccionado,
+      unidadFraccion: productos.unidadFraccion,
+      unidadesPorEnvase: productos.unidadesPorEnvase,
+      activo: productos.activo,
+      categoria: categorias.nombre,
+    })
+    .from(productos)
+    .leftJoin(categorias, eq(categorias.id, productos.categoriaId))
+    .where(eq(productos.activo, true))
+    .orderBy(asc(productos.nombre));
 }

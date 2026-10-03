@@ -1,13 +1,15 @@
 import { asc, desc, eq } from "drizzle-orm";
 import type { Metadata } from "next";
 import { db } from "@/db";
-import { categorias, cupones, productos, promociones, sucursales } from "@/db/schema";
+import { categorias, cupones, promociones, sucursales } from "@/db/schema";
 import { ZonaModulo } from "@/components/permisos/zona-modulo";
 import { requerirModulo } from "@/lib/auth/modulo-servidor";
 import { diaBolivia, hoyEnBolivia } from "@/lib/formato";
 import { listarProductosInventario } from "@/lib/inventario/consultas";
 import { listarSucursalesActivas } from "@/lib/sucursal-vista";
 import { Pestanas } from "@/components/inventario/pestanas";
+import { catalogoParaCombos, listarCombos } from "@/lib/combos/consultas";
+import { ListaCombos } from "./lista-combos";
 import { ListaCupones } from "./lista-cupones";
 import { ListaPromociones } from "./lista-promociones";
 
@@ -15,9 +17,10 @@ export const metadata: Metadata = { title: "Promociones y cupones" };
 
 export default async function PaginaPromociones(props: PageProps<"/admin/promociones">) {
   const acceso = await requerirModulo("promociones");
-  const vista = (await props.searchParams).vista === "cupones" ? "cupones" : "automaticos";
+  const pedida = (await props.searchParams).vista;
+  const vista = pedida === "cupones" || pedida === "combos" ? pedida : "automaticos";
 
-  const [filas, listaCupones, listaProductos, listaCategorias, listaSucursales] = await Promise.all([
+  const [filas, listaCupones, listaProductos, listaCategorias, listaSucursales, listaCombos] = await Promise.all([
     db
       .select({
         id: promociones.id,
@@ -27,10 +30,8 @@ export default async function PaginaPromociones(props: PageProps<"/admin/promoci
         comboLleva: promociones.comboLleva,
         comboPaga: promociones.comboPaga,
         alcance: promociones.alcance,
-        productoId: promociones.productoId,
-        producto: productos.nombre,
-        categoriaId: promociones.categoriaId,
-        categoria: categorias.nombre,
+        productoIds: promociones.productoIds,
+        categoriaIds: promociones.categoriaIds,
         sucursalId: promociones.sucursalId,
         sucursal: sucursales.nombre,
         fechaInicio: promociones.fechaInicio,
@@ -39,14 +40,13 @@ export default async function PaginaPromociones(props: PageProps<"/admin/promoci
         activo: promociones.activo,
       })
       .from(promociones)
-      .leftJoin(productos, eq(productos.id, promociones.productoId))
-      .leftJoin(categorias, eq(categorias.id, promociones.categoriaId))
       .leftJoin(sucursales, eq(sucursales.id, promociones.sucursalId))
       .orderBy(desc(promociones.activo), desc(promociones.fechaFin)),
     db.select().from(cupones).orderBy(desc(cupones.activo), asc(cupones.codigo)),
     listarProductosInventario(),
     db.select({ id: categorias.id, nombre: categorias.nombre }).from(categorias).orderBy(asc(categorias.nombre)),
     listarSucursalesActivas(),
+    listarCombos(),
   ]);
   const hoy = hoyEnBolivia();
   const activos = listaProductos.filter((p) => p.activo);
@@ -57,9 +57,20 @@ export default async function PaginaPromociones(props: PageProps<"/admin/promoci
       opciones={[
         { valor: "automaticos", titulo: "Descuentos automáticos", href: "/admin/promociones", contador: filas.length },
         { valor: "cupones", titulo: "Cupones", href: "/admin/promociones?vista=cupones", contador: listaCupones.length },
+        { valor: "combos", titulo: "Combos", href: "/admin/promociones?vista=combos", contador: listaCombos.length },
       ]}
     />
   );
+
+  if (vista === "combos") {
+    return (
+      <ZonaModulo soloLectura={acceso.soloLectura}>
+        <ListaCombos hoy={hoy} combos={listaCombos} productos={await catalogoParaCombos()}>
+          {pestanas}
+        </ListaCombos>
+      </ZonaModulo>
+    );
+  }
 
   if (vista === "cupones") {
     return (

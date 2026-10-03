@@ -53,3 +53,13 @@ Anotar cualquier falla con: qué se hizo, qué se esperaba, qué pasó y una cap
 - [ ] iPhone/iPad (iOS 16.4 o más): instalar con "Agregar a inicio", abrir desde el ícono y repetir lo anterior.
 - [ ] Cerrar sesión en ese equipo: ya no llegan avisos.
 - [ ] Encargado: solo le llegan las de stock de su sucursal.
+
+## Recordatorios, cámara y tablet
+- [ ] Administrador: Recordatorios → activar los avisos en el celular → crear uno para dentro de 3 minutos. Dejar la app abierta
+      en cualquier equipo (o abierta la caja de un cajero) y comprobar que la notificación llega a su hora; al tocarla abre Recordatorios.
+- [ ] Crear uno "Todos los días": después del aviso queda "Pendiente" para el día siguiente.
+- [ ] Con la app cerrada en todos los equipos (hasta tener Vercel Pro): el aviso llega al abrirla y dice para cuándo era.
+- [ ] Catálogo → Nuevo producto → "Tomar foto": en celular/tablet abre la cámara; la foto queda en el producto. Lo mismo en QR,
+      logo (Configuración) y foto de un gasto.
+- [ ] Tablet: Nuevo cupón (productos específicos), Nuevo combo y Nuevo descuento automático se ven completos, con Cancelar y
+      Guardar a la vista, también con productos de nombre muy largo.

@@ -28,8 +28,10 @@ test("administrador: nuevo combo con buscador, cantidades y descuento en vivo", 
     await expect(i).toBeHidden();
   }
 
-  await page.getByRole("link", { name: /^Combos/ }).first().click();
-  await expect(page.getByRole("heading", { name: "Combos" })).toBeVisible();
+  // Los combos son una pestaña de "Promociones y cupones".
+  await page.getByRole("link", { name: /^Promociones y cupones/ }).first().click();
+  await page.getByRole("link", { name: /^Combos/ }).click();
+  await expect(page).toHaveURL(/vista=combos/);
   await page.getByRole("button", { name: "Nuevo combo" }).click();
   const d = page.getByRole("dialog");
   await d.getByLabel("Nombre").fill(NOMBRE);
@@ -119,7 +121,7 @@ test("cajero: el combo aparece en su sección, se vende y descuenta sus producto
 
 test("administrador: el stock bajó y un combo desactivado desaparece del punto de venta", async ({ page, browser }) => {
   await ingresarAdmin(page);
-  await page.goto("/admin/combos");
+  await page.goto("/admin/promociones?vista=combos");
   const tarjeta = page.locator("main li").filter({ hasText: NOMBRE });
   await tarjeta.getByRole("switch").click();
   await expect(tarjeta.getByText("Inactivo", { exact: true })).toBeVisible();
@@ -134,6 +136,6 @@ test("administrador: el stock bajó y un combo desactivado desaparece del punto 
   await page.emulateMedia({ colorScheme: "dark" });
   await page.evaluate(() => document.documentElement.classList.add("dark"));
   await page.reload();
-  await expect(page.getByRole("heading", { name: "Combos" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Promociones y cupones" })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
 });

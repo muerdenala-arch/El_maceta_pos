@@ -23,6 +23,8 @@ export function decidirAcceso(ruta: string, sesion: { rol: Rol } | null): Decisi
   if (bajo(ruta, "/comprobante") || bajo(ruta, "/api/archivos")) return { tipo: "seguir" };
   // Resultados públicos de un reto (enlace de WhatsApp con token aleatorio; sin cédula ni teléfono).
   if (bajo(ruta, "/eventos")) return { tipo: "seguir" };
+  // Disparador de avisos pendientes (cron y app abierta): no recibe ni devuelve datos.
+  if (ruta === "/api/recordatorios/despachar") return { tipo: "seguir" };
   // App instalable: íconos y página de respaldo sin conexión (el manifest y sw.js tienen extensión: no pasan por aquí).
   if (bajo(ruta, "/icono") || ruta === "/sin-conexion") return { tipo: "seguir" };
 

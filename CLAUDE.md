@@ -481,7 +481,7 @@ Credenciales de prueba locales: en `.env.local` (`SEED_*`), nunca en el código 
 ## Encargado = administrador con candados (versión vigente; reemplaza lo anterior sobre el encargado)
 
 - Decisión del dueño: **el encargado no vende** y **tiene exactamente los mismos apartados que el administrador** (los 15 del
-  menú: Inicio, Reportes, Gastos, Catálogo, Inventario, Bodega, Promociones, Combos, Eventos, Personal, Sueldos, QR, Sucursales,
+  menú: Inicio, Reportes, Gastos, Catálogo, Inventario, Bodega, Promociones (con cupones y combos), Eventos, Personal, Sueldos, Recordatorios, QR, Sucursales,
   Auditoría, Configuración = `MODULOS_ENCARGADO` en `lib/auth/modulos.ts`). Cada uno tiene un **candado** en el menú del
   administrador: cerrado (por defecto) = no le aparece y no abre ni por la dirección; abierto = le aparece y **trabaja igual que
   el administrador** (todas las sucursales, costos, exportaciones, Personal completo). Solo el administrador maneja candados.
@@ -502,6 +502,35 @@ Credenciales de prueba locales: en `.env.local` (`SEED_*`), nunca en el código 
   cada toque marca o desmarca **sin borrar lo escrito** (se sigue eligiendo); al lado del nombre, gris, la categoría. `unica` =
   elegir uno. Usada en combos (productos), cupones (productos y categorías) y promociones (producto o categoría).
   `ProductoInventario.categoria` trae el nombre de la categoría.
+
+## Combos dentro de Promociones, varios productos por descuento, cámara, tablet y Recordatorios
+
+- **Combos = tercera pestaña de "Promociones y cupones"** (`/admin/promociones?vista=combos`; `lista-combos.tsx` y
+  `combos-acciones.ts` viven en `app/admin/promociones/`). Ya no hay apartado ni candado "combos": usan
+  `autorizarModulo("promociones")`. `/admin/combos` redirige a la pestaña. El menú queda con 15 apartados (sale Combos, entra Recordatorios).
+- **Descuentos automáticos con varios productos o categorías**: `promociones.producto_ids` / `categoria_ids` (migración 0017, con
+  traspaso de las columnas antiguas `producto_id` / `categoria_id`, que quedan sin uso y se guardan en null). `aplicaA` (motor.ts)
+  acepta las dos formas (las copias sin conexión viejas traen `productoId`). Formulario con `ListaSeleccion` múltiple + fichas
+  `Elegidos` que se quitan con un toque.
+- **Los diálogos nunca son más anchos que la pantalla**: `DialogoFormulario` usa `grid-cols-[minmax(0,1fr)]` + `min-w-0` (antes un
+  nombre largo sin corte empujaba el formulario fuera de la tablet) y `ListaSeleccion` parte los nombres largos (`break-words`).
+  Contenido nuevo dentro de un diálogo: `min-w-0` y nada de `whitespace-nowrap` sin `truncate`.
+- **"Tomar foto"** en `SubirImagen` (un segundo `<input capture="environment" data-camara>`): sirve en todos los lugares donde se
+  sube una imagen (productos, QR, logo, gastos). En una PC abre el selector de archivos.
+- **Recordatorios** (`/admin/recordatorios`, apartado `recordatorios` con candado): notas personales de quien las crea (cada uno
+  ve solo las suyas; no van a auditoría y sí se pueden borrar) con día, hora (Bolivia) y repetición ninguna | diaria | semanal |
+  mensual. Tabla `recordatorios` (`proxima_en` = próximo aviso; null = ya avisado y no se repite; `dispositivos` = a cuántos
+  equipos llegó el último). Reglas puras y probadas en `lib/recordatorios/calculo.ts` (`proximoAviso`: no acumula los saltados;
+  mensual = mismo día, último día en meses cortos).
+- Envío: `despacharRecordatorios()` (`lib/recordatorios/despacho.ts`) toma cada recordatorio vencido con un UPDATE condicionado a
+  su `proxima_en` (varios disparadores a la vez = un solo aviso) y lo envía a los equipos de su dueño; con más de 15 min de
+  retraso el aviso dice para cuándo era. Lo común del envío está en `lib/notificaciones/envio.ts`. `despacharTodo()` (alertas +
+  recordatorios) se dispara: al terminar cualquier acción (`programarDespacho`), con `GET /api/recordatorios/despachar`
+  (público, sin datos, idempotente) que llama `<PulsoAvisos>` cada minuto desde cualquier app abierta (admin o cajero), y
+  **cuando el dueño pase a Vercel Pro** con un cron por minuto en `vercel.json`
+  (`"crons": [{ "path": "/api/recordatorios/despachar", "schedule": "* * * * *" }]`; en el plan Hobby ese cron hace fallar la
+  publicación). Hasta entonces, con la app cerrada en todos los equipos el aviso sale apenas alguien la abre.
+- Pruebas: `recordatorios/calculo.test.ts`, `test/recordatorios.integracion.test.ts`, `e2e/revision-recordatorios.spec.ts`.
 
 ## Botón atrás por niveles
 

@@ -16,8 +16,8 @@ const columnas = {
   comboLleva: promociones.comboLleva,
   comboPaga: promociones.comboPaga,
   alcance: promociones.alcance,
-  productoId: promociones.productoId,
-  categoriaId: promociones.categoriaId,
+  productoIds: promociones.productoIds,
+  categoriaIds: promociones.categoriaIds,
 };
 
 /** Activa, dentro de sus fechas y para esta sucursal (o para todas). */

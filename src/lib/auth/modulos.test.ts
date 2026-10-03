@@ -11,7 +11,7 @@ describe("apartados del administrador con candado para el encargado", () => {
   });
 
   it("todos los apartados del menú del administrador tienen candado", () => {
-    expect(MODULOS_CON_CANDADO).toEqual(["dashboard", "reportes", "gastos", "catalogo", "inventario", "bodega", "promociones", "combos", "eventos", "personal", "sueldos", "qr", "sucursales", "auditoria", "configuracion"]);
+    expect(MODULOS_CON_CANDADO).toEqual(["dashboard", "reportes", "gastos", "catalogo", "inventario", "bodega", "promociones", "eventos", "personal", "sueldos", "recordatorios", "qr", "sucursales", "auditoria", "configuracion"]);
   });
 
   it("la lista guardada se limpia y la entrada del encargado es su primer apartado abierto", () => {

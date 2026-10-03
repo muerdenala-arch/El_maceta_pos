@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarRange, Pencil, Percent, Plus, Shapes, Store, Tag, TicketPercent } from "lucide-react";
+import { CalendarRange, Pencil, Percent, Plus, Shapes, Store, Tag, TicketPercent, X } from "lucide-react";
 import { useState } from "react";
 import { Campo } from "@/components/formularios/campo";
 import { DialogoFormulario } from "@/components/formularios/dialogo-formulario";
@@ -28,10 +28,8 @@ type Promo = {
   comboLleva: number | null;
   comboPaga: number | null;
   alcance: "todo" | "producto" | "categoria";
-  productoId: number | null;
-  producto: string | null;
-  categoriaId: number | null;
-  categoria: string | null;
+  productoIds: number[];
+  categoriaIds: number[];
   sucursalId: number | null;
   sucursal: string | null;
   desde: string;
@@ -41,11 +39,11 @@ type Promo = {
 };
 type Opcion = { id: number; nombre: string };
 /** Estado del formulario (los campos numéricos con tipo explícito; el servidor los valida igual). */
-type FormPromo = Omit<DatosPromocion, "comboLleva" | "comboPaga" | "productoId" | "categoriaId" | "sucursalId"> & {
+type FormPromo = Omit<DatosPromocion, "comboLleva" | "comboPaga" | "productoIds" | "categoriaIds" | "sucursalId"> & {
   comboLleva: number | null;
   comboPaga: number | null;
-  productoId: number | null;
-  categoriaId: number | null;
+  productoIds: number[];
+  categoriaIds: number[];
   sucursalId: number | null;
 };
 
@@ -59,8 +57,6 @@ function estado(p: Promo, hoy: string) {
   return { texto: "Vigente", clase: "bg-exito text-exito-foreground" };
 }
 
-const alcanceTexto = (p: Promo) =>
-  p.alcance === "producto" ? `Producto: ${p.producto}` : p.alcance === "categoria" ? `Categoría: ${p.categoria}` : "Todo el catálogo";
 
 export function ListaPromociones({
   hoy,
@@ -80,6 +76,14 @@ export function ListaPromociones({
 }) {
   const [editando, setEditando] = useState<Promo | "nueva" | null>(null);
   const [busqueda, setBusqueda] = useState("");
+  const nombreProducto = new Map(productos.map((p) => [p.id, p.nombre]));
+  const nombreCategoria = new Map(categorias.map((c) => [c.id, c.nombre]));
+  const alcanceTexto = (p: Promo) =>
+    p.alcance === "producto"
+      ? `${p.productoIds.length === 1 ? "Producto" : "Productos"}: ${p.productoIds.map((id) => nombreProducto.get(id) ?? "no disponible").join(", ")}`
+      : p.alcance === "categoria"
+        ? `${p.categoriaIds.length === 1 ? "Categoría" : "Categorías"}: ${p.categoriaIds.map((id) => nombreCategoria.get(id) ?? "eliminada").join(", ")}`
+        : "Todo el catálogo";
   const visibles = promociones.filter((p) =>
     coincide(busqueda, [
       p.nombre,
@@ -136,7 +140,7 @@ export function ListaPromociones({
                   </Button>
                 </div>
                 <ul className="mt-3 mb-4 space-y-1.5 text-sm text-muted-foreground">
-                  <li className="flex items-center gap-2"><Tag className="size-4 shrink-0" /> <span className="truncate"><Resaltar texto={alcanceTexto(p)} consulta={busqueda} /></span></li>
+                  <li className="flex items-start gap-2"><Tag className="mt-0.5 size-4 shrink-0" /> <span className="line-clamp-3 min-w-0"><Resaltar texto={alcanceTexto(p)} consulta={busqueda} /></span></li>
                   <li className="flex items-center gap-2"><Store className="size-4 shrink-0" /> <Resaltar texto={p.sucursal ?? "Todas las sucursales"} consulta={busqueda} /></li>
                   <li className="flex items-center gap-2"><CalendarRange className="size-4 shrink-0" /> {fechaCorta(p.desde)} – {fechaCorta(p.hasta)}</li>
                 </ul>
@@ -194,8 +198,8 @@ function FormularioPromocion({
     comboLleva: promo?.comboLleva ?? 2,
     comboPaga: promo?.comboPaga ?? 1,
     alcance: promo?.alcance ?? "todo",
-    productoId: promo?.productoId ?? null,
-    categoriaId: promo?.categoriaId ?? null,
+    productoIds: promo?.productoIds ?? [],
+    categoriaIds: promo?.categoriaIds ?? [],
     sucursalId: promo?.sucursalId ?? null,
     desde: promo?.desde ?? hoy,
     hasta: promo?.hasta ?? hoy,
@@ -206,6 +210,11 @@ function FormularioPromocion({
   const guardar = useAccion(guardarPromocion, { mensajeExito: promo ? "Promoción actualizada" : "Promoción creada", alExito: onCerrar });
   const poner = <K extends keyof FormPromo>(k: K, v: FormPromo[K]) => {
     setD((x) => ({ ...x, [k]: v }));
+    guardar.limpiarCampo(k);
+  };
+  /** Marca o desmarca un producto / categoría (se pueden elegir varios). */
+  const alternar = (k: "productoIds" | "categoriaIds", id: number) => {
+    setD((x) => ({ ...x, [k]: x[k].includes(id) ? x[k].filter((i) => i !== id) : [...x[k], id] }));
     guardar.limpiarCampo(k);
   };
 
@@ -300,8 +309,8 @@ function FormularioPromocion({
               <SelectTrigger {...p} className="w-full"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="todo">Todo el catálogo</SelectItem>
-                <SelectItem value="producto">Un producto</SelectItem>
-                <SelectItem value="categoria">Una categoría</SelectItem>
+                <SelectItem value="producto">Productos que elijas</SelectItem>
+                <SelectItem value="categoria">Categorías que elijas</SelectItem>
               </SelectContent>
             </Select>
           )}
@@ -322,30 +331,28 @@ function FormularioPromocion({
       {d.alcance === "producto" && (
         <div className="space-y-1.5">
           <ListaSeleccion
-            unica
-            etiqueta="Producto"
-            placeholder="Escribe para buscar y toca para elegir…"
+            etiqueta="Productos con descuento"
             opciones={productos.map((p) => ({ id: p.id, nombre: p.nombre, detalle: (p as { categoria?: string | null }).categoria ?? null, buscarPor: [p.marca, p.sabor, p.presentacion, p.codigoBarras] }))}
-            elegidos={d.productoId ? [d.productoId] : []}
-            onAlternar={(id) => poner("productoId", id)}
-            invalida={!!guardar.campos.productoId}
+            elegidos={d.productoIds}
+            onAlternar={(id) => alternar("productoIds", id)}
+            invalida={!!guardar.campos.productoIds}
           />
-          {guardar.campos.productoId && <p className="text-sm font-medium text-destructive">{guardar.campos.productoId}</p>}
+          <Elegidos ids={d.productoIds} nombres={productos} onQuitar={(id) => alternar("productoIds", id)} etiqueta="Productos elegidos" />
+          {guardar.campos.productoIds && <p className="text-sm font-medium text-destructive">{guardar.campos.productoIds}</p>}
         </div>
       )}
       {d.alcance === "categoria" && (
         <div className="space-y-1.5">
           <ListaSeleccion
-            unica
-            etiqueta="Categoría"
-            placeholder="Escribe para buscar y toca para elegir…"
+            etiqueta="Categorías con descuento"
             opciones={categorias}
-            elegidos={d.categoriaId ? [d.categoriaId] : []}
-            onAlternar={(id) => poner("categoriaId", id)}
-            invalida={!!guardar.campos.categoriaId}
+            elegidos={d.categoriaIds}
+            onAlternar={(id) => alternar("categoriaIds", id)}
+            invalida={!!guardar.campos.categoriaIds}
             alto="max-h-56"
           />
-          {guardar.campos.categoriaId && <p className="text-sm font-medium text-destructive">{guardar.campos.categoriaId}</p>}
+          <Elegidos ids={d.categoriaIds} nombres={categorias} onQuitar={(id) => alternar("categoriaIds", id)} etiqueta="Categorías elegidas" />
+          {guardar.campos.categoriaIds && <p className="text-sm font-medium text-destructive">{guardar.campos.categoriaIds}</p>}
         </div>
       )}
 
@@ -365,5 +372,27 @@ function FormularioPromocion({
         </label>
       </div>
     </DialogoFormulario>
+  );
+}
+
+/** Lo ya elegido, como fichas que se quitan con un toque. */
+function Elegidos({ ids, nombres, onQuitar, etiqueta }: { ids: number[]; nombres: { id: number; nombre: string }[]; onQuitar: (id: number) => void; etiqueta: string }) {
+  if (ids.length === 0) return null;
+  const porId = new Map(nombres.map((n) => [n.id, n.nombre]));
+  return (
+    <ul className="flex flex-wrap gap-1.5" aria-label={etiqueta}>
+      {ids.map((id) => (
+        <li key={id} className="max-w-full">
+          <button
+            type="button"
+            onClick={() => onQuitar(id)}
+            title="Quitar"
+            className="inline-flex max-w-full items-center gap-1 rounded-full bg-nav-activo px-3 py-1.5 text-left text-sm font-semibold text-nav-activo-foreground"
+          >
+            <span className="min-w-0 break-words">{porId.get(id) ?? "No disponible"}</span> <X className="size-3.5 shrink-0" />
+          </button>
+        </li>
+      ))}
+    </ul>
   );
 }

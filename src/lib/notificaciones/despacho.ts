@@ -1,25 +1,23 @@
 import "server-only";
 import { and, eq, inArray } from "drizzle-orm";
 import { after } from "next/server";
-import webpush from "web-push";
 import { db } from "@/db";
 import { alertas, sucursales, suscripcionesPush, usuarios } from "@/db/schema";
 import { destinoAlerta, TITULOS_ALERTA } from "@/lib/alertas/reglas";
+import { despacharRecordatorios } from "@/lib/recordatorios/despacho";
+import { enviarADispositivo, olvidarDispositivos, prepararPush, pushConfigurado, type Notificacion } from "./envio";
+
+export { pushConfigurado, type Notificacion };
 
 /**
  * Notificaciones en el celular o la tablet (Web Push): cada alerta nueva de la campanita se envía una sola vez a los
  * dispositivos donde un administrador o un encargado (reciben lo mismo) activó las notificaciones.
- * Sin claves VAPID configuradas (NEXT_PUBLIC_VAPID_PUBLICA / VAPID_PRIVADA) no hace nada.
+ * Sin claves VAPID configuradas (NEXT_PUBLIC_VAPID_PUBLICA / VAPID_PRIVADA) no hace nada. El envío está en ./envio.ts.
  */
-export function pushConfigurado() {
-  return !!process.env.NEXT_PUBLIC_VAPID_PUBLICA && !!process.env.VAPID_PRIVADA;
-}
 
 /** Más alertas que esto de una vez (p. ej. al cargar inventario) se resumen en una sola notificación. */
 const MAXIMO_SUELTAS = 3;
 const LOTE = 40;
-
-export type Notificacion = { titulo: string; cuerpo: string; url: string; etiqueta: string };
 
 /**
  * Envía las alertas pendientes de notificar. Primero las marca como notificadas (así dos peticiones a la vez no
@@ -50,7 +48,7 @@ export async function despacharAlertas(): Promise<number> {
   if (destinos.length === 0) return 0;
   const esBodega = new Set(bodegas.map((b) => b.id));
 
-  webpush.setVapidDetails(process.env.VAPID_CONTACTO || "mailto:soporte@elmaseta.app", process.env.NEXT_PUBLIC_VAPID_PUBLICA!, process.env.VAPID_PRIVADA!);
+  prepararPush();
   let enviadas = 0;
   const vencidas: number[] = [];
   for (const d of destinos) {
@@ -65,27 +63,26 @@ export async function despacharAlertas(): Promise<number> {
             url: destinoAlerta({ ...a, enBodega: a.sucursalId !== null && esBodega.has(a.sucursalId) }),
             etiqueta: `alerta-${a.id}`,
           }));
-    for (const m of mensajes) {
-      try {
-        await webpush.sendNotification({ endpoint: d.endpoint, keys: { p256dh: d.p256dh, auth: d.auth } }, JSON.stringify(m), { TTL: 60 * 60 * 12 });
-        enviadas++;
-      } catch (e) {
-        // 404/410: el dispositivo ya no existe o quitó el permiso → se olvida la suscripción.
-        const codigo = (e as { statusCode?: number }).statusCode;
-        if (codigo === 404 || codigo === 410) vencidas.push(d.id);
-        break;
-      }
-    }
+    const e = await enviarADispositivo(d, mensajes);
+    enviadas += e.enviadas;
+    if (e.vencida) vencidas.push(d.id);
   }
-  if (vencidas.length) await db.delete(suscripcionesPush).where(inArray(suscripcionesPush.id, vencidas));
+  await olvidarDispositivos(vencidas);
   return enviadas;
+}
+
+/** Alertas y recordatorios pendientes (lo llaman también /api/recordatorios/despachar y el cron). */
+export async function despacharTodo() {
+  const alertasEnviadas = await despacharAlertas().catch(() => 0);
+  const recordatoriosEnviados = await despacharRecordatorios().catch(() => 0);
+  return { alertas: alertasEnviadas, recordatorios: recordatoriosEnviados };
 }
 
 /** Envía lo pendiente después de responder (no demora la acción). Fuera de una petición de Next no hace nada. */
 export function programarDespacho() {
   if (!pushConfigurado()) return;
   try {
-    after(() => despacharAlertas().catch(() => {}));
+    after(() => despacharTodo().catch(() => {}));
   } catch {
     // Sin contexto de petición (scripts, pruebas): se enviarán con la siguiente acción.
   }

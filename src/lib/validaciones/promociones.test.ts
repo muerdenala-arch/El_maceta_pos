@@ -9,8 +9,8 @@ const base = {
   comboLleva: 2,
   comboPaga: 1,
   alcance: "producto" as const,
-  productoId: 1,
-  categoriaId: 9,
+  productoIds: [1, 2, 2],
+  categoriaIds: [9],
   sucursalId: null,
   desde: "2026-10-01",
   hasta: "2026-10-31",
@@ -21,14 +21,14 @@ const base = {
 describe("promoción", () => {
   it("limpia los campos que no corresponden al tipo y al alcance", () => {
     const r = esquemaPromocion.parse(base);
-    expect(r).toMatchObject({ valor: "0", comboLleva: 2, comboPaga: 1, productoId: 1, categoriaId: null });
+    expect(r).toMatchObject({ valor: "0", comboLleva: 2, comboPaga: 1, productoIds: [1, 2], categoriaIds: [] });
   });
 
   it("valida porcentajes, combos y alcance", () => {
     expect(esquemaPromocion.safeParse({ ...base, tipo: "porcentaje", valor: "150" }).success).toBe(false);
     expect(esquemaPromocion.safeParse({ ...base, tipo: "porcentaje", valor: "12,5" }).success).toBe(true);
     expect(esquemaPromocion.safeParse({ ...base, comboPaga: 2 }).success).toBe(false); // paga igual que lleva
-    expect(esquemaPromocion.safeParse({ ...base, productoId: null }).success).toBe(false);
+    expect(esquemaPromocion.safeParse({ ...base, productoIds: [] }).success).toBe(false);
     expect(esquemaPromocion.safeParse({ ...base, hasta: "2026-09-30" }).success).toBe(false);
   });
 

@@ -8,7 +8,7 @@ abiertos. No vende: eso es del cajero.
 - Si ves "Todavía no tienes apartados", el administrador tiene todos los candados cerrados: pídele que abra los que necesitas.
 
 ## Apartados con candado
-- El administrador decide, apartado por apartado (Inicio, Reportes, Gastos, Catálogo, Inventario, Bodega, Promociones, Combos,
+- El administrador decide, apartado por apartado (Inicio, Reportes, Gastos, Catálogo, Inventario, Bodega, Promociones (con cupones y combos),
   Eventos, Personal, Sueldos, QR, Sucursales, Auditoría y Configuración), cuáles te aparecen.
 - En los que tienes abiertos trabajas igual que él. Si cierra uno, desaparece de tu menú al momento.
 
@@ -20,3 +20,8 @@ abiertos. No vende: eso es del cajero.
 ## Avisos en tu celular
 - Toca la **campanita** → **Activar**. Te llegan las mismas alertas que al administrador; al tocar una abre su pantalla.
 - En iPhone o iPad primero hay que instalar la app: Compartir → "Agregar a inicio", y abrirla desde su ícono.
+
+## Recordatorios
+
+Si el administrador te abre el candado de **Recordatorios**, puedes anotar tus propios avisos (qué, qué día y a qué hora, y si se
+repite). A esa hora te llega la notificación a los equipos donde activaste los avisos. Cada persona ve solo los suyos.

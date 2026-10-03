@@ -24,8 +24,12 @@ export type Promocion = {
   comboLleva: number | null;
   comboPaga: number | null;
   alcance: "todo" | "producto" | "categoria" | "sucursal";
-  productoId: number | null;
-  categoriaId: number | null;
+  /** Con alcance "producto" / "categoria": a cuáles aplica (uno o varios). */
+  productoIds?: number[];
+  categoriaIds?: number[];
+  /** Forma antigua (uno solo): la traen las copias sin conexión guardadas antes del cambio. */
+  productoId?: number | null;
+  categoriaId?: number | null;
   /** Si llegó por un cupón. */
   cuponId?: number | null;
 };
@@ -57,8 +61,8 @@ export type ResultadoPromociones = {
 
 export function aplicaA(p: Promocion, l: LineaCarrito) {
   if (l.fraccion) return false;
-  if (p.alcance === "producto") return l.productoId === p.productoId;
-  if (p.alcance === "categoria") return l.categoriaId !== null && l.categoriaId === p.categoriaId;
+  if (p.alcance === "producto") return l.productoId === p.productoId || !!p.productoIds?.includes(l.productoId);
+  if (p.alcance === "categoria") return l.categoriaId !== null && (l.categoriaId === p.categoriaId || !!p.categoriaIds?.includes(l.categoriaId));
   return true; // todo / sucursal (la sucursal se filtra antes de llegar aquí)
 }
 

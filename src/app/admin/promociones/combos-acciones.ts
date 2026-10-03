@@ -13,7 +13,7 @@ import { idPositivo } from "@/lib/validaciones/comunes";
 /** Crea o edita un combo con sus productos (los productos se reemplazan completos). Solo administrador. */
 export async function guardarCombo(entrada: DatosCombo & { id?: number }): Promise<Resultado<{ id: number }>> {
   return conPermiso(async () => {
-    const sesion = await autorizarModulo("combos");
+    const sesion = await autorizarModulo("promociones");
     const v = esquemaCombo.safeParse(entrada);
     if (!v.success) return falloValidacion(v.error);
     const { items, ...datos } = v.data;
@@ -58,7 +58,7 @@ export async function guardarCombo(entrada: DatosCombo & { id?: number }): Promi
 /** Activa o desactiva un combo (los combos no se borran: quedan en el historial de ventas). */
 export async function cambiarEstadoCombo(entrada: { id: number; activo: boolean }): Promise<Resultado> {
   return conPermiso(async () => {
-    const sesion = await autorizarModulo("combos");
+    const sesion = await autorizarModulo("promociones");
     const id = idPositivo.parse(entrada.id);
     const activo = entrada.activo === true;
     const [combo] = await db.update(combos).set({ activo }).where(eq(combos.id, id)).returning({ nombre: combos.nombre });

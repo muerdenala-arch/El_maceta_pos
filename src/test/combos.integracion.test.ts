@@ -5,7 +5,7 @@
 import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { beforeAll, describe, expect, it } from "vitest";
-import { cambiarEstadoCombo, guardarCombo } from "@/app/admin/combos/acciones";
+import { cambiarEstadoCombo, guardarCombo } from "@/app/admin/promociones/combos-acciones";
 import { anularVenta } from "@/app/admin/reportes/acciones";
 import { POST as sincronizar } from "@/app/api/sync/route";
 import { abrirCaja, registrarVenta } from "@/app/cajero/acciones";

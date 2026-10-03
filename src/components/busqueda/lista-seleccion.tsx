@@ -44,7 +44,7 @@ export function ListaSeleccion({
   const visibles = useMemo(() => opciones.filter((o) => coincide(busqueda, [o.nombre, o.detalle, ...(o.buscarPor ?? [])])), [opciones, busqueda]);
 
   return (
-    <div className={cn("space-y-2 rounded-2xl border bg-card p-3", invalida && "border-destructive")}>
+    <div className={cn("min-w-0 space-y-2 rounded-2xl border bg-card p-3", invalida && "border-destructive")}>
       <div className="flex items-center justify-between gap-2 px-1">
         <p className="text-sm font-bold">{etiqueta}</p>
         {!unica && marcados.size > 0 && (
@@ -67,9 +67,9 @@ export function ListaSeleccion({
                   role={unica ? "radio" : "checkbox"}
                   aria-checked={elegido}
                   onClick={() => onAlternar(o.id)}
-                  className={cn("flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-accent", elegido && "bg-primary/8")}
+                  className={cn("flex w-full min-w-0 items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-accent", elegido && "bg-primary/8")}
                 >
-                  <span className="min-w-0 flex-1 truncate">
+                  <span className="min-w-0 flex-1 break-words">
                     <span className="font-semibold">
                       <Resaltar texto={o.nombre} consulta={busqueda} />
                     </span>

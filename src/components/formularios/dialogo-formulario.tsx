@@ -13,6 +13,7 @@ import {
 
 /**
  * Diálogo con formulario: se desplaza en celular y tiene los botones Cancelar/Guardar al pie.
+ * Nunca es más ancho que la pantalla: el contenido se encoge (`min-w-0`) en vez de empujar el diálogo.
  * En un apartado con candado (encargado) muestra los datos sin poder cambiarlos ni guardar.
  */
 export function DialogoFormulario({
@@ -39,9 +40,9 @@ export function DialogoFormulario({
   const soloLectura = useSoloLectura();
   return (
     <Dialog open={abierto} onOpenChange={(v) => !pendiente && onAbierto(v)}>
-      <DialogContent className={`max-h-[92dvh] gap-0 overflow-hidden rounded-3xl p-0 ${ancho}`}>
+      <DialogContent className={`max-h-[92dvh] grid-cols-[minmax(0,1fr)] gap-0 overflow-hidden rounded-3xl p-0 ${ancho}`}>
         <form
-          className="flex max-h-[92dvh] flex-col"
+          className="flex max-h-[92dvh] min-w-0 flex-col"
           onSubmit={(e) => {
             e.preventDefault();
             if (!soloLectura) onGuardar();
@@ -52,7 +53,7 @@ export function DialogoFormulario({
             <DialogTitle className="font-display text-xl font-extrabold">{titulo}</DialogTitle>
             {descripcion && <DialogDescription>{descripcion}</DialogDescription>}
           </DialogHeader>
-          <div className="flex-1 overflow-y-auto px-6 py-5">
+          <div className="min-w-0 flex-1 overflow-x-hidden overflow-y-auto px-4 py-5 sm:px-6">
             <fieldset disabled={soloLectura} className="min-w-0 space-y-4">
               {children}
             </fieldset>

@@ -6,7 +6,7 @@
 import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import { beforeAll, describe, expect, it } from "vitest";
-import { guardarCombo } from "@/app/admin/combos/acciones";
+import { guardarCombo } from "@/app/admin/promociones/combos-acciones";
 import { guardarConfiguracion } from "@/app/admin/configuracion/acciones";
 import { cambiarEstadoCupon, eliminarCupon, guardarCupon } from "@/app/admin/promociones/acciones";
 import { anularVenta } from "@/app/admin/reportes/acciones";
@@ -162,7 +162,7 @@ describe("venta con cupón", () => {
     // 20 % automático en la proteína (70).
     const [promo] = await db
       .insert(promociones)
-      .values({ nombre: "20 % en Whey", tipo: "porcentaje", valor: "20", fechaInicio: inicioDiaBolivia(dias(-1)), fechaFin: inicioDiaBolivia(dias(1), true), alcance: "producto", productoId: b.proteina.id })
+      .values({ nombre: "20 % en Whey", tipo: "porcentaje", valor: "20", fechaInicio: inicioDiaBolivia(dias(-1)), fechaFin: inicioDiaBolivia(dias(1), true), alcance: "producto", productoIds: [b.proteina.id] })
       .returning();
     await crear({ codigo: "SUMA", acumulaPromociones: true });
 

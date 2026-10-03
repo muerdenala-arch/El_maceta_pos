@@ -26,7 +26,7 @@ import { formatoBs } from "@/lib/formato";
 import { COMPRESION_PRODUCTO } from "@/lib/imagen-cliente";
 import { nombreEnvase, nombreUnidad, textoCantidadVendida } from "@/lib/inventario/fraccion";
 import { cn } from "@/lib/utils";
-import { cambiarEstadoCombo, guardarCombo } from "./acciones";
+import { cambiarEstadoCombo, guardarCombo } from "./combos-acciones";
 
 type Producto = {
   id: number;
@@ -58,7 +58,7 @@ const esFraccionable = (p: Producto) => p.fraccionado && (p.unidadesPorEnvase ??
 const textoItem = (i: { cantidad: number; fraccion: boolean }, p: Producto | undefined) =>
   `${i.fraccion && p ? textoCantidadVendida(i.cantidad, p.unidadFraccion ?? "capsula") : i.cantidad} ${p?.nombre ?? "producto no disponible"}`;
 
-export function ListaCombos({ hoy, combos, productos }: { hoy: string; combos: ComboAdmin[]; productos: Producto[] }) {
+export function ListaCombos({ hoy, combos, productos, children }: { hoy: string; combos: ComboAdmin[]; productos: Producto[]; children?: React.ReactNode }) {
   const [editando, setEditando] = useState<ComboAdmin | "nuevo" | null>(null);
   const [busqueda, setBusqueda] = useState("");
   const cambiar = useAccion(cambiarEstadoCombo);
@@ -68,11 +68,12 @@ export function ListaCombos({ hoy, combos, productos }: { hoy: string; combos: C
 
   return (
     <div className="mx-auto max-w-6xl space-y-6">
-      <EncabezadoPagina icono={Gift} titulo="Combos" descripcion="Varios productos juntos con descuento. Aparecen en su propia sección del punto de venta.">
+      <EncabezadoPagina icono={Gift} titulo="Promociones y cupones" descripcion="Un combo son varios productos juntos con descuento. Aparecen en su propia sección del punto de venta.">
         <Button size="lg" className="rounded-full font-bold" onClick={() => setEditando("nuevo")}>
           <Plus className="size-5" /> Nuevo combo
         </Button>
       </EncabezadoPagina>
+      {children}
 
       {combos.length === 0 ? (
         <div className="flex flex-col items-center gap-3 rounded-3xl border border-dashed p-12 text-center text-muted-foreground">

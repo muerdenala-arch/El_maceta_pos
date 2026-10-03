@@ -120,6 +120,13 @@
       "when": 1790946701951,
       "tag": "0016_trabajadores_limpieza",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1791005652920,
+      "tag": "0017_promos_varios_recordatorios",
+      "breakpoints": true
     }
   ]
 }

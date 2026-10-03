@@ -13,8 +13,9 @@ export const esquemaPromocion = z
     comboLleva: z.coerce.number().int().nullable(),
     comboPaga: z.coerce.number().int().nullable(),
     alcance: z.enum(["todo", "producto", "categoria"]),
-    productoId: idPositivo.nullable(),
-    categoriaId: idPositivo.nullable(),
+    /** Uno o varios productos / categorías (según el alcance). */
+    productoIds: z.array(idPositivo).max(500).optional().default([]),
+    categoriaIds: z.array(idPositivo).max(500).optional().default([]),
     sucursalId: idPositivo.nullable(),
     desde: fecha,
     hasta: fecha,
@@ -31,8 +32,8 @@ export const esquemaPromocion = z
       if (!d.comboLleva || d.comboLleva < 2 || d.comboLleva > 20) error("comboLleva", "Entre 2 y 20");
       if (!d.comboPaga || d.comboPaga < 1 || (d.comboLleva && d.comboPaga >= d.comboLleva)) error("comboPaga", "Debe pagar menos de lo que lleva");
     }
-    if (d.alcance === "producto" && !d.productoId) error("productoId", "Elige el producto");
-    if (d.alcance === "categoria" && !d.categoriaId) error("categoriaId", "Elige la categoría");
+    if (d.alcance === "producto" && d.productoIds.length === 0) error("productoIds", "Elige al menos un producto");
+    if (d.alcance === "categoria" && d.categoriaIds.length === 0) error("categoriaIds", "Elige al menos una categoría");
     if (d.hasta < d.desde) error("hasta", "Debe ser igual o posterior a la fecha de inicio");
   })
   .transform((d) => ({
@@ -40,8 +41,8 @@ export const esquemaPromocion = z
     valor: d.tipo === "combo" ? "0" : d.valor,
     comboLleva: d.tipo === "combo" ? d.comboLleva : null,
     comboPaga: d.tipo === "combo" ? d.comboPaga : null,
-    productoId: d.alcance === "producto" ? d.productoId : null,
-    categoriaId: d.alcance === "categoria" ? d.categoriaId : null,
+    productoIds: d.alcance === "producto" ? [...new Set(d.productoIds)] : [],
+    categoriaIds: d.alcance === "categoria" ? [...new Set(d.categoriaIds)] : [],
   }));
 export type DatosPromocion = z.input<typeof esquemaPromocion>;
 

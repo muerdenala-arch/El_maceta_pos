@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { sucursales } from "@/db/schema";
 import { Sincronizador } from "@/components/offline/sincronizador";
 import { GuardiaBloqueo } from "@/components/seguridad/guardia-bloqueo";
+import { PulsoAvisos } from "@/components/shell/pulso-avisos";
 import { RefrescoAutomatico } from "@/components/shell/refresco-automatico";
 import { Shell } from "@/components/shell/shell";
 import { requerirSesion } from "@/lib/auth/sesion";
@@ -26,6 +27,7 @@ export default async function LayoutCajero({ children }: LayoutProps<"/cajero">)
     <GuardiaBloqueo nombre={sesion.nombre} usuario={sesion.usuario} usuarioId={sesion.uid} marca={marca}>
       <Sincronizador usuarioId={sesion.uid} />
       <RefrescoAutomatico />
+      <PulsoAvisos />
       <Shell
         rol={sesion.rol}
         usuario={{ nombre: sesion.nombre }}
