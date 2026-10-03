@@ -1,3 +1,4 @@
+import { modulosAbiertos } from "@/lib/auth/modulo-servidor";
 import { obtenerSesion } from "@/lib/auth/sesion";
 import { plantillaProductos } from "@/lib/importacion/contexto";
 
@@ -5,7 +6,9 @@ import { plantillaProductos } from "@/lib/importacion/contexto";
 export async function GET() {
   const sesion = await obtenerSesion();
   if (!sesion) return Response.json({ error: "Sesión vencida" }, { status: 401 });
-  if (sesion.rol !== "admin") return Response.json({ error: "Sin permiso" }, { status: 403 });
+  if (sesion.rol === "cajero" || (sesion.rol === "encargado" && !(await modulosAbiertos()).includes("catalogo"))) {
+    return Response.json({ error: "Sin permiso" }, { status: 403 });
+  }
 
   return new Response(new Uint8Array(await plantillaProductos()), {
     headers: {

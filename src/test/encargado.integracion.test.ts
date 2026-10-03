@@ -1,21 +1,16 @@
 /**
- * Rol Encargado contra una base real (en memoria): vende como un cajero, supervisa solo su sucursal, recibe las
- * transferencias que le llegan, anula ventas con la caja abierta y autoriza con su PIN descuentos y anulaciones
- * en la pantalla del cajero. Nada de otra sucursal, ni pasando ids a mano.
+ * El encargado en la caja (contra una base real en memoria): no vende; autoriza con su PIN, en la pantalla del cajero de su
+ * sucursal, los descuentos mayores al máximo del cajero y las anulaciones con la caja aún abierta. (Sus apartados de
+ * administración, con candado, se prueban en candados.integracion.test.ts).
  */
 import { randomUUID } from "node:crypto";
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { beforeAll, describe, expect, it } from "vitest";
-import { abrirCaja, cerrarCaja, registrarVenta, verComprobante } from "@/app/cajero/acciones";
+import { abrirCaja, cerrarCaja, registrarVenta } from "@/app/cajero/acciones";
 import { anularVentaEnSucursal } from "@/app/cajero/ventas/acciones";
 import { db } from "@/db";
-import { alertas, auditoria, configuracion, inventario, transferencias, ventas } from "@/db/schema";
-import { marcarAlertaLeida, marcarAlertaRevisada, marcarTodasLeidas, obtenerAlertas } from "@/lib/alertas/acciones";
-import { conciliarAlertasStock } from "@/lib/alertas/motor";
+import { auditoria, configuracion, ventas } from "@/db/schema";
 import { pedirAutorizacion } from "@/lib/auth/autorizacion-acciones";
-import { listarCajasAuditadas } from "@/lib/caja/auditadas";
-import { cancelarTransferencia, crearTransferencia, recibirTransferencia } from "@/lib/inventario/acciones";
-import { hoyEnBolivia } from "@/lib/formato";
 import { comoUsuario, PINES, prepararBase, stock, type Base } from "./base";
 
 let b: Base;
@@ -23,7 +18,7 @@ beforeAll(async () => {
   b = await prepararBase();
   // Cajero hasta 5 %, encargado hasta 15 %.
   await db.update(configuracion).set({ descuentoManualMaximo: "5", descuentoManualMaximoEncargado: "15" }).where(eq(configuracion.id, 1));
-  for (const u of [b.cajeroNorte, b.cajeroSur, b.encargadoNorte]) {
+  for (const u of [b.cajeroNorte, b.cajeroSur]) {
     await comoUsuario(u);
     expect(await abrirCaja({ montoInicial: "100" })).toEqual({ ok: true });
   }
@@ -38,105 +33,16 @@ const ventaOk = async (extra: Extra = {}) => {
   return r.datos;
 };
 const descuento = (porcentaje: string) => ({ porcentaje, motivo: "Cliente frecuente" });
+const SIN_PERMISO = { ok: false, error: "No tienes permiso para esta acción" };
 const ultimaAuditoria = async (accion: string) => (await db.select().from(auditoria).where(eq(auditoria.accion, accion))).at(-1)?.detalle as Record<string, unknown>;
 
-describe("el encargado opera una caja como un cajero", () => {
-  it("abre caja, vende en su sucursal y la venta sale de su stock", async () => {
+describe("el encargado no opera una caja", () => {
+  it("no abre caja, no vende, no anula ni sincroniza ventas (eso es del cajero)", async () => {
     await comoUsuario(b.encargadoNorte);
-    const antes = await stock(b.proteina.id, b.norte.id);
-    const v = await ventaOk();
-    expect(v.total).toBe("350.00");
-    expect(await stock(b.proteina.id, b.norte.id)).toBe(antes - 1);
-    const [fila] = await db.select().from(ventas).where(eq(ventas.id, v.ventaId));
-    expect(fila).toMatchObject({ sucursalId: b.norte.id, cajeroId: b.encargadoNorte.id });
-  });
-});
-
-describe("solo su sucursal", () => {
-  it("ve los comprobantes de cualquier cajero de su sucursal, pero no los de otra", async () => {
-    await comoUsuario(b.cajeroNorte);
-    const norte = await ventaOk();
-    await comoUsuario(b.cajeroSur);
-    const sur = await ventaOk();
-
-    await comoUsuario(b.encargadoNorte);
-    expect((await verComprobante(norte.ventaId)).ok).toBe(true);
-    expect(await verComprobante(sur.ventaId)).toEqual({ ok: false, error: "No puedes ver este comprobante" });
-  });
-
-  it("supervisa las cajas de su sucursal (abiertas en vivo); las de otra sucursal no aparecen", async () => {
-    const hoy = hoyEnBolivia();
-    const cajas = await listarCajasAuditadas({ desde: hoy, hasta: hoy, sucursalId: b.norte.id });
-    expect(cajas.map((c) => c.cajero).sort()).toEqual(["Ana Norte", "Elsa Encargada Norte"]);
-    expect(cajas.every((c) => c.estado === "abierta" && c.sucursal === "Sucursal Norte")).toBe(true);
-  });
-
-  it("recibe la transferencia que llega a su sucursal; la de otra sucursal \"no existe\" y no puede cancelar ninguna", async () => {
-    await comoUsuario(b.admin);
-    for (const destinoId of [b.norte.id, b.sur.id]) {
-      expect(await crearTransferencia({ origenId: b.bodega.id, destinoId, nota: null, lineas: [{ productoId: b.proteina.id, cantidad: 3 }] })).toEqual({ ok: true });
-    }
-    const enCamino = await db.select().from(transferencias).where(eq(transferencias.estado, "enviada"));
-    const paraNorte = enCamino.find((t) => t.destinoId === b.norte.id)!;
-    const paraSur = enCamino.find((t) => t.destinoId === b.sur.id)!;
-
-    await comoUsuario(b.encargadoNorte);
-    const [norteAntes, surAntes] = [await stock(b.proteina.id, b.norte.id), await stock(b.proteina.id, b.sur.id)];
-    expect(await recibirTransferencia({ id: paraSur.id })).toEqual({ ok: false, error: "La transferencia no existe" });
-    expect(await stock(b.proteina.id, b.sur.id)).toBe(surAntes);
-    expect((await cancelarTransferencia({ id: paraNorte.id })).ok).toBe(false);
-
-    expect(await recibirTransferencia({ id: paraNorte.id })).toEqual({ ok: true });
-    expect(await stock(b.proteina.id, b.norte.id)).toBe(norteAntes + 3);
-    const [recibida] = await db.select().from(transferencias).where(eq(transferencias.id, paraNorte.id));
-    expect(recibida).toMatchObject({ estado: "recibida", usuarioRecibeId: b.encargadoNorte.id });
-    expect(await ultimaAuditoria("transferencia_recibida")).toMatchObject({ id: paraNorte.id, rol: "encargado" });
-    // Un cajero no recibe transferencias.
-    await comoUsuario(b.cajeroSur);
-    expect((await recibirTransferencia({ id: paraSur.id })).ok).toBe(false);
-  });
-});
-
-describe("campanita del encargado", () => {
-  it("recibe solo las alertas de stock de su sucursal, que llevan a su inventario con el producto resaltado", async () => {
-    await db.update(inventario).set({ cantidad: 0 }).where(and(eq(inventario.productoId, b.creatina.id), eq(inventario.ubicacionId, b.norte.id)));
-    await db.update(inventario).set({ cantidad: 0 }).where(and(eq(inventario.productoId, b.proteina.id), eq(inventario.ubicacionId, b.sur.id)));
-    await conciliarAlertasStock(db);
-    await db.insert(alertas).values({ tipo: "caja_diferencia", sucursalId: b.norte.id, mensaje: "Caja con faltante" });
-
-    await comoUsuario(b.encargadoNorte);
-    const r = await obtenerAlertas();
-    if (!r.ok) throw new Error(r.error);
-    expect(r.datos.alertas.length).toBeGreaterThan(0);
-    expect(r.datos.alertas.every((a) => ["stock_bajo", "agotado", "stock_negativo"].includes(a.tipo) && a.sucursal === "Sucursal Norte")).toBe(true);
-    expect(r.datos.alertas.find((a) => a.tipo === "agotado")?.destino).toBe(`/cajero/bodega?resaltar=${b.creatina.id}`);
-    expect(Object.keys(r.datos.porModulo)).toEqual(["/cajero/bodega"]);
-  });
-
-  it("su \"leída\" es independiente de la del administrador y no alcanza a las alertas de otra sucursal", async () => {
-    await comoUsuario(b.encargadoNorte);
-    const antes = await obtenerAlertas();
-    if (!antes.ok) throw new Error(antes.error);
-    const mia = antes.datos.alertas[0];
-    const [ajena] = await db.select().from(alertas).where(and(eq(alertas.sucursalId, b.sur.id), eq(alertas.resuelta, false)));
-    const [deCaja] = await db.select().from(alertas).where(eq(alertas.tipo, "caja_diferencia"));
-
-    expect(await marcarAlertaLeida({ id: mia.id })).toEqual({ ok: true });
-    await marcarAlertaLeida({ id: ajena.id });
-    await marcarAlertaLeida({ id: deCaja.id });
-    expect((await marcarAlertaRevisada({ id: deCaja.id })).ok).toBe(false);
-
-    const filas = await db.select().from(alertas);
-    expect(filas.find((a) => a.id === mia.id)).toMatchObject({ leidaEncargado: true, leida: false });
-    expect(filas.find((a) => a.id === ajena.id)).toMatchObject({ leidaEncargado: false, leida: false });
-    expect(filas.find((a) => a.id === deCaja.id)).toMatchObject({ leidaEncargado: false, leida: false, resuelta: false });
-
-    expect(await marcarTodasLeidas()).toEqual({ ok: true });
-    const despues = await obtenerAlertas();
-    expect(despues.ok && despues.datos.noLeidas).toBe(0);
-    // El administrador sigue teniéndolas sin leer.
-    expect((await db.select().from(alertas).where(eq(alertas.resuelta, false))).every((a) => !a.leida)).toBe(true);
-    expect((await db.select().from(alertas).where(eq(alertas.id, ajena.id)))[0].leidaEncargado).toBe(false);
+    expect(await abrirCaja({ montoInicial: "100" })).toEqual(SIN_PERMISO);
+    expect(await vender()).toEqual(SIN_PERMISO);
+    expect(await anularVentaEnSucursal({ id: 1, motivo: "Prueba de permisos" })).toEqual(SIN_PERMISO);
+    expect(await pedirAutorizacion({ pin: PINES.admin, proposito: "anulacion", ref: "1" })).toEqual(SIN_PERMISO);
   });
 });
 
@@ -204,9 +110,9 @@ describe("descuento manual por encima del máximo del cajero", () => {
     // Otro porcentaje.
     const otro = await vender({ uuid, descuentoManual: descuento("12"), autorizacion: token });
     expect(otro).toEqual({ ok: false, error: "Se autorizó otro porcentaje de descuento. Pide el PIN otra vez." });
-    // Otro usuario.
-    await comoUsuario(b.encargadoNorte);
-    expect((await vender({ uuid, descuentoManual: descuento("20"), autorizacion: token })).ok).toBe(false);
+    // Otro cajero.
+    await comoUsuario(b.cajeroSur);
+    expect((await vender({ uuid, descuentoManual: descuento("10"), autorizacion: token })).ok).toBe(false);
     // Algo que no es un permiso (p. ej. basura o una sesión).
     await comoUsuario(b.cajeroNorte);
     expect((await vender({ uuid, descuentoManual: descuento("10"), autorizacion: "x.y.z" })).ok).toBe(false);
@@ -221,14 +127,6 @@ describe("descuento manual por encima del máximo del cajero", () => {
     const v = await ventaOk({ uuid, descuentoManual: descuento("20"), autorizacion: deAdmin });
     expect(v.total).toBe("280.00");
     expect((await db.select().from(ventas).where(eq(ventas.id, v.ventaId)))[0].descuentoAutorizadoPor).toBe(b.admin.id);
-  });
-
-  it("el encargado, cuando vende él, da hasta su máximo sin PIN y no más", async () => {
-    await comoUsuario(b.encargadoNorte);
-    const v = await ventaOk({ descuentoManual: descuento("15") });
-    expect(v.total).toBe("297.50");
-    expect((await db.select().from(ventas).where(eq(ventas.id, v.ventaId)))[0].descuentoAutorizadoPor).toBeNull();
-    expect((await vender({ descuentoManual: descuento("16") })).ok).toBe(false);
   });
 });
 
@@ -257,38 +155,29 @@ describe("anulación en la sucursal", () => {
     expect(await ultimaAuditoria("venta_anulada")).toMatchObject({ ventaId: v.ventaId, rol: "cajero", autorizadoPor: "Elsa Encargada Norte" });
   });
 
-  it("el cajero solo anula sus propias ventas, aunque tenga el PIN", async () => {
-    await comoUsuario(b.encargadoNorte);
-    const delEncargado = await ventaOk();
+  it("el cajero solo anula sus propias ventas y de su sucursal, aunque tenga el PIN", async () => {
     await comoUsuario(b.cajeroNorte);
-    const permiso = await pedirAutorizacion({ pin: PINES.elsa, proposito: "anulacion", ref: String(delEncargado.ventaId) });
+    const ajena = await ventaOk();
+    await db.update(ventas).set({ cajeroId: b.admin.id }).where(eq(ventas.id, ajena.ventaId)); // como si la hubiera hecho otro
+    const permiso = await pedirAutorizacion({ pin: PINES.elsa, proposito: "anulacion", ref: String(ajena.ventaId) });
     if (!permiso.ok) throw new Error(permiso.error);
-    expect(await anularVentaEnSucursal({ id: delEncargado.ventaId, motivo, autorizacion: permiso.datos.token })).toEqual({ ok: false, error: "Solo puedes anular tus propias ventas" });
-  });
+    expect(await anularVentaEnSucursal({ id: ajena.ventaId, motivo, autorizacion: permiso.datos.token })).toEqual({ ok: false, error: "Solo puedes anular tus propias ventas" });
 
-  it("el encargado anula directamente las ventas de su sucursal, nunca las de otra", async () => {
+    // De otra sucursal: "no existe", aunque el encargado de esa sucursal dé su PIN.
+    const [surFila] = await db.select().from(ventas).where(eq(ventas.sucursalId, b.sur.id));
     await comoUsuario(b.cajeroNorte);
-    const norte = await ventaOk();
-    const [surFila] = await db.select().from(ventas).where(and(eq(ventas.sucursalId, b.sur.id), eq(ventas.estado, "completada")));
-
-    await comoUsuario(b.encargadoNorte);
-    expect(await anularVentaEnSucursal({ id: surFila.id, motivo })).toEqual({ ok: false, error: "La venta no existe o ya estaba anulada" });
-    expect((await db.select().from(ventas).where(eq(ventas.id, surFila.id)))[0].estado).toBe("completada");
-    expect((await anularVentaEnSucursal({ id: norte.ventaId, motivo: "x" })).ok).toBe(false); // motivo obligatorio
-
-    expect(await anularVentaEnSucursal({ id: norte.ventaId, motivo })).toEqual({ ok: true });
-    expect(await ultimaAuditoria("venta_anulada")).toMatchObject({ ventaId: norte.ventaId, rol: "encargado", autorizadoPor: null });
-    expect(await anularVentaEnSucursal({ id: norte.ventaId, motivo })).toEqual({ ok: false, error: "La venta no existe o ya estaba anulada" });
+    const deSaul = await pedirAutorizacion({ pin: PINES.saul, proposito: "anulacion", ref: String(surFila?.id ?? 999) });
+    expect(deSaul.ok).toBe(false); // el encargado de Sur no autoriza en Norte
   });
 
-  it("con la caja ya cerrada, ni el encargado: solo el administrador", async () => {
+  it("con la caja ya cerrada no se anula desde la caja, ni con PIN: solo desde Reportes de venta", async () => {
     await comoUsuario(b.cajeroNorte);
     const v = await ventaOk();
+    const permiso = await pedirAutorizacion({ pin: PINES.elsa, proposito: "anulacion", ref: String(v.ventaId) });
+    if (!permiso.ok) throw new Error(permiso.error);
     const cierre = await cerrarCaja({ efectivoContado: "0" });
     expect(cierre.ok).toBe(true);
-
-    await comoUsuario(b.encargadoNorte);
-    expect(await anularVentaEnSucursal({ id: v.ventaId, motivo })).toEqual({ ok: false, error: "La caja de esta venta ya se cerró: solo el administrador puede anularla" });
+    expect(await anularVentaEnSucursal({ id: v.ventaId, motivo, autorizacion: permiso.datos.token })).toEqual({ ok: false, error: "La caja de esta venta ya se cerró: solo el administrador puede anularla" });
     expect((await db.select().from(ventas).where(eq(ventas.id, v.ventaId)))[0].estado).toBe("completada");
   });
 });

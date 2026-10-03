@@ -7,7 +7,7 @@ import { db } from "@/db";
 import { empleados, eventosEmpleado, movimientosSueldo, sucursales, sueldosMes } from "@/db/schema";
 import { conPermiso, exito, fallo, falloValidacion, type Resultado } from "@/lib/acciones/resultado";
 import { registrarAuditoria } from "@/lib/auditoria";
-import { autorizar } from "@/lib/auth/sesion";
+import { autorizarModulo } from "@/lib/auth/modulo-servidor";
 import { hoyEnBolivia } from "@/lib/formato";
 import { periodoDe, periodoVecino } from "@/lib/sueldos/calculo";
 import {
@@ -40,7 +40,7 @@ async function sucursalExiste(id: number | null) {
  */
 export async function guardarTrabajador(entrada: DatosTrabajador & { id?: number }): Promise<Resultado> {
   return conPermiso(async () => {
-    const sesion = await autorizar("admin");
+    const sesion = await autorizarModulo("sueldos");
     const v = esquemaTrabajador.safeParse(entrada);
     if (!v.success) return falloValidacion(v.error);
     const d = v.data;
@@ -84,7 +84,7 @@ export async function guardarTrabajador(entrada: DatosTrabajador & { id?: number
  */
 export async function guardarSueldo(entrada: DatosSueldo): Promise<Resultado> {
   return conPermiso(async () => {
-    const sesion = await autorizar("admin");
+    const sesion = await autorizarModulo("sueldos");
     const v = esquemaSueldo.safeParse(entrada);
     if (!v.success) return falloValidacion(v.error);
     const { empleadoId, periodo, monto } = v.data;
@@ -110,7 +110,7 @@ export async function guardarSueldo(entrada: DatosSueldo): Promise<Resultado> {
 /** Adelanto, descuento, bono o pago de sueldo en un mes. Fija el sueldo de ese mes si aún no lo estaba. */
 export async function registrarMovimientoSueldo(entrada: DatosMovimientoSueldo): Promise<Resultado> {
   return conPermiso(async () => {
-    const sesion = await autorizar("admin");
+    const sesion = await autorizarModulo("sueldos");
     const v = esquemaMovimientoSueldo.safeParse(entrada);
     if (!v.success) return falloValidacion(v.error);
     const d = v.data;
@@ -133,7 +133,7 @@ export async function registrarMovimientoSueldo(entrada: DatosMovimientoSueldo):
 /** Los movimientos de sueldo no se borran: se anulan con motivo (queda en auditoría). */
 export async function anularMovimientoSueldo(entrada: DatosAnularMovimiento): Promise<Resultado> {
   return conPermiso(async () => {
-    const sesion = await autorizar("admin");
+    const sesion = await autorizarModulo("sueldos");
     const v = esquemaAnularMovimiento.safeParse(entrada);
     if (!v.success) return falloValidacion(v.error);
     const [m] = await db
@@ -154,7 +154,7 @@ export async function anularMovimientoSueldo(entrada: DatosAnularMovimiento): Pr
  */
 export async function darDeBajaTrabajador(entrada: DatosBaja): Promise<Resultado> {
   return conPermiso(async () => {
-    const sesion = await autorizar("admin");
+    const sesion = await autorizarModulo("sueldos");
     const v = esquemaBaja.safeParse(entrada);
     if (!v.success) return falloValidacion(v.error);
     const { id, motivo } = v.data;
@@ -183,7 +183,7 @@ export async function darDeBajaTrabajador(entrada: DatosBaja): Promise<Resultado
 /** Vuelve a trabajar: se quita la baja y queda la reincorporación en su historial. Su usuario se reactiva en Personal. */
 export async function reincorporarTrabajador(entrada: DatosReincorporacion): Promise<Resultado> {
   return conPermiso(async () => {
-    const sesion = await autorizar("admin");
+    const sesion = await autorizarModulo("sueldos");
     const v = esquemaReincorporacion.safeParse(entrada);
     if (!v.success) return falloValidacion(v.error);
     const { id } = v.data;

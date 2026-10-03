@@ -4,11 +4,11 @@ import { after } from "next/server";
 import webpush from "web-push";
 import { db } from "@/db";
 import { alertas, sucursales, suscripcionesPush, usuarios } from "@/db/schema";
-import { destinoAlerta, destinoAlertaEncargado, TIPOS_ENCARGADO, TITULOS_ALERTA } from "@/lib/alertas/reglas";
+import { destinoAlerta, TITULOS_ALERTA } from "@/lib/alertas/reglas";
 
 /**
  * Notificaciones en el celular o la tablet (Web Push): cada alerta nueva de la campanita se envía una sola vez a los
- * dispositivos donde un administrador (todas) o un encargado (las de stock de su sucursal) activó las notificaciones.
+ * dispositivos donde un administrador o un encargado (reciben lo mismo) activó las notificaciones.
  * Sin claves VAPID configuradas (NEXT_PUBLIC_VAPID_PUBLICA / VAPID_PRIVADA) no hace nada.
  */
 export function pushConfigurado() {
@@ -54,16 +54,15 @@ export async function despacharAlertas(): Promise<number> {
   let enviadas = 0;
   const vencidas: number[] = [];
   for (const d of destinos) {
-    const admin = d.rol === "admin";
-    const suyas = admin ? tomadas : tomadas.filter((a) => a.sucursalId === d.sucursalId && TIPOS_ENCARGADO.includes(a.tipo));
-    if (suyas.length === 0) continue;
+    // Administrador y encargado reciben las mismas alertas.
+    const suyas = tomadas;
     const mensajes: Notificacion[] =
       suyas.length > MAXIMO_SUELTAS
-        ? [{ titulo: `${suyas.length} alertas nuevas`, cuerpo: "Abre la campanita para verlas.", url: admin ? "/admin/dashboard" : "/cajero/bodega", etiqueta: "resumen" }]
+        ? [{ titulo: `${suyas.length} alertas nuevas`, cuerpo: "Abre la campanita para verlas.", url: d.rol === "admin" ? "/admin/dashboard" : "/admin/inicio", etiqueta: "resumen" }]
         : suyas.map((a) => ({
             titulo: TITULOS_ALERTA[a.tipo],
             cuerpo: a.mensaje,
-            url: admin ? destinoAlerta({ ...a, enBodega: a.sucursalId !== null && esBodega.has(a.sucursalId) }) : destinoAlertaEncargado(a.productoId),
+            url: destinoAlerta({ ...a, enBodega: a.sucursalId !== null && esBodega.has(a.sucursalId) }),
             etiqueta: `alerta-${a.id}`,
           }));
     for (const m of mensajes) {

@@ -15,9 +15,8 @@ import { esquemaAnulacion } from "@/lib/validaciones/caja";
 const esquema = esquemaAnulacion.extend({ autorizacion: z.string().max(2000).nullable().optional().default(null) });
 
 /**
- * Anulación en la sucursal, solo mientras la caja de esa venta siga abierta (después, solo el administrador):
- * - el encargado anula cualquier venta de su sucursal;
- * - el cajero, solo las suyas y con la autorización (PIN) del encargado o de un administrador.
+ * Anulación en la sucursal, solo mientras la caja de esa venta siga abierta (después, desde Reportes de venta): el cajero
+ * anula solo sus ventas y con la autorización (PIN) del encargado de su sucursal o de un administrador.
  */
 export async function anularVentaEnSucursal(entrada: z.input<typeof esquema>): Promise<Resultado> {
   return conPermiso(async () => {
@@ -28,11 +27,8 @@ export async function anularVentaEnSucursal(entrada: z.input<typeof esquema>): P
     if (!v.success) return falloValidacion(v.error);
     const { id, motivo, autorizacion } = v.data;
 
-    let autorizador: Autorizador | null = null;
-    if (sesion.rol !== "encargado") {
-      autorizador = await verificarAutorizacion(autorizacion, { para: sesion.uid, sucursalId, proposito: "anulacion", ref: String(id) });
-      if (!autorizador) return fallo("Anular una venta necesita el PIN del encargado o de un administrador");
-    }
+    const autorizador: Autorizador | null = await verificarAutorizacion(autorizacion, { para: sesion.uid, sucursalId, proposito: "anulacion", ref: String(id) });
+    if (!autorizador) return fallo("Anular una venta necesita el PIN del encargado o de un administrador");
 
     const r = await anularVentaConStock({
       id,
@@ -41,7 +37,7 @@ export async function anularVentaEnSucursal(entrada: z.input<typeof esquema>): P
       permitir: async (venta, tx) => {
         // Misma respuesta para "no existe" y "es de otra sucursal": no se revela nada de otras sucursales.
         if (venta.sucursalId !== sucursalId) return "La venta no existe o ya estaba anulada";
-        if (sesion.rol !== "encargado" && venta.cajeroId !== sesion.uid) return "Solo puedes anular tus propias ventas";
+        if (venta.cajeroId !== sesion.uid) return "Solo puedes anular tus propias ventas";
         const [caja] = await tx.select({ estado: cajas.estado }).from(cajas).where(eq(cajas.id, venta.cajaId));
         if (caja?.estado !== "abierta") return "La caja de esta venta ya se cerró: solo el administrador puede anularla";
         return null;
@@ -58,8 +54,8 @@ export async function anularVentaEnSucursal(entrada: z.input<typeof esquema>): P
         total: r.venta.total,
         motivo,
         rol: sesion.rol,
-        autorizadoPor: autorizador ? autorizador.nombre : null,
-        autorizadoPorId: autorizador?.id ?? null,
+        autorizadoPor: autorizador.nombre,
+        autorizadoPorId: autorizador.id,
       },
     });
     refresh();

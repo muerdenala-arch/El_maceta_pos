@@ -6,8 +6,7 @@ import { db } from "@/db";
 import { sucursales, usuarios } from "@/db/schema";
 import { conPermiso, exito, fallo, falloValidacion, type Resultado } from "@/lib/acciones/resultado";
 import { registrarAuditoria } from "@/lib/auditoria";
-import { autorizar } from "@/lib/auth/sesion";
-import { autorizarModulo, exigirSuSucursal } from "@/lib/auth/modulo-servidor";
+import { autorizarModulo } from "@/lib/auth/modulo-servidor";
 import { idPositivo } from "@/lib/validaciones/comunes";
 import { esquemaSucursal, type DatosSucursal } from "@/lib/validaciones/admin";
 
@@ -17,8 +16,6 @@ export async function guardarSucursal(entrada: DatosSucursal & { id?: number }):
     const validado = esquemaSucursal.safeParse(entrada);
     if (!validado.success) return falloValidacion(validado.error);
     const datos = validado.data;
-    // El encargado solo edita los datos de su sucursal; crear sucursales es del administrador.
-    if (sesion.rol !== "admin") exigirSuSucursal(sesion, entrada.id ?? null);
 
     if (entrada.id === undefined) {
       const [nueva] = await db
@@ -43,7 +40,7 @@ export async function guardarSucursal(entrada: DatosSucursal & { id?: number }):
 
 export async function cambiarEstadoSucursal(entrada: { id: number; activo: boolean }): Promise<Resultado> {
   return conPermiso(async () => {
-    const sesion = await autorizar("admin");
+    const sesion = await autorizarModulo("sucursales");
     const id = idPositivo.parse(entrada.id);
     const activo = entrada.activo === true;
 

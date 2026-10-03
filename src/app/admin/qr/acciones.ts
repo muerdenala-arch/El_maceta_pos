@@ -6,7 +6,7 @@ import { db } from "@/db";
 import { qrPagos, sucursales } from "@/db/schema";
 import { conPermiso, exito, fallo, falloValidacion, type Resultado } from "@/lib/acciones/resultado";
 import { registrarAuditoria } from "@/lib/auditoria";
-import { autorizarModulo, exigirSuSucursal } from "@/lib/auth/modulo-servidor";
+import { autorizarModulo } from "@/lib/auth/modulo-servidor";
 import { idPositivo } from "@/lib/validaciones/comunes";
 import { esquemaQr, type DatosQr } from "@/lib/validaciones/caja";
 
@@ -16,13 +16,6 @@ export async function guardarQr(entrada: DatosQr & { id?: number }): Promise<Res
     const v = esquemaQr.safeParse(entrada);
     if (!v.success) return falloValidacion(v.error);
     const d = v.data;
-    // El encargado solo crea y edita QR de su sucursal (no los "para todas" ni los de otra).
-    exigirSuSucursal(sesion, d.sucursalId);
-    if (sesion.rol !== "admin" && entrada.id !== undefined) {
-      const [actual] = await db.select({ sucursalId: qrPagos.sucursalId }).from(qrPagos).where(eq(qrPagos.id, idPositivo.parse(entrada.id)));
-      if (!actual) return fallo("El QR ya no existe");
-      exigirSuSucursal(sesion, actual.sucursalId);
-    }
     if (d.sucursalId !== null) {
       const [s] = await db
         .select({ id: sucursales.id })

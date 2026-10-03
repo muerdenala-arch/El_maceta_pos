@@ -12,6 +12,7 @@ import {
   sucursales,
   transferencias,
   usuarios,
+  categorias,
 } from "@/db/schema";
 import { ZONA_HORARIA } from "@/lib/formato";
 import { condicionBusqueda } from "@/lib/busqueda-sql";
@@ -43,6 +44,8 @@ export type ProductoInventario = {
   fraccionado: boolean;
   unidadFraccion: string | null;
   unidadesPorEnvase: number | null;
+  /** Nombre de su categoría (null = sin categoría). */
+  categoria: string | null;
 };
 
 /** Productos activos y los inactivos que todavía tienen stock (sin precios: lo usa también el cajero). */
@@ -65,8 +68,10 @@ export async function listarProductosInventario(): Promise<ProductoInventario[]>
       fraccionado: productos.fraccionado,
       unidadFraccion: productos.unidadFraccion,
       unidadesPorEnvase: productos.unidadesPorEnvase,
+      categoria: categorias.nombre,
     })
     .from(productos)
+    .leftJoin(categorias, eq(categorias.id, productos.categoriaId))
     .where(or(eq(productos.activo, true), inArray(productos.id, conStock)))
     .orderBy(asc(productos.nombre));
 }

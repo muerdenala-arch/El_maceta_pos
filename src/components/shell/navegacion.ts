@@ -4,11 +4,8 @@ import {
   ClipboardCheck,
   Gift,
   HandCoins,
-  Truck,
-  Wallet,
   LayoutDashboard,
   Package,
-  PackageSearch,
   QrCode,
   ReceiptText,
   ScrollText,
@@ -50,33 +47,3 @@ export const navCajero: ItemNav[] = [
   { href: "/cajero/gastos", titulo: "Gastos", icono: ReceiptText, fase: 4 },
   { href: "/cajero/cierre", titulo: "Cierre de caja", icono: ClipboardCheck, fase: 4 },
 ];
-
-/**
- * Menú del encargado de sucursal: supervisa su sucursal (/encargado/*) y además opera una caja como un cajero
- * (/cajero/*). No tiene catálogo, precios, personal, QR, cupones ni configuración.
- */
-export const navEncargado: ItemNav[] = [
-  { href: "/cajero/venta", titulo: "Venta", icono: ShoppingCart, fase: 4 },
-  { href: "/encargado/reportes", titulo: "Reportes de venta", icono: BarChart3, fase: 13 },
-  { href: "/encargado/gastos", titulo: "Gastos de la sucursal", icono: ReceiptText, fase: 13 },
-  { href: "/cajero/bodega", titulo: "Stock y pedidos", icono: PackageSearch, fase: 3 },
-  { href: "/encargado/transferencias", titulo: "Transferencias", icono: Truck, fase: 13 },
-  { href: "/cajero/gastos", titulo: "Registrar gasto", icono: HandCoins, fase: 4 },
-  { href: "/cajero/cierre", titulo: "Cierre de caja", icono: ClipboardCheck, fase: 4 },
-];
-
-/** Pestañas inferiores del encargado en el celular (el resto, en el menú lateral). */
-export const navEncargadoInferior: ItemNav[] = [
-  { href: "/cajero/venta", titulo: "Venta", icono: ShoppingCart, fase: 4 },
-  { href: "/encargado/reportes", titulo: "Reportes", icono: BarChart3, fase: 13 },
-  { href: "/cajero/bodega", titulo: "Stock", icono: PackageSearch, fase: 3 },
-  { href: "/admin/auditoria", titulo: "Cajas", icono: Wallet, fase: 13 },
-];
-
-/**
- * Apartados del administrador que también usa el encargado (lib/auth/modulos.ts): se agregan a su menú. Cada uno
- * tiene un candado que abre o cierra el administrador (cerrado = el encargado lo ve en solo lectura).
- */
-export const navEncargadoCompartido: ItemNav[] = navAdmin.filter((i) =>
-  ["catalogo", "inventario", "bodega", "promociones", "combos", "eventos", "qr", "sucursales", "auditoria", "configuracion"].includes(i.href.split("/")[2]),
-);

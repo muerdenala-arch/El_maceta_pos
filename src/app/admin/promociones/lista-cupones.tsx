@@ -3,11 +3,11 @@
 import { CalendarRange, Check, Layers, Pencil, Plus, Store, Tag, TicketPercent, Trash2, Wand2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Buscador, Resaltar, SinResultados } from "@/components/busqueda/buscador";
+import { ListaSeleccion } from "@/components/busqueda/lista-seleccion";
 import { Campo } from "@/components/formularios/campo";
 import { DialogoFormulario } from "@/components/formularios/dialogo-formulario";
 import { EncabezadoPagina } from "@/components/formularios/encabezado-pagina";
 import { useAccion } from "@/components/formularios/use-accion";
-import { Miniatura } from "@/components/inventario/selector-producto";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -38,7 +38,7 @@ type Cupon = {
   acumulaPromociones: boolean;
   acumulaCombos: boolean;
 };
-type ProductoLigero = { id: number; nombre: string; marca: string | null; sabor: string | null; presentacion: string | null; codigoBarras: string | null; fotoUrl: string | null };
+type ProductoLigero = { id: number; nombre: string; marca: string | null; sabor: string | null; presentacion: string | null; codigoBarras: string | null; fotoUrl: string | null; categoria?: string | null };
 type Opcion = { id: number; nombre: string };
 
 const CLASE_ESTADO: Record<EstadoCuponAdmin, string> = {
@@ -212,7 +212,6 @@ function FormularioCupon({ cupon, productos, categorias, sucursales, onCerrar }:
     acumulaCombos: cupon?.acumulaCombos ?? false,
     activo: cupon?.activo ?? true,
   }));
-  const [busqueda, setBusqueda] = useState("");
   const guardar = useAccion(guardarCupon, { mensajeExito: cupon ? "Cupón actualizado" : "Cupón creado", alExito: onCerrar });
   const poner = <K extends keyof DatosCupon>(k: K, v: DatosCupon[K]) => {
     setD((x) => ({ ...x, [k]: v }));
@@ -223,8 +222,11 @@ function FormularioCupon({ cupon, productos, categorias, sucursales, onCerrar }:
     poner(k, actuales.includes(id) ? actuales.filter((x) => x !== id) : [...actuales, id]);
   };
   const elegidos = (d.productoIds ?? []) as number[];
-  const resultados = busqueda.trim() ? productos.filter((p) => coincide(busqueda, [p.nombre, p.marca, p.sabor, p.presentacion, p.codigoBarras])).slice(0, 6) : [];
   const nombres = new Map(productos.map((p) => [p.id, p.nombre]));
+  const opcionesProductos = useMemo(
+    () => productos.map((p) => ({ id: p.id, nombre: p.nombre, detalle: p.categoria ?? null, buscarPor: [p.marca, p.sabor, p.presentacion, p.codigoBarras] })),
+    [productos],
+  );
 
   const chips = (k: "categoriaIds" | "sucursalIds", opciones: Opcion[], etiqueta: string) => (
     <div className="flex flex-wrap gap-1.5" role="group" aria-label={etiqueta}>
@@ -343,33 +345,7 @@ function FormularioCupon({ cupon, productos, categorias, sucursales, onCerrar }:
 
         {d.alcance === "productos" && (
           <>
-            <Buscador className="max-w-none" valor={busqueda} onCambiar={setBusqueda} etiqueta="Buscar productos para el cupón" placeholder="Buscar producto por nombre, marca o código" />
-            {busqueda.trim() &&
-              (resultados.length === 0 ? (
-                <SinResultados className="p-5" consulta={busqueda} onLimpiar={() => setBusqueda("")} />
-              ) : (
-                <ul className="grid gap-2 sm:grid-cols-2" aria-label="Resultados">
-                  {resultados.map((p) => {
-                    const elegido = elegidos.includes(p.id);
-                    return (
-                      <li key={p.id}>
-                        <button
-                          type="button"
-                          aria-pressed={elegido}
-                          onClick={() => alternar("productoIds", p.id)}
-                          className={cn("flex w-full items-center gap-3 rounded-2xl border p-2 text-left transition-colors", elegido ? "border-primary bg-primary/8" : "hover:bg-accent")}
-                        >
-                          <Miniatura url={p.fotoUrl} />
-                          <span className="min-w-0 flex-1 truncate text-sm font-semibold">
-                            <Resaltar texto={p.nombre} consulta={busqueda} />
-                          </span>
-                          {elegido ? <Check className="size-5 shrink-0 text-primary" /> : <Plus className="size-5 shrink-0 text-muted-foreground" />}
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
-              ))}
+            <ListaSeleccion etiqueta="Productos del cupón" opciones={opcionesProductos} elegidos={elegidos} onAlternar={(id) => alternar("productoIds", id)} invalida={!!guardar.campos.productoIds} />
             {elegidos.length > 0 && (
               <ul className="flex flex-wrap gap-1.5" aria-label="Productos elegidos">
                 {elegidos.map((id) => (
@@ -386,7 +362,15 @@ function FormularioCupon({ cupon, productos, categorias, sucursales, onCerrar }:
         )}
         {d.alcance === "categorias" && (
           <>
-            {chips("categoriaIds", categorias, "Categorías")}
+            <ListaSeleccion
+              etiqueta="Categorías del cupón"
+              placeholder="Escribe para buscar y toca para agregar…"
+              opciones={categorias}
+              elegidos={(d.categoriaIds ?? []) as number[]}
+              onAlternar={(id) => alternar("categoriaIds", id)}
+              invalida={!!guardar.campos.categoriaIds}
+              alto="max-h-56"
+            />
             {guardar.campos.categoriaIds && <p className="text-sm text-destructive">{guardar.campos.categoriaIds}</p>}
           </>
         )}

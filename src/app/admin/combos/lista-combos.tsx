@@ -1,9 +1,10 @@
 "use client";
 
 /* eslint-disable @next/next/no-img-element -- fotos propias */
-import { AlertTriangle, CalendarRange, Check, Gift, Pencil, Plus, Trash2 } from "lucide-react";
+import { AlertTriangle, CalendarRange, Gift, Pencil, Plus, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Buscador, Resaltar, SinResultados } from "@/components/busqueda/buscador";
+import { ListaSeleccion } from "@/components/busqueda/lista-seleccion";
 import { Campo } from "@/components/formularios/campo";
 import { DialogoFormulario } from "@/components/formularios/dialogo-formulario";
 import { EncabezadoPagina } from "@/components/formularios/encabezado-pagina";
@@ -37,6 +38,7 @@ type Producto = {
   fotoUrl: string | null;
   precioVenta: string;
   precioCosto: string;
+  categoria?: string | null;
   precioUnidad: string | null;
   fraccionado: boolean;
   unidadFraccion: string | null;
@@ -168,15 +170,17 @@ function FormularioCombo({ combo, productos, onCerrar }: { combo: ComboAdmin | n
   });
   // Solo los productos que siguen activos (los demás se avisan en la lista).
   const [items, setItems] = useState<ItemFormulario[]>(() => (combo?.items ?? []).filter((i) => porId.has(i.productoId)).map((i) => ({ ...i, cantidad: String(i.cantidad) })));
-  const [busqueda, setBusqueda] = useState("");
   const guardar = useAccion(guardarCombo, { mensajeExito: combo ? "Combo actualizado" : "Combo creado", alExito: onCerrar });
   const poner = <K extends keyof typeof d>(k: K, v: (typeof d)[K]) => {
     setD((x) => ({ ...x, [k]: v }));
     guardar.limpiarCampo(k);
   };
 
-  const elegidos = new Set(items.map((i) => i.productoId));
-  const resultados = busqueda.trim() ? productos.filter((p) => coincide(busqueda, [p.nombre, p.marca, p.sabor, p.presentacion, p.codigoBarras])).slice(0, 8) : [];
+  const elegidos = items.map((i) => i.productoId);
+  const opciones = useMemo(
+    () => productos.map((p) => ({ id: p.id, nombre: p.nombre, detalle: p.categoria ?? formatoBs(p.precioVenta), buscarPor: [p.marca, p.sabor, p.presentacion, p.codigoBarras] })),
+    [productos],
+  );
   const alternar = (p: Producto) => {
     setItems((is) => (is.some((i) => i.productoId === p.id) ? is.filter((i) => i.productoId !== p.id) : [...is, { productoId: p.id, cantidad: "1", fraccion: false }]));
     guardar.limpiarCampo("items");
@@ -227,46 +231,10 @@ function FormularioCombo({ combo, productos, onCerrar }: { combo: ComboAdmin | n
 
       <section className={cn("space-y-3 rounded-2xl border p-4", guardar.campos.items && "border-destructive")} aria-label="Productos del combo">
         <h3 className="font-semibold">Productos del combo</h3>
-        <Buscador className="max-w-none" valor={busqueda} onCambiar={setBusqueda} etiqueta="Buscar productos para el combo" placeholder="Buscar producto por nombre, marca o código" />
-        {busqueda.trim() &&
-          (resultados.length === 0 ? (
-            <SinResultados className="p-5" consulta={busqueda} onLimpiar={() => setBusqueda("")} />
-          ) : (
-            <ul className="grid gap-2 sm:grid-cols-2" aria-label="Resultados">
-              {resultados.map((p) => {
-                const elegido = elegidos.has(p.id);
-                return (
-                  <li key={p.id}>
-                    <button
-                      type="button"
-                      aria-pressed={elegido}
-                      onClick={() => alternar(p)}
-                      data-desplazar
-                      className={cn("flex w-full items-center gap-3 rounded-2xl border p-2 text-left transition-colors", elegido ? "border-primary bg-primary/8" : "hover:bg-accent")}
-                    >
-                      <Miniatura url={p.fotoUrl} className="size-11" />
-                      <span className="min-w-0 flex-1">
-                        <Marquesina titulo={p.nombre} className="text-sm font-semibold">
-                          <Resaltar texto={p.nombre} consulta={busqueda} />
-                        </Marquesina>
-                        <span className="cifras block text-xs text-muted-foreground">{formatoBs(p.precioVenta)}</span>
-                      </span>
-                      {elegido ? (
-                        <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground" title="En el combo: toca para quitarlo">
-                          <Check className="size-4" />
-                        </span>
-                      ) : (
-                        <Plus className="size-5 shrink-0 text-muted-foreground" />
-                      )}
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-          ))}
+        <ListaSeleccion etiqueta="Agregar productos" opciones={opciones} elegidos={elegidos} onAlternar={(id) => porId.get(id) && alternar(porId.get(id)!)} invalida={!!guardar.campos.items} />
 
         {items.length === 0 ? (
-          <p className="rounded-xl bg-muted p-3 text-sm text-muted-foreground">Busca y toca los productos que forman el combo.</p>
+          <p className="rounded-xl bg-muted p-3 text-sm text-muted-foreground">Toca en la lista los productos que forman el combo; aquí pones cuántos de cada uno.</p>
         ) : (
           <ul className="divide-y rounded-2xl border" aria-label="Productos elegidos">
             {items.map((i, indice) => {

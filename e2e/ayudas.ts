@@ -42,17 +42,10 @@ export async function ingresarAdmin(page: Page) {
   await page.waitForURL("**/admin/dashboard");
 }
 
-/** El encargado entra directo a la venta (o a abrir su caja); `abrirSiHaceFalta` la abre con Bs 100. */
-export async function ingresarEncargado(page: Page, { abrirSiHaceFalta = false } = {}) {
+/** El encargado entra a su primer apartado abierto (o a la pantalla que avisa que no tiene ninguno). */
+export async function ingresarEncargado(page: Page) {
   await login(page, ENCARGADO);
-  const buscador = page.getByPlaceholder(/Buscar por nombre/);
-  const apertura = page.getByRole("heading", { name: "Abrir caja" });
-  await expect(buscador.or(apertura)).toBeVisible({ timeout: 30_000 });
-  if (abrirSiHaceFalta && (await apertura.isVisible())) {
-    await page.getByRole("button", { name: "Bs 100,00" }).click();
-    await page.getByRole("button", { name: "Abrir caja", exact: true }).click();
-    await expect(buscador).toBeVisible();
-  }
+  await page.waitForURL(/\/admin\//, { timeout: 30_000 });
 }
 
 /** Agrega al carrito el primer producto con stock (botón principal de la tarjeta). */

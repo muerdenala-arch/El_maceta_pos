@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { requerirSesion } from "@/lib/auth/sesion";
+import { requerirModulo } from "@/lib/auth/modulo-servidor";
 import { hoyEnBolivia } from "@/lib/formato";
 import { listarUbicaciones } from "@/lib/inventario/consultas";
 import { periodoDe, periodoValido, periodoVecino } from "@/lib/sueldos/calculo";
@@ -13,7 +13,7 @@ export const metadata: Metadata = { title: "Sueldos" };
  * cuándo cumplen su mes, sueldo, adelantos, descuentos, bonos y pagos de cada mes, y bajas con su motivo.
  */
 export default async function PaginaSueldos(props: PageProps<"/admin/sueldos">) {
-  await requerirSesion("admin");
+  await requerirModulo("sueldos");
   const hoy = hoyEnBolivia();
   const actual = periodoDe(hoy);
   const sp = await props.searchParams;

@@ -151,13 +151,8 @@ export async function baseComprobante(sucursalId: number): Promise<Pick<DatosCom
  * el administrador, cualquiera; el cajero, solo sus ventas del día (sección 5 del plan).
  */
 export async function puedeVerVenta(sesion: Sesion, ventaId: number): Promise<boolean> {
-  if (sesion.rol === "admin") return true;
-  // Encargado: cualquier venta de su sucursal (reportes y supervisión de cajas).
-  if (sesion.rol === "encargado") {
-    if (!sesion.sucursalId) return false;
-    const [suya] = await db.select({ id: ventas.id }).from(ventas).where(and(eq(ventas.id, ventaId), eq(ventas.sucursalId, sesion.sucursalId)));
-    return !!suya;
-  }
+  // Administrador y encargado (con Reportes de venta abierto, ver verComprobante): cualquier venta.
+  if (sesion.rol === "admin" || sesion.rol === "encargado") return true;
   const [v] = await db
     .select({ id: ventas.id })
     .from(ventas)

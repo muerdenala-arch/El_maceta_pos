@@ -7,7 +7,7 @@ import { db } from "@/db";
 import { cajas, gastos, sucursales } from "@/db/schema";
 import { conPermiso, exito, fallo, falloValidacion, type Resultado } from "@/lib/acciones/resultado";
 import { registrarAuditoria } from "@/lib/auditoria";
-import { autorizar } from "@/lib/auth/sesion";
+import { autorizarModulo } from "@/lib/auth/modulo-servidor";
 import { esquemaAnulacion, esquemaGastoSucursal, type DatosAnulacion, type DatosGastoSucursal } from "@/lib/validaciones/caja";
 
 /**
@@ -16,7 +16,7 @@ import { esquemaAnulacion, esquemaGastoSucursal, type DatosAnulacion, type Datos
  */
 export async function anularGasto(entrada: DatosAnulacion): Promise<Resultado> {
   return conPermiso(async () => {
-    const sesion = await autorizar("admin");
+    const sesion = await autorizarModulo("gastos");
     const v = esquemaAnulacion.safeParse(entrada);
     if (!v.success) return falloValidacion(v.error);
 
@@ -45,11 +45,10 @@ export async function anularGasto(entrada: DatosAnulacion): Promise<Resultado> {
  */
 export async function agregarGasto(entrada: DatosGastoSucursal): Promise<Resultado> {
   return conPermiso(async () => {
-    const sesion = await autorizar("admin", "encargado");
+    const sesion = await autorizarModulo("gastos");
     const v = esquemaGastoSucursal.safeParse(entrada);
     if (!v.success) return falloValidacion(v.error);
     const d = v.data;
-    if (sesion.rol !== "admin" && d.sucursalId !== sesion.sucursalId) return fallo("Solo puedes registrar gastos de tu sucursal");
     const [ubicacion] = await db.select({ id: sucursales.id }).from(sucursales).where(and(eq(sucursales.id, d.sucursalId), eq(sucursales.activo, true)));
     if (!ubicacion) return fallo("Revisa los datos marcados", { sucursalId: "Sucursal inválida o inactiva" });
 

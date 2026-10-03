@@ -2,7 +2,7 @@ import { ReceiptText } from "lucide-react";
 import type { Metadata } from "next";
 import { EncabezadoPagina } from "@/components/formularios/encabezado-pagina";
 import { BarraFiltros } from "@/components/reportes/barra-filtros";
-import { requerirSesion } from "@/lib/auth/sesion";
+import { requerirModulo } from "@/lib/auth/modulo-servidor";
 import { formatoBs, hoyEnBolivia } from "@/lib/formato";
 import { leerFiltros, textoRango } from "@/lib/reportes/filtros";
 import { listarGastos, resumenGastos } from "@/lib/reportes/gastos";
@@ -22,7 +22,7 @@ const diaCorto = (dia: string) =>
 
 /** Gasto diario (sección 4.3 del plan): por cajero y sucursal, totales por día y categoría, exportación. */
 export default async function PaginaGastosAdmin(props: PageProps<"/admin/gastos">) {
-  const sesion = await requerirSesion("admin");
+  const { sesion } = await requerirModulo("gastos");
   const hoy = hoyEnBolivia();
   const f = leerFiltros(await props.searchParams, hoy, await obtenerSucursalVista(sesion));
 

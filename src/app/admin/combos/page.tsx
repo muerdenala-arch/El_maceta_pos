@@ -1,7 +1,7 @@
 import { asc, eq } from "drizzle-orm";
 import type { Metadata } from "next";
 import { db } from "@/db";
-import { productos } from "@/db/schema";
+import { categorias, productos } from "@/db/schema";
 import { ZonaModulo } from "@/components/permisos/zona-modulo";
 import { requerirModulo } from "@/lib/auth/modulo-servidor";
 import { listarCombos } from "@/lib/combos/consultas";
@@ -31,8 +31,10 @@ export default async function PaginaCombos() {
         unidadFraccion: productos.unidadFraccion,
         unidadesPorEnvase: productos.unidadesPorEnvase,
         activo: productos.activo,
+        categoria: categorias.nombre,
       })
       .from(productos)
+      .leftJoin(categorias, eq(categorias.id, productos.categoriaId))
       .where(eq(productos.activo, true))
       .orderBy(asc(productos.nombre)),
   ]);

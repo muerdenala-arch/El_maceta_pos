@@ -43,44 +43,17 @@ describe("decidirAcceso", () => {
     expect(decidirAcceso("/api/admin/reportes", cajero)).toEqual({ tipo: "prohibido" });
   });
 
-  it("el encargado no entra a lo que es solo del administrador, ni escribiendo la URL ni llamando al API", () => {
-    for (const ruta of ["/admin", "/admin/dashboard", "/admin/personal", "/admin/personal/3", "/admin/reportes", "/admin/gastos", "/admin/otra-cosa"]) {
-      expect(decidirAcceso(ruta, encargado), ruta).toEqual({ tipo: "redirigir", destino: "/cajero/venta" });
-    }
-    expect(decidirAcceso("/api/admin/exportar", encargado)).toEqual({ tipo: "prohibido" });
-    expect(decidirAcceso("/api/admin/plantilla-productos", encargado)).toEqual({ tipo: "prohibido" });
-  });
-
-  it("el encargado entra a los apartados compartidos (el candado decide si puede cambiar algo); el cajero, a ninguno", () => {
-    for (const ruta of [
-      "/admin/catalogo",
-      "/admin/inventario",
-      "/admin/bodega",
-      "/admin/promociones",
-      "/admin/combos",
-      "/admin/eventos",
-      "/admin/eventos/reto-transformacion/1",
-      "/admin/qr",
-      "/admin/sucursales",
-      "/admin/auditoria",
-      "/admin/configuracion",
-      "/api/admin/eventos/1/excel",
-    ]) {
+  it("el encargado entra a las pantallas del administrador (cada una exige su candado abierto) y no a la caja", () => {
+    for (const ruta of ["/admin/dashboard", "/admin/personal", "/admin/sueldos", "/admin/catalogo", "/admin/inicio", "/api/admin/exportar"]) {
       expect(decidirAcceso(ruta, encargado), ruta).toEqual({ tipo: "seguir" });
-      expect(decidirAcceso(ruta, cajero).tipo, ruta).not.toBe("seguir");
     }
-  });
-
-  it("el encargado tiene sus pantallas y además las de caja; el cajero y el admin no entran a las del encargado", () => {
-    for (const ruta of ["/encargado/reportes", "/encargado/gastos", "/encargado/cajas", "/cajero/venta", "/cajero/bodega", "/cajero/cierre", "/api/sync"]) {
-      expect(decidirAcceso(ruta, encargado)).toEqual({ tipo: "seguir" });
+    for (const ruta of ["/cajero/venta", "/cajero/apertura", "/cajero/cierre"]) {
+      expect(decidirAcceso(ruta, encargado), ruta).toEqual({ tipo: "redirigir", destino: "/admin/inicio" });
     }
-    expect(decidirAcceso("/encargado/cajas", cajero)).toEqual({ tipo: "redirigir", destino: "/cajero/venta" });
-    expect(decidirAcceso("/encargado/reportes", admin)).toEqual({ tipo: "redirigir", destino: "/admin/dashboard" });
-    expect(decidirAcceso("/api/encargado/x", cajero)).toEqual({ tipo: "prohibido" });
-    expect(decidirAcceso("/encargado/cajas", null)).toEqual({ tipo: "redirigir", destino: "/login" });
-    expect(decidirAcceso("/login", encargado)).toEqual({ tipo: "redirigir", destino: "/cajero/venta" });
-    expect(decidirAcceso("/", encargado)).toEqual({ tipo: "redirigir", destino: "/cajero/venta" });
+    expect(decidirAcceso("/api/sync", encargado)).toEqual({ tipo: "seguir" }); // la ruta responde 403 por su cuenta
+    expect(decidirAcceso("/login", encargado)).toEqual({ tipo: "redirigir", destino: "/admin/inicio" });
+    expect(decidirAcceso("/", encargado)).toEqual({ tipo: "redirigir", destino: "/admin/inicio" });
+    expect(decidirAcceso("/admin/catalogo", null)).toEqual({ tipo: "redirigir", destino: "/login" });
   });
 
   it("no confunde prefijos parecidos (/administrar no es /admin)", () => {

@@ -1,4 +1,5 @@
 import type { NextRequest } from "next/server";
+import { modulosAbiertos } from "@/lib/auth/modulo-servidor";
 import { obtenerSesion } from "@/lib/auth/sesion";
 import { obtenerMarca } from "@/lib/configuracion";
 import { hoyEnBolivia } from "@/lib/formato";
@@ -26,11 +27,15 @@ const TIPOS = {
 export async function GET(req: NextRequest) {
   const sesion = await obtenerSesion();
   if (!sesion) return Response.json({ error: "Sesión vencida" }, { status: 401 });
-  if (sesion.rol !== "admin") return Response.json({ error: "Sin permiso" }, { status: 403 });
+  if (sesion.rol === "cajero") return Response.json({ error: "Sin permiso" }, { status: 403 });
 
   const p = req.nextUrl.searchParams;
   const reporte = p.get("reporte");
   const formato = p.get("formato");
+  // El encargado exporta lo del apartado que tenga abierto (Reportes de venta o Gastos diarios).
+  if (sesion.rol === "encargado" && !(await modulosAbiertos()).includes(reporte === "gastos" ? "gastos" : "reportes")) {
+    return Response.json({ error: "Sin permiso" }, { status: 403 });
+  }
   if ((reporte !== "ventas" && reporte !== "gastos") || (formato !== "xlsx" && formato !== "pdf")) {
     return Response.json({ error: "Reporte o formato inválido" }, { status: 400 });
   }

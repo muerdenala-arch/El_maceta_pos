@@ -18,14 +18,14 @@ import { cn } from "@/lib/utils";
 import { NOMBRES_ROL, type Rol } from "@/lib/auth/constantes";
 import { moduloDeRuta, MODULOS_CON_CANDADO, type ModuloEncargado } from "@/lib/auth/modulos";
 import { BotonCandado } from "./candado";
-import { navAdmin, navCajero, navEncargado, navEncargadoCompartido, navEncargadoInferior } from "./navegacion";
+import { navAdmin, navCajero } from "./navegacion";
 import { SelectorSucursal } from "./selector-sucursal";
 
 export type PropsShell = {
   rol: Rol;
   usuario: { nombre: string };
   marca: { nombre: string; logoUrl: string | null };
-  /** Admin: opciones del selector. Cajero y encargado: solo su sucursal (fija). */
+  /** Administrador y encargado: opciones del selector. Cajero: solo su sucursal (fija). */
   sucursales: { id: number; nombre: string }[];
   sucursalActual: number | null;
   /** Admin y encargado: contador de la campanita y numeritos por módulo del menú. */
@@ -44,7 +44,6 @@ export type PropsShell = {
 export function Shell(props: PropsShell) {
   const { rol, marca, children } = props;
   const [menuAbierto, setMenuAbierto] = useState(false);
-  const inferior = rol === "encargado" ? navEncargadoInferior : navCajero;
   const pathname = usePathname();
   const activo = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
 
@@ -80,13 +79,13 @@ export function Shell(props: PropsShell) {
         </header>
 
         <NavegacionPorNiveles />
-        <main className={cn("flex-1 px-4 py-5 sm:px-8 sm:py-8", rol !== "admin" && "pb-28 lg:pb-8")}>
+        <main className={cn("flex-1 px-4 py-5 sm:px-8 sm:py-8", rol === "cajero" && "pb-28 lg:pb-8")}>
           {children}
         </main>
 
-        {rol !== "admin" && (
+        {rol === "cajero" && (
           <nav className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-4 border-t bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur lg:hidden">
-            {inferior.map(({ href, titulo, icono: Icono }) => (
+            {navCajero.map(({ href, titulo, icono: Icono }) => (
               <Link
                 key={href}
                 href={href}
@@ -126,9 +125,8 @@ function ContenidoLateral({
 }: PropsShell & { alNavegar?: () => void }) {
   const router = useRouter();
   const pathname = usePathname();
-  // El encargado solo tiene en su menú los apartados compartidos que el administrador dejó con el candado abierto.
-  const items =
-    rol === "admin" ? navAdmin : rol === "encargado" ? [...navEncargado, ...navEncargadoCompartido.filter((i) => candados.includes(moduloDeRuta(i.href)!))] : navCajero;
+  // El encargado tiene los mismos apartados que el administrador, pero solo los que este le dejó con el candado abierto.
+  const items = rol === "admin" ? navAdmin : rol === "encargado" ? navAdmin.filter((i) => candados.includes(moduloDeRuta(i.href)!)) : navCajero;
   const activo = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
   /** Apartado con candado al que corresponde un enlace del menú (null si no tiene). */
   const conCandado = (href: string) => {
@@ -158,9 +156,9 @@ function ContenidoLateral({
         <div>
           <p className="mb-2 flex items-center gap-1.5 text-[11px] font-bold tracking-[0.12em] text-sidebar-foreground/60 uppercase">
             <Store className="size-3.5" />
-            {rol === "admin" ? "Viendo sucursal" : "Tu sucursal"}
+            {rol === "cajero" ? "Tu sucursal" : "Viendo sucursal"}
           </p>
-          {rol === "admin" ? (
+          {rol !== "cajero" ? (
             <SelectorSucursal opciones={sucursales} actual={sucursalActual} />
           ) : (
             <div className="flex h-12 items-center rounded-xl border bg-background/60 px-4 text-[15px] font-semibold">

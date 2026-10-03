@@ -14,7 +14,7 @@ import {
   type Resultado,
 } from "@/lib/acciones/resultado";
 import { registrarAuditoria } from "@/lib/auditoria";
-import { autorizar } from "@/lib/auth/sesion";
+import { autorizarModulo } from "@/lib/auth/modulo-servidor";
 import { huellaPin } from "@/lib/auth/huella";
 import { pinEnUso } from "@/lib/auth/pin";
 import { esquemaPin } from "@/lib/validaciones/auth";
@@ -50,7 +50,7 @@ const PIN_REPETIDO = { pin: "Ese PIN ya lo usa otra persona: elige otro (se entr
 
 export async function crearUsuario(entrada: DatosCrearUsuario): Promise<Resultado> {
   return conPermiso(async () => {
-    const sesion = await autorizar("admin");
+    const sesion = await autorizarModulo("personal");
     const validado = esquemaCrearUsuario.safeParse(entrada);
     if (!validado.success) return falloValidacion(validado.error);
     const { pin, ...datos } = validado.data;
@@ -81,7 +81,7 @@ export async function crearUsuario(entrada: DatosCrearUsuario): Promise<Resultad
 
 export async function editarUsuario(entrada: DatosEditarUsuario): Promise<Resultado> {
   return conPermiso(async () => {
-    const sesion = await autorizar("admin");
+    const sesion = await autorizarModulo("personal");
     const validado = esquemaEditarUsuario.safeParse(entrada);
     if (!validado.success) return falloValidacion(validado.error);
     const { id, ...datos } = validado.data;
@@ -109,7 +109,7 @@ export async function editarUsuario(entrada: DatosEditarUsuario): Promise<Result
 
 export async function cambiarEstadoUsuario(entrada: { id: number; activo: boolean }): Promise<Resultado> {
   return conPermiso(async () => {
-    const sesion = await autorizar("admin");
+    const sesion = await autorizarModulo("personal");
     const id = idPositivo.parse(entrada.id);
     const activo = entrada.activo === true;
 
@@ -132,7 +132,7 @@ export async function cambiarEstadoUsuario(entrada: { id: number; activo: boolea
 
 export async function restablecerPin(entrada: { id: number; pin: string }): Promise<Resultado> {
   return conPermiso(async () => {
-    const sesion = await autorizar("admin");
+    const sesion = await autorizarModulo("personal");
     const id = idPositivo.parse(entrada.id);
     const pin = esquemaPin.safeParse(entrada.pin);
     if (!pin.success) return fallo("Revisa los datos marcados", { pin: pin.error.issues[0].message });
@@ -158,7 +158,7 @@ export async function restablecerPin(entrada: { id: number; pin: string }): Prom
 
 export async function desbloquearUsuario(entrada: { id: number }): Promise<Resultado> {
   return conPermiso(async () => {
-    const sesion = await autorizar("admin");
+    const sesion = await autorizarModulo("personal");
     const id = idPositivo.parse(entrada.id);
     await db.update(usuarios).set({ intentosFallidos: 0, bloqueadoHasta: null }).where(eq(usuarios.id, id));
     await registrarAuditoria("usuario_desbloqueado", { usuarioId: sesion.uid, detalle: { id } });

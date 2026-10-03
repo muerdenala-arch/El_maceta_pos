@@ -6,7 +6,8 @@ import { Campo } from "@/components/formularios/campo";
 import { DialogoFormulario } from "@/components/formularios/dialogo-formulario";
 import { EncabezadoPagina } from "@/components/formularios/encabezado-pagina";
 import { useAccion } from "@/components/formularios/use-accion";
-import { SelectorProducto, type ProductoLigero } from "@/components/inventario/selector-producto";
+import { type ProductoLigero } from "@/components/inventario/selector-producto";
+import { ListaSeleccion } from "@/components/busqueda/lista-seleccion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -319,21 +320,33 @@ function FormularioPromocion({
       </div>
 
       {d.alcance === "producto" && (
-        <Campo etiqueta="Producto" error={guardar.campos.productoId}>
-          {(p) => <SelectorProducto id={p.id} productos={productos} valor={d.productoId ?? null} onCambiar={(id) => poner("productoId", id)} invalido={!!guardar.campos.productoId} />}
-        </Campo>
+        <div className="space-y-1.5">
+          <ListaSeleccion
+            unica
+            etiqueta="Producto"
+            placeholder="Escribe para buscar y toca para elegir…"
+            opciones={productos.map((p) => ({ id: p.id, nombre: p.nombre, detalle: (p as { categoria?: string | null }).categoria ?? null, buscarPor: [p.marca, p.sabor, p.presentacion, p.codigoBarras] }))}
+            elegidos={d.productoId ? [d.productoId] : []}
+            onAlternar={(id) => poner("productoId", id)}
+            invalida={!!guardar.campos.productoId}
+          />
+          {guardar.campos.productoId && <p className="text-sm font-medium text-destructive">{guardar.campos.productoId}</p>}
+        </div>
       )}
       {d.alcance === "categoria" && (
-        <Campo etiqueta="Categoría" error={guardar.campos.categoriaId}>
-          {(p) => (
-            <Select value={d.categoriaId ? String(d.categoriaId) : ""} onValueChange={(v) => poner("categoriaId", Number(v))}>
-              <SelectTrigger {...p} className="w-full"><SelectValue placeholder="Elige la categoría" /></SelectTrigger>
-              <SelectContent>
-                {categorias.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.nombre}</SelectItem>)}
-              </SelectContent>
-            </Select>
-          )}
-        </Campo>
+        <div className="space-y-1.5">
+          <ListaSeleccion
+            unica
+            etiqueta="Categoría"
+            placeholder="Escribe para buscar y toca para elegir…"
+            opciones={categorias}
+            elegidos={d.categoriaId ? [d.categoriaId] : []}
+            onAlternar={(id) => poner("categoriaId", id)}
+            invalida={!!guardar.campos.categoriaId}
+            alto="max-h-56"
+          />
+          {guardar.campos.categoriaId && <p className="text-sm font-medium text-destructive">{guardar.campos.categoriaId}</p>}
+        </div>
       )}
 
       <div className="grid gap-4 sm:grid-cols-2">

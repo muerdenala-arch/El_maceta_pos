@@ -6,7 +6,7 @@ import { db } from "@/db";
 import { alertas, ventas } from "@/db/schema";
 import { conPermiso, exito, fallo, falloValidacion, type Resultado } from "@/lib/acciones/resultado";
 import { registrarAuditoria } from "@/lib/auditoria";
-import { autorizar } from "@/lib/auth/sesion";
+import { autorizarModulo } from "@/lib/auth/modulo-servidor";
 import { formatoBs } from "@/lib/formato";
 import { anularVentaConStock } from "@/lib/caja/anulacion";
 import { idPositivo } from "@/lib/validaciones/comunes";
@@ -18,7 +18,7 @@ import { esquemaAnulacion, type DatosAnulacion } from "@/lib/validaciones/caja";
  */
 export async function anularVenta(entrada: DatosAnulacion): Promise<Resultado> {
   return conPermiso(async () => {
-    const sesion = await autorizar("admin");
+    const sesion = await autorizarModulo("reportes");
     const v = esquemaAnulacion.safeParse(entrada);
     if (!v.success) return falloValidacion(v.error);
     const { id, motivo } = v.data;
@@ -38,7 +38,7 @@ export async function anularVenta(entrada: DatosAnulacion): Promise<Resultado> {
 /** Venta por QR hecha sin conexión: el admin confirma que el pago llegó a la cuenta. */
 export async function confirmarPagoQr(entrada: { id: number }): Promise<Resultado> {
   return conPermiso(async () => {
-    const sesion = await autorizar("admin");
+    const sesion = await autorizarModulo("reportes");
     const id = idPositivo.parse(entrada.id);
     const [v] = await db
       .update(ventas)

@@ -478,6 +478,31 @@ Credenciales de prueba locales: en `.env.local` (`SEED_*`), nunca en el código 
   hace en dos pasos: primero una migración que solo agrega (dejando las columnas viejas en el schema, y con el traspaso de datos
   escrito a mano), luego otra que solo quita.
 
+## Encargado = administrador con candados (versión vigente; reemplaza lo anterior sobre el encargado)
+
+- Decisión del dueño: **el encargado no vende** y **tiene exactamente los mismos apartados que el administrador** (los 15 del
+  menú: Inicio, Reportes, Gastos, Catálogo, Inventario, Bodega, Promociones, Combos, Eventos, Personal, Sueldos, QR, Sucursales,
+  Auditoría, Configuración = `MODULOS_ENCARGADO` en `lib/auth/modulos.ts`). Cada uno tiene un **candado** en el menú del
+  administrador: cerrado (por defecto) = no le aparece y no abre ni por la dirección; abierto = le aparece y **trabaja igual que
+  el administrador** (todas las sucursales, costos, exportaciones, Personal completo). Solo el administrador maneja candados.
+- `rutas.ts`: `/admin` y `/api/admin` para admin y encargado (cada página/acción/ruta exige su candado); `/cajero` solo cajero
+  (`ROLES_CAJA = ["cajero"]`). Entrada del encargado: `/admin/inicio` → `primerApartado(abiertos)` o aviso "Todavía no tienes
+  apartados". Páginas: `requerirModulo(m)`; acciones: `autorizarModulo(m)` (`ErrorCandado`); stock: `autorizarUbicacion`
+  (bodega → Bodega, sucursal → Inventario); exportar / plantilla / Excel de eventos revisan el candado del encargado.
+- Ya no existen `/encargado/*`, `lib/encargado.ts`, `navEncargado*`, ni las restricciones "solo su sucursal / sin costos".
+  Campanita, notificaciones y "Viendo sucursal": el encargado igual que el administrador.
+- Lo que conserva del rol: su sucursal y su PIN para **autorizar** en la pantalla del cajero de su sucursal descuentos mayores
+  al máximo del cajero (hasta `descuento_manual_maximo_encargado`) y anulaciones con la caja abierta (`pedirAutorizacion`).
+- Pruebas: `modulos.test.ts`, `rutas.test.ts`, `test/candados.integracion.test.ts`, `test/encargado.integracion.test.ts`
+  (PIN en la caja), `e2e/revision-encargado.spec.ts`.
+
+## Elegir productos y categorías (lista con buscador)
+
+- `<ListaSeleccion>` (`components/busqueda/lista-seleccion.tsx`): lista siempre a la vista con buscador; se filtra al escribir y
+  cada toque marca o desmarca **sin borrar lo escrito** (se sigue eligiendo); al lado del nombre, gris, la categoría. `unica` =
+  elegir uno. Usada en combos (productos), cupones (productos y categorías) y promociones (producto o categoría).
+  `ProductoInventario.categoria` trae el nombre de la categoría.
+
 ## Botón atrás por niveles
 
 - `lib/navegacion/niveles.ts` (`padreDe`, probado): apartados del menú → inicio del rol; pantallas internas → un nivel arriba.
@@ -489,7 +514,7 @@ Credenciales de prueba locales: en `.env.local` (`SEED_*`), nunca en el código 
 
 - **Permisos en el servidor**: `proxy.ts` protege rutas por rol y *además* cada server action /
   route handler verifica sesión y rol. Nunca confiar solo en la interfaz.
-- Encargado: solo su sucursal, sin costos; nunca catálogo, precios, personal, QR, cupones ni configuración (ver "Rol Encargado").
+- Encargado: solo los apartados que el administrador le deja con el candado abierto, y no vende (ver "Encargado = administrador con candados").
 - Cajero: una sola sucursal; solo apertura, venta, sus comprobantes del día, consulta de stock,
   gastos, cierre y cerrar sesión. **Nunca** ve costos, reportes globales, configuración ni personal.
 - Montos en `NUMERIC(12,2)` (helper `dinero()` en el schema); nunca `float`. Operar con

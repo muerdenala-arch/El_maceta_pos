@@ -73,7 +73,7 @@ export async function registrarVenta(entrada: DatosVenta): Promise<Resultado<Ven
 /** Comprobante para reimprimir/reenviar: el cajero solo sus ventas del día; el admin, cualquiera. */
 export async function verComprobante(ventaId: number): Promise<Resultado<DatosComprobante>> {
   return conPermiso(async () => {
-    const sesion = await autorizar(...ROLES_CAJA, "admin");
+    const sesion = await autorizar(...ROLES_CAJA, "admin", "encargado");
     const id = Number(ventaId);
     if (!Number.isInteger(id) || id <= 0 || !(await puedeVerVenta(sesion, id))) return fallo("No puedes ver este comprobante");
     const datos = await obtenerComprobante({ ventaId: id });

@@ -3,7 +3,6 @@
  * Es la primera barrera; cada página y cada acción del servidor vuelve a verificar la sesión.
  */
 import { ROLES_CAJA, type Rol } from "./constantes";
-import { moduloDeRuta } from "./modulos";
 
 export type Decision =
   | { tipo: "seguir" }
@@ -12,8 +11,8 @@ export type Decision =
   | { tipo: "prohibido" };
 
 export function inicioSegunRol(rol: Rol) {
-  // El encargado no tiene panel de inicio: entra directo a vender, como el cajero.
-  return rol === "admin" ? "/admin/dashboard" : "/cajero/venta";
+  // El encargado entra al primer apartado que tenga abierto (/admin/inicio lo decide con los candados).
+  return rol === "admin" ? "/admin/dashboard" : rol === "encargado" ? "/admin/inicio" : "/cajero/venta";
 }
 
 const bajo = (ruta: string, prefijo: string) => ruta === prefijo || ruta.startsWith(`${prefijo}/`);
@@ -36,20 +35,11 @@ export function decidirAcceso(ruta: string, sesion: { rol: Rol } | null): Decisi
 
   if (ruta === "/") return { tipo: "redirigir", destino: inicioSegunRol(sesion.rol) };
 
-  // /admin: solo administrador. /encargado: solo encargado. /cajero: quien opera una caja (cajero y encargado).
+  // /admin: administrador y encargado (cada página exige su candado abierto al encargado). /cajero: solo el cajero.
   const permitidos: readonly Rol[] | null =
-    bajo(ruta, "/admin") || bajo(ruta, "/api/admin")
-      ? ["admin"]
-      : bajo(ruta, "/encargado") || bajo(ruta, "/api/encargado")
-        ? ["encargado"]
-        : bajo(ruta, "/cajero") || bajo(ruta, "/api/cajero")
-          ? ROLES_CAJA
-          : null;
+    bajo(ruta, "/admin") || bajo(ruta, "/api/admin") ? ["admin", "encargado"] : bajo(ruta, "/cajero") || bajo(ruta, "/api/cajero") ? ROLES_CAJA : null;
 
-  // El encargado entra además a los apartados del administrador que comparte (lib/auth/modulos.ts) y al Excel de eventos.
-  const compartida = sesion.rol === "encargado" && (moduloDeRuta(ruta) !== null || bajo(ruta, "/api/admin/eventos"));
-
-  if (permitidos && !permitidos.includes(sesion.rol) && !compartida) {
+  if (permitidos && !permitidos.includes(sesion.rol)) {
     return esApi ? { tipo: "prohibido" } : { tipo: "redirigir", destino: inicioSegunRol(sesion.rol) };
   }
   return { tipo: "seguir" };

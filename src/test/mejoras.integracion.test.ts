@@ -21,7 +21,9 @@ import { anularMovimientoSueldo, darDeBajaTrabajador, guardarSueldo, guardarTrab
 import { abrirCaja } from "@/app/cajero/acciones";
 import { db } from "@/db";
 import { alertas, auditoria, cajas, empleados, gastos, intentosIngreso, movimientosSueldo, suscripcionesPush, usuarios } from "@/db/schema";
+import { MENSAJE_CANDADO } from "@/lib/acciones/resultado";
 import { iniciarSesion } from "@/lib/auth/acciones";
+import { cambiarCandado } from "@/lib/auth/modulo-acciones";
 import { totalesCaja } from "@/lib/caja/consultas";
 import { hoyEnBolivia } from "@/lib/formato";
 import { guardarSuscripcionPush, quitarSuscripcionPush } from "@/lib/notificaciones/acciones";
@@ -61,9 +63,9 @@ describe("ingreso automático al completar el PIN", () => {
     expect(await db.select().from(auditoria).where(eq(auditoria.accion, "login_fallido"))).toEqual([]);
   });
 
-  it("el encargado entra directo a la venta (ya no tiene pantalla de inicio)", async () => {
+  it("el encargado entra a su primer apartado abierto (por la pantalla de entrada)", async () => {
     await comoUsuario(null);
-    expect(await iniciarSesion({ pin: PINES.elsa })).toMatchObject({ ok: true, destino: "/cajero/venta" });
+    expect(await iniciarSesion({ pin: PINES.elsa })).toMatchObject({ ok: true, destino: "/admin/inicio" });
   });
 
   it("probar PIN distintos sí suma: al quinto se bloquea, también en automático", async () => {
@@ -100,10 +102,13 @@ describe("gastos sin caja (administrador y encargado)", () => {
     expect((await db.select().from(auditoria).where(eq(auditoria.accion, "gasto_registrado"))).at(-1)?.detalle).toMatchObject({ monto: "150", rol: "admin" });
   });
 
-  it("el encargado agrega gastos solo en su sucursal; el cajero no puede; monto y categoría se validan", async () => {
+  it("el encargado agrega gastos solo con el candado de Gastos abierto; el cajero no; monto y categoría se validan", async () => {
+    await comoUsuario(b.encargadoNorte);
+    expect(await agregarGasto(gasto(b.norte.id, "40,50"))).toEqual({ ok: false, error: MENSAJE_CANDADO });
+    await comoUsuario(b.admin);
+    expect(await cambiarCandado({ modulo: "gastos", abierto: true })).toMatchObject({ ok: true });
     await comoUsuario(b.encargadoNorte);
     expect(await agregarGasto(gasto(b.norte.id, "40,50"))).toEqual({ ok: true });
-    expect(await agregarGasto(gasto(b.sur.id))).toEqual({ ok: false, error: "Solo puedes registrar gastos de tu sucursal" });
     expect((await agregarGasto(gasto(b.norte.id, "0"))).ok).toBe(false);
     expect((await agregarGasto({ ...gasto(b.norte.id), categoria: "Inventada" as never })).ok).toBe(false);
     await comoUsuario(b.cajeroNorte);
@@ -112,13 +117,14 @@ describe("gastos sin caja (administrador y encargado)", () => {
     expect((await resumenGastos(filtro(b.sur.id))).total).toBe("0");
   });
 
-  it("un gasto sin caja lo anula el administrador con motivo (no el encargado)", async () => {
+  it("un gasto sin caja se anula con motivo (administrador, o encargado con Gastos abierto)", async () => {
     const [g] = await db.select().from(gastos).where(eq(gastos.usuarioId, b.encargadoNorte.id));
-    await comoUsuario(b.encargadoNorte);
+    await comoUsuario(b.cajeroNorte);
     expect(await anularGasto({ id: g.id, motivo: "Me equivoqué" })).toEqual(SIN_PERMISO);
     await comoUsuario(b.admin);
     expect(await anularGasto({ id: g.id, motivo: "Registrado dos veces" })).toEqual({ ok: true });
     expect((await resumenGastos(filtro(b.norte.id))).total).toBe("150.00");
+    expect(await cambiarCandado({ modulo: "gastos", abierto: false })).toMatchObject({ ok: true });
   });
 });
 
@@ -141,10 +147,11 @@ describe("sueldos y trabajadores", () => {
 
     for (const u of [b.encargadoNorte, b.cajeroNorte]) {
       await comoUsuario(u);
-      expect(await guardarSueldo({ empleadoId: ana, periodo: mes, monto: "9999" })).toEqual(SIN_PERMISO);
-      expect(await registrarMovimientoSueldo({ empleadoId: ana, periodo: mes, tipo: "bono", monto: "500", nota: "" })).toEqual(SIN_PERMISO);
-      expect(await guardarTrabajador({ nombre: "Intruso", cargo: "", sucursalId: null, fechaIngreso: hoy, sueldoMensual: "1" })).toEqual(SIN_PERMISO);
-      expect(await darDeBajaTrabajador({ id: beto, fecha: hoy, motivo: "Porque quiero" })).toEqual(SIN_PERMISO);
+      const rechazo = u === b.cajeroNorte ? SIN_PERMISO : { ok: false, error: MENSAJE_CANDADO }; // el encargado, por el candado cerrado
+      expect(await guardarSueldo({ empleadoId: ana, periodo: mes, monto: "9999" })).toEqual(rechazo);
+      expect(await registrarMovimientoSueldo({ empleadoId: ana, periodo: mes, tipo: "bono", monto: "500", nota: "" })).toEqual(rechazo);
+      expect(await guardarTrabajador({ nombre: "Intruso", cargo: "", sucursalId: null, fechaIngreso: hoy, sueldoMensual: "1" })).toEqual(rechazo);
+      expect(await darDeBajaTrabajador({ id: beto, fecha: hoy, motivo: "Porque quiero" })).toEqual(rechazo);
     }
     expect((await db.select().from(empleados).where(eq(empleados.id, ana)))[0].sueldoMensual).toBe("0.00");
   });
@@ -262,7 +269,7 @@ describe("notificaciones al celular", () => {
     expect((await db.select().from(suscripcionesPush)).length).toBe(4);
   });
 
-  it("cada alerta nueva se envía una sola vez: al administrador todas, al encargado las de stock de su sucursal", async () => {
+  it("cada alerta nueva se envía una sola vez a cada equipo: administrador y encargado reciben las mismas", async () => {
     // Las alertas que ya existían al preparar la base no cuentan para esta prueba.
     await db.update(alertas).set({ notificada: true });
     await db.insert(alertas).values([
@@ -271,14 +278,13 @@ describe("notificaciones al celular", () => {
       { tipo: "stock_bajo", sucursalId: b.bodega.id, productoId: b.proteina.id, mensaje: "Whey Test: quedan 2 en Bodega central" },
     ]);
     envios.length = 0;
-    expect(await despacharAlertas()).toBe(4);
+    expect(await despacharAlertas()).toBe(9);
 
     const de = (nombre: string) => envios.filter((e) => e.endpoint.endsWith(`/${nombre}`)).map((e) => e.mensaje);
     expect(de("admin").map((m) => m.titulo).sort()).toEqual(["Agotado", "Diferencia en caja", "Stock bajo"]);
     expect(de("admin").find((m) => m.titulo === "Agotado")).toMatchObject({ cuerpo: "Creatina Test: agotado en Sucursal Norte", url: `/admin/inventario?resaltar=${b.creatina.id}&sucursal=${b.norte.id}` });
     expect(de("admin").find((m) => m.titulo === "Stock bajo")?.url).toBe(`/admin/bodega?resaltar=${b.proteina.id}`);
-    expect(de("encargado-norte")).toEqual([expect.objectContaining({ titulo: "Agotado", url: `/cajero/bodega?resaltar=${b.creatina.id}` })]);
-    expect(de("encargado-sur")).toEqual([]);
+    for (const e of ["encargado-norte", "encargado-sur"]) expect(de(e).map((m) => m.url).sort()).toEqual(de("admin").map((m) => m.url).sort());
 
     // El dispositivo que ya no existe (410) se olvida; y nada se envía dos veces.
     expect((await db.select().from(suscripcionesPush)).map((s) => s.endpoint).some((e) => e.includes("vencido"))).toBe(false);
@@ -293,9 +299,9 @@ describe("notificaciones al celular", () => {
       { tipo: "agotado" as const, sucursalId: b.sur.id, productoId: b.creatina.id, mensaje: "Ya resuelta", resuelta: true },
     ]);
     envios.length = 0;
-    expect(await despacharAlertas()).toBe(2);
-    expect(envios.map((e) => e.mensaje.titulo)).toEqual(["5 alertas nuevas", "5 alertas nuevas"]);
-    expect(envios.map((e) => e.endpoint.split("/").pop()).sort()).toEqual(["admin", "encargado-sur"]);
+    expect(await despacharAlertas()).toBe(3);
+    expect(envios.map((e) => e.mensaje.titulo)).toEqual(["5 alertas nuevas", "5 alertas nuevas", "5 alertas nuevas"]);
+    expect(envios.map((e) => e.endpoint.split("/").pop()).sort()).toEqual(["admin", "encargado-norte", "encargado-sur"]);
   });
 
   it("al desactivarlas (o cerrar sesión) ese equipo deja de recibir; nadie quita la suscripción de otro", async () => {

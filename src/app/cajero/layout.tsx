@@ -6,18 +6,14 @@ import { GuardiaBloqueo } from "@/components/seguridad/guardia-bloqueo";
 import { RefrescoAutomatico } from "@/components/shell/refresco-automatico";
 import { Shell } from "@/components/shell/shell";
 import { requerirSesion } from "@/lib/auth/sesion";
-import { resumenAlertas } from "@/lib/alertas/consultas";
-import { modulosAbiertos } from "@/lib/auth/modulo-servidor";
 import { obtenerMarca } from "@/lib/configuracion";
 import { ROLES_CAJA } from "@/lib/auth/constantes";
 
 // Segunda barrera después de proxy.ts: verifica sesión y rol contra la BD.
 export default async function LayoutCajero({ children }: LayoutProps<"/cajero">) {
   const sesion = await requerirSesion(...ROLES_CAJA);
-  const [marca, abiertos, alertas, suSucursal] = await Promise.all([
+  const [marca, suSucursal] = await Promise.all([
     obtenerMarca(),
-    modulosAbiertos(),
-    sesion.rol === "encargado" ? resumenAlertas(sesion) : undefined,
     sesion.sucursalId
       ? db
           .select({ id: sucursales.id, nombre: sucursales.nombre })
@@ -32,8 +28,6 @@ export default async function LayoutCajero({ children }: LayoutProps<"/cajero">)
       <RefrescoAutomatico />
       <Shell
         rol={sesion.rol}
-        alertas={alertas}
-        candados={abiertos}
         usuario={{ nombre: sesion.nombre }}
         marca={marca}
         sucursales={suSucursal}

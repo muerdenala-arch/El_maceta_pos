@@ -38,18 +38,21 @@ test("administrador: nuevo combo con buscador, cantidades y descuento en vivo", 
   await d.getByRole("button", { name: "Crear combo" }).click();
   await expect(d.getByText("Agrega al menos un producto al combo")).toBeVisible();
 
-  // Buscador en tiempo real: se agregan con un clic y quedan marcados; otro clic los quita.
-  const buscador = d.getByRole("searchbox", { name: "Buscar productos para el combo" });
-  await buscador.pressSequentially("whey e2e");
-  const whey = d.getByRole("list", { name: "Resultados" }).getByRole("button", { name: /Whey E2E/ });
-  await expect(whey).toContainText("Bs 350,00");
+  // Lista siempre a la vista: se filtra al escribir y cada toque marca o desmarca sin borrar lo escrito.
+  const lista = d.getByRole("group", { name: "Agregar productos" });
+  await expect(lista.getByRole("checkbox", { name: /Creatina E2E/ })).toBeVisible(); // sin escribir nada ya se ven
+  const buscador = d.getByRole("searchbox", { name: "Buscar en agregar productos" });
+  await buscador.pressSequentially("e2e");
+  const whey = lista.getByRole("checkbox", { name: /Whey E2E/ });
+  await expect(whey).toContainText("Proteínas"); // su categoría al lado
   await whey.click();
-  await expect(whey).toHaveAttribute("aria-pressed", "true");
+  await expect(whey).toHaveAttribute("aria-checked", "true");
+  await expect(buscador).toHaveValue("e2e"); // lo escrito sigue ahí para seguir eligiendo
   await whey.click();
-  await expect(d.getByText("Busca y toca los productos que forman el combo.")).toBeVisible();
+  await expect(d.getByText("Toca en la lista los productos que forman el combo")).toBeVisible();
   await whey.click();
-  await buscador.fill("creatina e2e");
-  await d.getByRole("list", { name: "Resultados" }).getByRole("button", { name: /Creatina E2E/ }).click();
+  await lista.getByRole("checkbox", { name: /Creatina E2E/ }).click();
+  await page.screenshot({ path: "test-results/combos-lista-seleccion.png" });
   await d.getByLabel("Cantidad de Creatina E2E").fill("2");
 
   // 350 + 2 × 120 = 590; 10 % → 59 de descuento, final 531.

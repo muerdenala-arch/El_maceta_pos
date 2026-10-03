@@ -29,7 +29,7 @@ const PERMITIDOS: Record<string, Rol[] | "publica"> = {
   eliminarCategoria: ["admin"],
   guardarConfiguracion: ["admin"],
   anularGasto: ["admin"],
-  agregarGasto: ["admin", "encargado"], // el encargado, solo en su sucursal
+  agregarGasto: ["admin"], // y el encargado con el candado de Gastos abierto
   crearUsuario: ["admin"],
   editarUsuario: ["admin"],
   cambiarEstadoUsuario: ["admin"],
@@ -46,7 +46,7 @@ const PERMITIDOS: Record<string, Rol[] | "publica"> = {
   confirmarPagoQr: ["admin"],
   guardarSucursal: ["admin"],
   cambiarEstadoSucursal: ["admin"],
-  cambiarSucursalVista: ["admin"],
+  cambiarSucursalVista: ["admin", "encargado"],
   cambiarCandado: ["admin"],
   guardarSueldo: ["admin"],
   guardarTrabajador: ["admin"],
@@ -54,15 +54,15 @@ const PERMITIDOS: Record<string, Rol[] | "publica"> = {
   reincorporarTrabajador: ["admin"],
   registrarMovimientoSueldo: ["admin"],
   anularMovimientoSueldo: ["admin"],
-  // Campanita: el encargado solo ve y marca las de stock de su sucursal (encargado.integracion.test.ts)
+  // Campanita: administrador y encargado ven lo mismo
   obtenerAlertas: ["admin", "encargado"],
   marcarAlertaLeida: ["admin", "encargado"],
   marcarTodasLeidas: ["admin", "encargado"],
-  marcarAlertaRevisada: ["admin"],
+  marcarAlertaRevisada: ["admin", "encargado"],
   registrarIngreso: ["admin"],
   ajustarStock: ["admin"],
   crearTransferencia: ["admin"],
-  recibirTransferencia: ["admin", "encargado"], // el encargado, solo las que llegan a su sucursal
+  recibirTransferencia: ["admin"], // y el encargado con el candado de Bodega abierto
   cancelarTransferencia: ["admin"],
   resolverSolicitud: ["admin"],
   // Módulo Eventos (solo administrador)
@@ -84,17 +84,17 @@ const PERMITIDOS: Record<string, Rol[] | "publica"> = {
   registrarAusencia: ["admin"],
   corregirCombate: ["admin"],
   // Quien opera una caja: cajero y encargado
-  abrirCaja: ["cajero", "encargado"],
-  registrarVenta: ["cajero", "encargado"],
-  consultarCupon: ["cajero", "encargado"],
-  registrarGasto: ["cajero", "encargado"],
-  cerrarCaja: ["cajero", "encargado"],
-  solicitarReposicion: ["cajero", "encargado"],
-  pedirAutorizacion: ["cajero", "encargado"],
-  anularVentaEnSucursal: ["cajero", "encargado"], // el cajero, solo con el PIN del encargado o de un administrador
+  abrirCaja: ["cajero"],
+  registrarVenta: ["cajero"],
+  consultarCupon: ["cajero"],
+  registrarGasto: ["cajero"],
+  cerrarCaja: ["cajero"],
+  solicitarReposicion: ["cajero"],
+  pedirAutorizacion: ["cajero"],
+  anularVentaEnSucursal: ["cajero"], // solo con el PIN del encargado o de un administrador
   // Todos
   verComprobante: ["cajero", "encargado", "admin"],
-  buscarClientes: ["cajero", "encargado", "admin"],
+  buscarClientes: ["cajero", "admin"],
   subirImagen: ["cajero", "encargado", "admin"], // según la carpeta; con "qr" (abajo) solo admin
   // Notificaciones en el celular
   guardarSuscripcionPush: ["admin", "encargado"],
@@ -172,32 +172,13 @@ describe("server actions", () => {
     expect(await conteos()).toEqual(antes);
   });
 
-  it("sin abrir candados, el encargado no tiene ninguna acción de catálogo, precios, personal, QR, cupones, configuración ni eventos", () => {
+  it("sin abrir candados, el encargado solo tiene la campanita, la sucursal que ve y sus avisos (todo lo demás, con candado)", () => {
     const delEncargado = Object.entries(PERMITIDOS)
       .filter(([, roles]) => roles !== "publica" && roles.includes("encargado"))
       .map(([n]) => n)
       .sort();
     expect(delEncargado).toEqual(
-      [
-        "abrirCaja",
-        "agregarGasto",
-        "anularVentaEnSucursal",
-        "buscarClientes",
-        "cerrarCaja",
-        "consultarCupon",
-        "guardarSuscripcionPush",
-        "marcarAlertaLeida",
-        "marcarTodasLeidas",
-        "obtenerAlertas",
-        "pedirAutorizacion",
-        "quitarSuscripcionPush",
-        "recibirTransferencia",
-        "registrarGasto",
-        "registrarVenta",
-        "solicitarReposicion",
-        "subirImagen",
-        "verComprobante",
-      ].sort(),
+      ["cambiarSucursalVista", "guardarSuscripcionPush", "marcarAlertaLeida", "marcarAlertaRevisada", "marcarTodasLeidas", "obtenerAlertas", "quitarSuscripcionPush", "subirImagen", "verComprobante"].sort(),
     );
   });
 

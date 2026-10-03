@@ -6,7 +6,7 @@ import { TarjetaEstadistica } from "@/components/panel/tarjeta-estadistica";
 import { BarraFiltros } from "@/components/reportes/barra-filtros";
 import { CajerosConBuscador, ProductosConBuscador, VentasConBuscador } from "@/components/reportes/buscables";
 import { margen, Paginacion, TablaDias } from "@/components/reportes/tablas";
-import { requerirSesion } from "@/lib/auth/sesion";
+import { requerirModulo } from "@/lib/auth/modulo-servidor";
 import { aCentavos, deCentavos, restar } from "@/lib/dinero";
 import { formatoBs, hoyEnBolivia } from "@/lib/formato";
 import { aParametros, leerFiltros, textoRango } from "@/lib/reportes/filtros";
@@ -23,7 +23,7 @@ type Vista = (typeof VISTAS)[number];
 
 /** Reporte de ventas (sección 4.2 del plan): filtros, totales, desgloses, comprobantes y exportación. */
 export default async function PaginaReporteVentas(props: PageProps<"/admin/reportes">) {
-  const sesion = await requerirSesion("admin");
+  const { sesion } = await requerirModulo("reportes");
   const hoy = hoyEnBolivia();
   const sp = await props.searchParams;
   const f = leerFiltros(sp, hoy, await obtenerSucursalVista(sesion));

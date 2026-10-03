@@ -14,9 +14,7 @@ export async function guardarConfiguracion(entrada: DatosConfiguracion): Promise
     const validado = esquemaConfiguracion.safeParse(entrada);
     if (!validado.success) return falloValidacion(validado.error);
 
-    // El encargado no cambia los máximos de descuento (el suyo incluido): se conservan los que hay.
-    const { descuentoManualMaximo, descuentoManualMaximoEncargado, ...comunes } = validado.data;
-    const datos = sesion.rol === "admin" ? { ...comunes, descuentoManualMaximo, descuentoManualMaximoEncargado } : comunes;
+    const datos = validado.data;
     await db
       .insert(configuracion)
       .values({ id: 1, ...datos })

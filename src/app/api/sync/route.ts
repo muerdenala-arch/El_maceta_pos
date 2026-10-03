@@ -15,7 +15,7 @@ export type RespuestaSync = {
 export async function POST(req: Request) {
   const sesion = await obtenerSesion();
   if (!sesion) return Response.json({ error: "Sesión vencida: vuelve a ingresar para sincronizar" }, { status: 401 });
-  if (sesion.rol === "admin") return Response.json({ error: "Solo quien opera una caja sincroniza operaciones" }, { status: 403 });
+  if (sesion.rol !== "cajero") return Response.json({ error: "Solo quien opera una caja sincroniza operaciones" }, { status: 403 });
 
   let cuerpo: unknown;
   try {

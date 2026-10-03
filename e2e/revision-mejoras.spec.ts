@@ -37,23 +37,6 @@ test("administrador: agrega un gasto sin caja desde Gastos diarios", async ({ pa
   await page.screenshot({ path: "test-results/mejoras-1-gasto-admin.png", fullPage: true });
 });
 
-test("encargado: ve los gastos de su sucursal y agrega uno (sin elegir sucursal)", async ({ page }) => {
-  await ingresarEncargado(page);
-  await page.goto("/encargado/gastos");
-  await expect(page.locator("main li").filter({ hasText: "Luz del mes (prueba)" })).toBeVisible();
-  await page.getByRole("button", { name: "Agregar gasto" }).click();
-  const dialogo = page.getByRole("dialog");
-  await expect(dialogo.getByRole("combobox", { name: "Sucursal" })).toHaveCount(0);
-  await dialogo.getByRole("combobox", { name: "Categoría" }).click();
-  await page.getByRole("option", { name: "Limpieza" }).click();
-  await dialogo.getByLabel("Monto (Bs)").fill("35");
-  await dialogo.getByLabel("Descripción").fill("Detergente (prueba)");
-  await dialogo.getByRole("button", { name: "Registrar gasto" }).click();
-  await expect(page.locator("main li").filter({ hasText: "Detergente (prueba)" })).toContainText("Bs 35,00");
-  // Anular sigue siendo del administrador.
-  await expect(page.getByRole("button", { name: /Anular/ })).toHaveCount(0);
-});
-
 test("ingreso y regreso a la app: solo el teclado del PIN, sin botón; al completar el PIN se entra", async ({ page }) => {
   await page.goto("/login");
   await expect(page.getByText("Ingresa tu PIN")).toBeVisible();
@@ -171,8 +154,8 @@ test("administrador: trabajadores y sueldos (ingreso, día de pago, adelanto, de
   await page.screenshot({ path: "test-results/mejoras-3-sueldos-celular.png", fullPage: true });
 });
 
-test("sueldos es solo del administrador", async ({ page }) => {
+test("sueldos: el encargado no entra mientras su candado esté cerrado", async ({ page }) => {
   await ingresarEncargado(page);
-  await page.goto("/admin/sueldos");
-  await expect(page).toHaveURL(/\/cajero\/(venta|apertura)/);
+  await page.goto("/admin/sueldos").catch(() => {});
+  await expect(page).toHaveURL(/\/admin\/inicio/);
 });

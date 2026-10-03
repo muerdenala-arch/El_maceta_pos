@@ -13,7 +13,6 @@ import {
   type Resultado,
 } from "@/lib/acciones/resultado";
 import { registrarAuditoria } from "@/lib/auditoria";
-import { autorizar } from "@/lib/auth/sesion";
 import { autorizarModulo } from "@/lib/auth/modulo-servidor";
 import { aCentavos } from "@/lib/dinero";
 import { idPositivo } from "@/lib/validaciones/comunes";
@@ -40,9 +39,6 @@ export async function guardarProducto(entrada: DatosProducto & { id?: number }):
     const validado = esquemaProducto.safeParse(entrada);
     if (!validado.success) return falloValidacion(validado.error);
     const datos = validado.data;
-    // El encargado no ve ni cambia costos: un producto nuevo queda con costo 0 y al editar se conserva el que tenía.
-    const sinCostos = sesion.rol !== "admin";
-    if (sinCostos) datos.precioCosto = "0";
     if (!(await categoriaExiste(datos.categoriaId))) {
       return fallo("Revisa los datos marcados", { categoriaId: "La categoría ya no existe" });
     }
@@ -58,7 +54,6 @@ export async function guardarProducto(entrada: DatosProducto & { id?: number }):
         const id = idPositivo.parse(entrada.id);
         const [antes] = await db.select().from(productos).where(eq(productos.id, id));
         if (!antes) return fallo("El producto ya no existe");
-        if (sinCostos) datos.precioCosto = antes.precioCosto;
         // Activar o quitar la venta fraccionada cambia la unidad del stock: todo o nada.
         const conversion = await db.transaction(async (tx) => {
           await tx.update(productos).set(datos).where(eq(productos.id, id));
@@ -166,7 +161,7 @@ const TAMANO_MAXIMO_PLANILLA = 5 * 1024 * 1024;
  */
 export async function importarProductos(formulario: FormData): Promise<Resultado<ResumenImportacion>> {
   return conPermiso(async () => {
-    const sesion = await autorizar("admin");
+    const sesion = await autorizarModulo("catalogo");
     const archivo = formulario.get("archivo");
     const aplicar = formulario.get("aplicar") === "1";
     if (!(archivo instanceof File) || archivo.size === 0) return fallo("Elige la planilla de Excel");

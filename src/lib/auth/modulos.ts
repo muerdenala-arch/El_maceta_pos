@@ -1,29 +1,50 @@
 /**
- * Apartados del administrador a los que también entra el encargado de sucursal (puro; probado en modulos.test.ts).
- * Cada uno tiene un **candado** que maneja el administrador: cerrado (por defecto) = el encargado no tiene ese apartado
- * (no sale en su menú ni abre escribiendo la dirección); abierto = lo ve y trabaja en él, siempre dentro de su sucursal
- * y sin ver costos.
+ * Apartados del administrador (puro; probado en modulos.test.ts). El encargado tiene **los mismos apartados**, cada uno
+ * con un **candado** que maneja el administrador: cerrado (por defecto) = al encargado no le aparece (ni abre escribiendo
+ * la dirección); abierto = le aparece y trabaja en él igual que el administrador.
+ * Lo único que siempre es solo del administrador: abrir y cerrar los candados.
  */
-export const MODULOS_ENCARGADO = ["catalogo", "inventario", "bodega", "promociones", "combos", "eventos", "qr", "sucursales", "auditoria", "configuracion"] as const;
+export const MODULOS_ENCARGADO = [
+  "dashboard",
+  "reportes",
+  "gastos",
+  "catalogo",
+  "inventario",
+  "bodega",
+  "promociones",
+  "combos",
+  "eventos",
+  "personal",
+  "sueldos",
+  "qr",
+  "sucursales",
+  "auditoria",
+  "configuracion",
+] as const;
 export type ModuloEncargado = (typeof MODULOS_ENCARGADO)[number];
 
-/** Todos tienen candado (Auditoría, al abrirse, es solo consulta de las cajas de su sucursal). */
+/** Todos los apartados tienen candado. */
 export const MODULOS_CON_CANDADO: readonly ModuloEncargado[] = MODULOS_ENCARGADO;
 
 export const NOMBRES_MODULO: Record<ModuloEncargado, string> = {
+  dashboard: "Inicio",
+  reportes: "Reportes de venta",
+  gastos: "Gastos diarios",
   catalogo: "Catálogo",
   inventario: "Inventario de sucursales",
   bodega: "Bodega central",
   promociones: "Promociones y cupones",
   combos: "Combos",
   eventos: "Eventos",
+  personal: "Personal",
+  sueldos: "Sueldos",
   qr: "QR de cobro",
   sucursales: "Sucursales",
   auditoria: "Auditoría de caja",
   configuracion: "Configuración",
 };
 
-/** Apartado al que pertenece una ruta del administrador ("/admin/catalogo/…" → "catalogo"), o null si no es uno del encargado. */
+/** Apartado al que pertenece una ruta del administrador ("/admin/catalogo/…" → "catalogo"), o null si no es un apartado. */
 export function moduloDeRuta(ruta: string): ModuloEncargado | null {
   const partes = ruta.split("?")[0].split("/").filter(Boolean);
   if (partes[0] !== "admin") return null;
@@ -32,7 +53,13 @@ export function moduloDeRuta(ruta: string): ModuloEncargado | null {
 
 export const esModuloEncargado = (v: unknown): v is ModuloEncargado => MODULOS_ENCARGADO.includes(v as ModuloEncargado);
 
-/** Limpia la lista guardada: solo apartados con candado, sin repetidos. */
+/** Limpia la lista guardada: solo apartados conocidos, sin repetidos y en el orden del menú. */
 export function modulosValidos(lista: readonly string[] | null | undefined): ModuloEncargado[] {
   return MODULOS_CON_CANDADO.filter((m) => lista?.includes(m));
+}
+
+/** Pantalla de entrada del encargado: el primer apartado abierto (en el orden del menú), o null si no tiene ninguno. */
+export function primerApartado(abiertos: readonly ModuloEncargado[]): string | null {
+  const m = MODULOS_ENCARGADO.find((x) => abiertos.includes(x));
+  return m ? `/admin/${m}` : null;
 }

@@ -22,7 +22,7 @@ import { ESTILO_ALERTA } from "@/components/alertas/estilo";
 import { SelectorFecha } from "@/components/panel/selector-fecha";
 import { TarjetaEstadistica } from "@/components/panel/tarjeta-estadistica";
 import { listarAlertasPendientes, resumenAlertas } from "@/lib/alertas/consultas";
-import { requerirSesion } from "@/lib/auth/sesion";
+import { requerirModulo } from "@/lib/auth/modulo-servidor";
 import { cajasAbiertas, obtenerResumen, ventasPorSucursal } from "@/lib/consultas/resumen";
 import { restar } from "@/lib/dinero";
 import { fechaLarga, fechaValida, formatoBs, hoyEnBolivia } from "@/lib/formato";
@@ -39,7 +39,7 @@ const hora = (iso: string) =>
 
 /** Dashboard (sección 4.1 del plan): ventas, total por sucursal, más vendidos, cajas abiertas y alertas activas. */
 export default async function PanelInicio(props: PageProps<"/admin/dashboard">) {
-  const sesion = await requerirSesion("admin");
+  const { sesion } = await requerirModulo("dashboard");
   const hoy = hoyEnBolivia();
   const fecha = fechaValida((await props.searchParams).fecha) ?? hoy;
   const sucursalId = await obtenerSucursalVista(sesion);

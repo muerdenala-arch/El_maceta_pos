@@ -2,14 +2,14 @@ import { asc, eq, sql } from "drizzle-orm";
 import type { Metadata } from "next";
 import { db } from "@/db";
 import { sucursales, usuarios } from "@/db/schema";
-import { requerirSesion } from "@/lib/auth/sesion";
+import { requerirModulo } from "@/lib/auth/modulo-servidor";
 import { listarSucursalesActivas } from "@/lib/sucursal-vista";
 import { ListaPersonal } from "./lista-personal";
 
 export const metadata: Metadata = { title: "Personal" };
 
 export default async function PaginaPersonal() {
-  const sesion = await requerirSesion("admin");
+  const { sesion } = await requerirModulo("personal");
 
   const [personas, opcionesSucursal] = await Promise.all([
     db
