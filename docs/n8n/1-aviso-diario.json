@@ -1,0 +1,41 @@
+{
+  "name": "El Maseta - Aviso diario del resumen (22:00)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [{ "field": "cronExpression", "expression": "0 22 * * *" }]
+        }
+      },
+      "id": "a1f0c0de-0001-4000-8000-000000000001",
+      "name": "Todos los días 22:00",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [0, 0]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v21.0/ID_DEL_NUMERO_DE_WHATSAPP/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{\n  \"messaging_product\": \"whatsapp\",\n  \"to\": \"591XXXXXXXX\",\n  \"type\": \"template\",\n  \"template\": { \"name\": \"resumen_listo\", \"language\": { \"code\": \"es\" } }\n}",
+        "options": {}
+      },
+      "id": "a1f0c0de-0001-4000-8000-000000000002",
+      "name": "WhatsApp: enviar plantilla resumen_listo",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [260, 0]
+    }
+  ],
+  "connections": {
+    "Todos los días 22:00": {
+      "main": [[{ "node": "WhatsApp: enviar plantilla resumen_listo", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": { "timezone": "America/La_Paz" },
+  "active": false
+}

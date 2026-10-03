@@ -25,6 +25,8 @@ export function decidirAcceso(ruta: string, sesion: { rol: Rol } | null): Decisi
   if (bajo(ruta, "/eventos")) return { tipo: "seguir" };
   // Disparador de avisos pendientes (cron y app abierta): no recibe ni devuelve datos.
   if (ruta === "/api/recordatorios/despachar") return { tipo: "seguir" };
+  // Integraciones (n8n): no usan sesión; cada ruta exige la clave INTEGRACION_TOKEN.
+  if (bajo(ruta, "/api/integraciones")) return { tipo: "seguir" };
   // App instalable: íconos y página de respaldo sin conexión (el manifest y sw.js tienen extensión: no pasan por aquí).
   if (bajo(ruta, "/icono") || ruta === "/sin-conexion") return { tipo: "seguir" };
 

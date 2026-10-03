@@ -1,0 +1,76 @@
+{
+  "name": "El Maseta - Responder con el resumen",
+  "nodes": [
+    {
+      "parameters": {
+        "conditions": {
+          "options": { "caseSensitive": true, "typeValidation": "loose" },
+          "combinator": "and",
+          "conditions": [
+            {
+              "id": "c0000000-0000-4000-8000-000000000001",
+              "leftValue": "={{ $json.messages?.[0]?.from }}",
+              "rightValue": "591XXXXXXXX",
+              "operator": { "type": "string", "operation": "equals" }
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b2f0c0de-0002-4000-8000-000000000002",
+      "name": "¿Escribe el dueño?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [260, 0]
+    },
+    {
+      "parameters": {
+        "url": "https://el-maceta-pos.vercel.app/api/integraciones/resumen-diario",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "fecha",
+              "value": "={{ ($('¿Escribe el dueño?').item.json.messages?.[0]?.text?.body ?? '').toLowerCase().includes('ayer') ? 'ayer' : 'hoy' }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b2f0c0de-0002-4000-8000-000000000003",
+      "name": "El Maseta: resumen del día",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [520, -80]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v21.0/ID_DEL_NUMERO_DE_WHATSAPP/messages",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ messaging_product: 'whatsapp', to: '591XXXXXXXX', type: 'text', text: { body: $json.texto } }) }}",
+        "options": {}
+      },
+      "id": "b2f0c0de-0002-4000-8000-000000000004",
+      "name": "WhatsApp: enviar el resumen",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [780, -80]
+    }
+  ],
+  "connections": {
+    "¿Escribe el dueño?": {
+      "main": [[{ "node": "El Maseta: resumen del día", "type": "main", "index": 0 }], []]
+    },
+    "El Maseta: resumen del día": {
+      "main": [[{ "node": "WhatsApp: enviar el resumen", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": { "timezone": "America/La_Paz" },
+  "active": false
+}

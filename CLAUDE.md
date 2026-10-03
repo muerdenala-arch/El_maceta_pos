@@ -551,6 +551,19 @@ Credenciales de prueba locales: en `.env.local` (`SEED_*`), nunca en el código 
   descuento = neto de sus líneas; descuento = suma de sus partes; usos de cupón = ventas completadas que lo usaron; un solo
   correlativo por sucursal. Pruebas: `test/auditoria-sistema.integracion.test.ts`.
 
+## Integraciones (n8n): resumen diario por WhatsApp
+
+- `GET /api/integraciones/resumen-diario?fecha=hoy|ayer|AAAA-MM-DD` con `Authorization: Bearer <INTEGRACION_TOKEN>` (variable de
+  entorno, mínimo 32 caracteres; sin ella responde 503). **No usa sesión** (`rutas.ts` deja pasar `/api/integraciones/*`; cada
+  ruta nueva ahí debe comprobar la clave igual que esta, con comparación en tiempo constante). Solo lectura.
+- Devuelve los números del día de todas las sucursales (los mismos de Reportes: `datosResumenDiario`,
+  `lib/integraciones/resumen-diario.ts`) y `texto`, el mensaje ya redactado con formato de WhatsApp (`textoResumenDiario`, puro
+  y probado en `lib/integraciones/resumen-texto.ts`). No entrega costos por producto, clientes ni usuarios.
+- Decisión del dueño: WhatsApp **oficial** (API de Meta) a las 22:00. Como fuera de las 24 h solo se permiten plantillas, n8n
+  envía la plantilla `resumen_listo` con un botón y, al responder, pide el resumen y lo envía. Guía y flujos importables:
+  `docs/n8n-resumen-whatsapp.md`, `docs/n8n/*.json` (no probados dentro de n8n).
+- Pruebas: `integraciones/resumen-texto.test.ts`, `test/integraciones.integracion.test.ts`.
+
 ## Botón atrás por niveles
 
 - `lib/navegacion/niveles.ts` (`padreDe`, probado): apartados del menú → inicio del rol; pantallas internas → un nivel arriba.
