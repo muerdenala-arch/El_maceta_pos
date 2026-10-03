@@ -1,9 +1,9 @@
 "use server";
 
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, or, sql } from "drizzle-orm";
 import { refresh } from "next/cache";
 import { db } from "@/db";
-import { sucursales, usuarios } from "@/db/schema";
+import { cajas, sucursales, transferencias, usuarios } from "@/db/schema";
 import { conPermiso, exito, fallo, falloValidacion, type Resultado } from "@/lib/acciones/resultado";
 import { registrarAuditoria } from "@/lib/auditoria";
 import { autorizarModulo } from "@/lib/auth/modulo-servidor";
@@ -58,6 +58,15 @@ export async function cambiarEstadoSucursal(entrada: { id: number; activo: boole
           `Tiene ${cajeros} usuario${cajeros === 1 ? "" : "s"} activo${cajeros === 1 ? "" : "s"} (cajeros o encargados): reasígnalos o desactívalos primero`,
         );
       }
+      // Nada a medias: ni una caja sin cerrar ni mercadería viajando desde o hacia ella.
+      const [abierta] = await db.select({ id: cajas.id }).from(cajas).where(and(eq(cajas.sucursalId, id), eq(cajas.estado, "abierta"))).limit(1);
+      if (abierta) return fallo("Tiene una caja abierta: ciérrala primero (Auditoría de caja)");
+      const [enCamino] = await db
+        .select({ id: transferencias.id })
+        .from(transferencias)
+        .where(and(eq(transferencias.estado, "enviada"), or(eq(transferencias.origenId, id), eq(transferencias.destinoId, id))))
+        .limit(1);
+      if (enCamino) return fallo("Tiene una transferencia en camino: recíbela o cancélala primero");
     }
 
     await db.update(sucursales).set({ activo }).where(eq(sucursales.id, id));

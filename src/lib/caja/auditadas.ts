@@ -37,12 +37,13 @@ export async function listarCajasAuditadas(p: { desde: string; hasta: string; su
     .innerJoin(sucursales, eq(sucursales.id, cajas.sucursalId))
     .where(
       and(
-        // Desde una alerta se muestra esa caja aunque esté fuera del rango de fechas.
-        p.cajaResaltada ? sql`(${rango} or ${cajas.id} = ${p.cajaResaltada})` : rango,
+        // Las abiertas se muestran siempre (una caja olvidada hace días no debe quedar escondida), y desde una
+        // alerta se muestra esa caja aunque esté fuera del rango de fechas.
+        sql`(${rango} or ${cajas.estado} = 'abierta'${p.cajaResaltada ? sql` or ${cajas.id} = ${p.cajaResaltada}` : sql``})`,
         p.sucursalId ? eq(cajas.sucursalId, p.sucursalId) : undefined,
       ),
     )
-    .orderBy(desc(cajas.apertura))
+    .orderBy(sql`${cajas.estado} = 'abierta' desc`, desc(cajas.apertura))
     .limit(200);
 
   return Promise.all(

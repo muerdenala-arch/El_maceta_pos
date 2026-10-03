@@ -532,6 +532,21 @@ Credenciales de prueba locales: en `.env.local` (`SEED_*`), nunca en el código 
   publicación). Hasta entonces, con la app cerrada en todos los equipos el aviso sale apenas alguien la abre.
 - Pruebas: `recordatorios/calculo.test.ts`, `test/recordatorios.integracion.test.ts`, `e2e/revision-recordatorios.spec.ts`.
 
+## Auditoría del sistema (2026-10-03): reglas que salieron de ella
+
+- **Una caja abierta nunca queda sin nadie que la cierre**: `editarUsuario` no cambia rol ni sucursal de quien tiene una caja
+  abierta; `cerrarCajaPendiente` (`app/admin/auditoria/acciones.ts`, apartado Auditoría, motivo obligatorio, auditoría
+  `caja_cerrada_admin` grave) la cierra desde Auditoría → Cajas (botón "Cerrar caja" en las abiertas). El cálculo del cierre es
+  uno solo: `cerrarCajaAbierta` (`lib/caja/cierre.ts`), compartido con el cierre del cajero.
+- `listarCajasAuditadas` muestra **siempre las cajas abiertas** (primero), aunque se hayan abierto fuera del rango de fechas.
+- Una sucursal no se desactiva con una caja abierta ni con una transferencia en camino (además de la regla de usuarios activos).
+- Una categoría no se elimina si la usa un descuento automático o un cupón (`categoria_ids` no tiene llave foránea).
+- Editar un recordatorio que se repite conserva su día de partida (define el día de la semana o del mes).
+- `GET /api/recordatorios/despachar` trabaja como mucho una vez cada 15 s por instancia (es público).
+- Comprobación de datos usada (solo lectura): inventario = suma de movimientos = suma de lotes; total de la venta = subtotal −
+  descuento = neto de sus líneas; descuento = suma de sus partes; usos de cupón = ventas completadas que lo usaron; un solo
+  correlativo por sucursal. Pruebas: `test/auditoria-sistema.integracion.test.ts`.
+
 ## Botón atrás por niveles
 
 - `lib/navegacion/niveles.ts` (`padreDe`, probado): apartados del menú → inicio del rol; pantallas internas → un nivel arriba.

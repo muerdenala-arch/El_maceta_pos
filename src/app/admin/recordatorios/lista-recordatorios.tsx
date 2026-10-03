@@ -143,11 +143,12 @@ export function ListaRecordatorios({ hoy, recordatorios, avisosDisponibles }: { 
 }
 
 function FormularioRecordatorio({ recordatorio, hoy, onCerrar }: { recordatorio: Recordatorio | null; hoy: string; onCerrar: () => void }) {
-  // Uno ya avisado se vuelve a programar: por defecto, para hoy.
+  // Uno que se repite conserva su día de partida (define el día de la semana o del mes); uno de una sola vez ya
+  // avisado se vuelve a programar, por defecto para hoy.
   const [d, setD] = useState<DatosRecordatorio>(() => ({
     titulo: recordatorio?.titulo ?? "",
     nota: recordatorio?.nota ?? "",
-    fecha: recordatorio && recordatorio.fecha >= hoy ? recordatorio.fecha : hoy,
+    fecha: recordatorio && (recordatorio.fecha >= hoy || repeticionDe(recordatorio) !== "ninguna") ? recordatorio.fecha : hoy,
     hora: recordatorio?.hora ?? "09:00",
     repeticion: recordatorio ? repeticionDe(recordatorio) : "ninguna",
   }));
@@ -173,8 +174,8 @@ function FormularioRecordatorio({ recordatorio, hoy, onCerrar }: { recordatorio:
         {(p) => <Textarea {...p} value={d.nota ?? ""} onChange={(e) => poner("nota", e.target.value)} maxLength={500} rows={2} placeholder="Detalles que quieras ver en el aviso" />}
       </Campo>
       <div className="grid gap-4 sm:grid-cols-2">
-        <Campo etiqueta="Día" error={guardar.campos.fecha}>
-          {(p) => <Input {...p} type="date" value={d.fecha} min={hoy} onChange={(e) => poner("fecha", e.target.value)} />}
+        <Campo etiqueta={d.repeticion === "ninguna" ? "Día" : "Desde el día"} error={guardar.campos.fecha}>
+          {(p) => <Input {...p} type="date" value={d.fecha} min={d.repeticion === "ninguna" ? hoy : undefined} onChange={(e) => poner("fecha", e.target.value)} />}
         </Campo>
         <Campo etiqueta="Hora" error={guardar.campos.hora} ayuda="Hora de Bolivia">
           {(p) => <Input {...p} type="time" value={d.hora} onChange={(e) => poner("hora", e.target.value)} />}

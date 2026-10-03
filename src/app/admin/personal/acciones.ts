@@ -4,7 +4,7 @@ import bcrypt from "bcryptjs";
 import { and, eq, ne, sql } from "drizzle-orm";
 import { refresh } from "next/cache";
 import { db } from "@/db";
-import { sucursales, usuarios } from "@/db/schema";
+import { cajas, sucursales, usuarios } from "@/db/schema";
 import {
   conPermiso,
   esViolacionUnica,
@@ -79,6 +79,11 @@ export async function crearUsuario(entrada: DatosCrearUsuario): Promise<Resultad
   });
 }
 
+async function tieneCajaAbierta(usuarioId: number) {
+  const [c] = await db.select({ id: cajas.id }).from(cajas).where(and(eq(cajas.cajeroId, usuarioId), eq(cajas.estado, "abierta"))).limit(1);
+  return !!c;
+}
+
 export async function editarUsuario(entrada: DatosEditarUsuario): Promise<Resultado> {
   return conPermiso(async () => {
     const sesion = await autorizarModulo("personal");
@@ -94,6 +99,10 @@ export async function editarUsuario(entrada: DatosEditarUsuario): Promise<Result
     }
     if (!(await sucursalValidaParaCajero(datos.sucursalId))) {
       return fallo("Revisa los datos marcados", { sucursalId: "Sucursal inválida o inactiva" });
+    }
+    // Con una caja abierta, cambiar de puesto o de sucursal la dejaría sin nadie que pueda cerrarla.
+    if ((actual.rol !== datos.rol || actual.sucursalId !== datos.sucursalId) && (await tieneCajaAbierta(id))) {
+      return fallo("Tiene una caja abierta: debe cerrarla (o ciérrala tú desde Auditoría de caja) antes de cambiarle el rol o la sucursal");
     }
 
     // Si cambia el rol o la sucursal, su sesión abierta deja de valer (obtenerSesion lo compara).

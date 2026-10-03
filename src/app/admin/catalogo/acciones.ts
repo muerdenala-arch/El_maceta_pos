@@ -1,9 +1,9 @@
 "use server";
 
-import { eq, sql } from "drizzle-orm";
+import { eq, or, sql } from "drizzle-orm";
 import { refresh } from "next/cache";
 import { db } from "@/db";
-import { categorias, productos } from "@/db/schema";
+import { categorias, cupones, productos, promociones } from "@/db/schema";
 import {
   conPermiso,
   esViolacionUnica,
@@ -134,6 +134,15 @@ export async function eliminarCategoria(entrada: { id: number }): Promise<Result
     if (total > 0) {
       return fallo(`Tiene ${total} producto${total === 1 ? "" : "s"}: cámbialos de categoría antes de eliminarla`);
     }
+    // Un descuento automático o un cupón por categoría quedaría apuntando a nada.
+    const [enPromocion] = await db
+      .select({ nombre: promociones.nombre })
+      .from(promociones)
+      .where(or(eq(promociones.categoriaId, id), sql`${id} = any(${promociones.categoriaIds})`))
+      .limit(1);
+    if (enPromocion) return fallo(`La usa el descuento "${enPromocion.nombre}": quítala de ese descuento antes de eliminarla`);
+    const [enCupon] = await db.select({ codigo: cupones.codigo }).from(cupones).where(sql`${id} = any(${cupones.categoriaIds})`).limit(1);
+    if (enCupon) return fallo(`La usa el cupón ${enCupon.codigo}: quítala de ese cupón antes de eliminarla`);
     await db.delete(categorias).where(eq(categorias.id, id));
     refresh();
     return exito();

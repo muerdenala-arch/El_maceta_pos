@@ -33,6 +33,7 @@ export type AccionAuditoria =
   // Fase 4
   | "caja_abierta"
   | "caja_cerrada"
+  | "caja_cerrada_admin"
   | "gasto_anulado"
   | "gasto_registrado"
   | "qr_creado"

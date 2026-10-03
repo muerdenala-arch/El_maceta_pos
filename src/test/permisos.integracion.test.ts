@@ -44,6 +44,7 @@ const PERMITIDOS: Record<string, Rol[] | "publica"> = {
   guardarQr: ["admin"],
   anularVenta: ["admin"],
   confirmarPagoQr: ["admin"],
+  cerrarCajaPendiente: ["admin"], // y el encargado con el candado de Auditoría abierto
   guardarSucursal: ["admin"],
   cambiarEstadoSucursal: ["admin"],
   cambiarSucursalVista: ["admin", "encargado"],

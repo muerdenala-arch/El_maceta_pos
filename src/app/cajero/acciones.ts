@@ -3,17 +3,15 @@
 import { and, eq, ilike, or, sql } from "drizzle-orm";
 import { refresh } from "next/cache";
 import { db } from "@/db";
-import { alertas, cajas, clientes, gastos, sucursales, usuarios } from "@/db/schema";
+import { cajas, clientes, gastos } from "@/db/schema";
 import { conPermiso, esViolacionUnica, exito, fallo, falloValidacion, type Resultado } from "@/lib/acciones/resultado";
 import { registrarAuditoria } from "@/lib/auditoria";
+import { cerrarCajaAbierta } from "@/lib/caja/cierre";
 import { autorizar } from "@/lib/auth/sesion";
-import { diferenciaCierre } from "@/lib/caja/calculos";
-import { cajaAbiertaDe, totalesCaja } from "@/lib/caja/consultas";
+import { cajaAbiertaDe } from "@/lib/caja/consultas";
 import { registrarVentaEnLinea, type VentaRealizada } from "@/lib/caja/registro";
 import { obtenerComprobante, puedeVerVenta } from "@/lib/comprobante/consulta";
 import type { DatosComprobante } from "@/lib/comprobante/datos";
-import { aCentavos } from "@/lib/dinero";
-import { formatoBs } from "@/lib/formato";
 import { buscarCupon } from "@/lib/promociones/consultas";
 import type { CuponVenta } from "@/lib/promociones/venta";
 import {
@@ -169,34 +167,7 @@ export async function cerrarCaja(entrada: DatosCierre): Promise<Resultado<Cierre
         .for("update");
       if (!caja) return null;
 
-      const t = await totalesCaja(caja.id, caja.montoInicial, tx);
-      const diferencia = diferenciaCierre(t.esperado, contado);
-      await tx
-        .update(cajas)
-        .set({
-          estado: "cerrada",
-          cierre: new Date(),
-          ventasEfectivo: t.ventasEfectivo,
-          ventasQr: t.ventasQr,
-          gastos: t.gastos,
-          esperado: t.esperado,
-          efectivoContado: contado,
-          diferencia,
-        })
-        .where(eq(cajas.id, caja.id));
-
-      if (aCentavos(diferencia) !== 0n) {
-        const [u] = await tx.select({ nombre: usuarios.nombre }).from(usuarios).where(eq(usuarios.id, sesion.uid));
-        const [s] = await tx.select({ nombre: sucursales.nombre }).from(sucursales).where(eq(sucursales.id, caja.sucursalId));
-        const tipo = aCentavos(diferencia) < 0n ? "faltante" : "sobrante";
-        await tx.insert(alertas).values({
-          tipo: "caja_diferencia",
-          cajaId: caja.id,
-          sucursalId: caja.sucursalId,
-          mensaje: `Caja de ${u?.nombre} (${s?.nombre}) cerrada con ${tipo} de ${formatoBs(diferencia.replace("-", ""))}`,
-        });
-      }
-      return { cajaId: caja.id, esperado: t.esperado, contado, diferencia };
+      return cerrarCajaAbierta(tx, caja, contado);
     });
 
     if (!resultado) return fallo("No tienes una caja abierta");
