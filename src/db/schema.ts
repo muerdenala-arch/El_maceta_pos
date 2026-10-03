@@ -74,6 +74,8 @@ export const tipoAlertaEnum = pgEnum("tipo_alerta", [
   "revision_offline",
   /** Módulo Eventos: un reto cumplió su duración y falta registrar los pesajes finales y finalizarlo. */
   "evento_por_finalizar",
+  /** Una caja lleva más de 24 horas abierta (olvidada o de alguien que ya no trabaja aquí). */
+  "caja_abierta",
 ]);
 
 // ---------- Sucursales y usuarios ----------

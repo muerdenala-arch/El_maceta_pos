@@ -8,6 +8,7 @@ import { hoyEnBolivia } from "@/lib/formato";
 import { conciliarAlertasEventos } from "@/lib/eventos/alertas";
 import { esFraccionado, minimoEnUnidades, nombreEnvase, textoStock } from "@/lib/inventario/fraccion";
 import { alertaDeStock, DIAS_AVISO_VENCIMIENTO } from "./reglas";
+import { conciliarAlertasCajas } from "@/lib/caja/alertas";
 import { programarDespacho } from "@/lib/notificaciones/despacho";
 
 type Ejecutor = Db | Tx;
@@ -147,5 +148,6 @@ export async function conciliarAlertasSiCorresponde(forzar = false) {
   await conciliarAlertasStock(db);
   await conciliarAlertasVencimiento(db);
   await conciliarAlertasEventos(db);
+  await conciliarAlertasCajas(db);
   programarDespacho();
 }

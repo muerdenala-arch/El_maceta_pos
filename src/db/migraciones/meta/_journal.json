@@ -127,6 +127,13 @@
       "when": 1791005652920,
       "tag": "0017_promos_varios_recordatorios",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1791009970387,
+      "tag": "0018_alerta_caja_abierta",
+      "breakpoints": true
     }
   ]
 }

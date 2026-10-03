@@ -4,6 +4,7 @@ import { after } from "next/server";
 import { db } from "@/db";
 import { alertas, sucursales, suscripcionesPush, usuarios } from "@/db/schema";
 import { destinoAlerta, TITULOS_ALERTA } from "@/lib/alertas/reglas";
+import { conciliarAlertasCajas } from "@/lib/caja/alertas";
 import { despacharRecordatorios } from "@/lib/recordatorios/despacho";
 import { enviarADispositivo, olvidarDispositivos, prepararPush, pushConfigurado, type Notificacion } from "./envio";
 
@@ -73,6 +74,7 @@ export async function despacharAlertas(): Promise<number> {
 
 /** Alertas y recordatorios pendientes (lo llaman también /api/recordatorios/despachar y el cron). */
 export async function despacharTodo() {
+  await conciliarAlertasCajas().catch(() => {});
   const alertasEnviadas = await despacharAlertas().catch(() => 0);
   const recordatoriosEnviados = await despacharRecordatorios().catch(() => 0);
   return { alertas: alertasEnviadas, recordatorios: recordatoriosEnviados };

@@ -2,7 +2,7 @@
  * Fallos de lógica hallados en la auditoría del sistema, contra una base real en memoria:
  * una caja no puede quedar abierta sin nadie que la cierre, y una categoría en uso por un descuento no se elimina.
  */
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { beforeAll, describe, expect, it } from "vitest";
 import { cerrarCajaPendiente } from "@/app/admin/auditoria/acciones";
 import { eliminarCategoria, guardarCategoria } from "@/app/admin/catalogo/acciones";
@@ -14,6 +14,8 @@ import { GET as despachar } from "@/app/api/recordatorios/despachar/route";
 import { db } from "@/db";
 import { alertas, auditoria, cajas, categorias, cupones, transferencias, usuarios } from "@/db/schema";
 import { MENSAJE_CANDADO } from "@/lib/acciones/resultado";
+import { destinoAlerta, moduloDeAlerta } from "@/lib/alertas/reglas";
+import { conciliarAlertasCajas } from "@/lib/caja/alertas";
 import { listarCajasAuditadas } from "@/lib/caja/auditadas";
 import { hoyEnBolivia } from "@/lib/formato";
 import { cancelarTransferencia, crearTransferencia } from "@/lib/inventario/acciones";
@@ -62,6 +64,24 @@ describe("una caja abierta nunca queda sin nadie que pueda cerrarla", () => {
     expect(await listarCajasAuditadas({ desde: hoy, hasta: hoy, sucursalId: b.sur.id })).toEqual([]); // el filtro de sucursal sigue valiendo
   });
 
+  it("pasadas 24 horas abierta aparece la alerta «Caja sin cerrar» (una sola), que lleva a esa caja", async () => {
+    const caja = await cajaDe(b.cajeroNorte.id);
+    const abiertas = () => db.select().from(alertas).where(and(eq(alertas.tipo, "caja_abierta"), eq(alertas.resuelta, false)));
+    // Con 23 horas todavía no.
+    await db.update(cajas).set({ apertura: new Date(Date.now() - 23 * 3_600_000) });
+    await conciliarAlertasCajas();
+    expect(await abiertas()).toEqual([]);
+
+    await db.update(cajas).set({ apertura: new Date(Date.now() - 25 * 3_600_000) });
+    await conciliarAlertasCajas();
+    await conciliarAlertasCajas(); // repetir no la duplica
+    const [alerta, ...mas] = await abiertas();
+    expect(mas).toEqual([]);
+    expect(alerta).toMatchObject({ cajaId: caja.id, sucursalId: b.norte.id, mensaje: expect.stringMatching(/^La caja de Ana María \(Sucursal Norte\) sigue abierta desde el .*: ciérrala en Auditoría de caja$/) });
+    expect(destinoAlerta({ ...alerta, tipo: "caja_abierta" })).toBe(`/admin/auditoria?vista=cajas&caja=${caja.id}`);
+    expect(moduloDeAlerta("caja_abierta")).toBe("/admin/auditoria");
+  });
+
   it("el administrador la cierra desde Auditoría, con motivo, y queda igual que un cierre normal", async () => {
     const caja = await cajaDe(b.cajeroNorte.id);
     await comoUsuario(b.cajeroSur);
@@ -73,6 +93,9 @@ describe("una caja abierta nunca queda sin nadie que pueda cerrarla", () => {
     expect(await cerrarCajaPendiente({ id: caja.id, efectivoContado: "220", motivo: "" })).toMatchObject({ ok: false, campos: { motivo: expect.any(String) } });
     expect(await cerrarCajaPendiente({ id: caja.id, efectivoContado: "200", motivo: "Se fue sin cerrar la caja" })).toEqual({ ok: true });
     expect(await cajaDe(b.cajeroNorte.id)).toMatchObject({ estado: "cerrada", esperado: "220.00", efectivoContado: "200.00", diferencia: "-20.00", ventasEfectivo: "120.00" });
+    // Al cerrarse, la alerta de caja sin cerrar se resuelve sola.
+    expect(await db.select().from(alertas).where(and(eq(alertas.tipo, "caja_abierta"), eq(alertas.resuelta, false)))).toEqual([]);
+    expect(await db.select().from(alertas).where(eq(alertas.tipo, "caja_abierta"))).toHaveLength(1);
     const [alerta] = await db.select().from(alertas).where(eq(alertas.tipo, "caja_diferencia"));
     expect(alerta).toMatchObject({ cajaId: caja.id, mensaje: expect.stringMatching(/faltante de Bs 20,00/) });
     const [a] = await db.select().from(auditoria).where(eq(auditoria.accion, "caja_cerrada_admin"));

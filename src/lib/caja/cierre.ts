@@ -1,5 +1,5 @@
 import "server-only";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { alertas, cajas, sucursales, usuarios } from "@/db/schema";
 import { aCentavos } from "@/lib/dinero";
 import { formatoBs } from "@/lib/formato";
@@ -30,6 +30,11 @@ export async function cerrarCajaAbierta(tx: Tx, caja: typeof cajas.$inferSelect,
       diferencia,
     })
     .where(eq(cajas.id, caja.id));
+
+  await tx
+    .update(alertas)
+    .set({ resuelta: true })
+    .where(and(eq(alertas.tipo, "caja_abierta"), eq(alertas.cajaId, caja.id), eq(alertas.resuelta, false)));
 
   if (aCentavos(diferencia) !== 0n) {
     const [u] = await tx.select({ nombre: usuarios.nombre }).from(usuarios).where(eq(usuarios.id, caja.cajeroId));

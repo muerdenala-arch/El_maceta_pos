@@ -543,6 +543,10 @@ Credenciales de prueba locales: en `.env.local` (`SEED_*`), nunca en el código 
 - Una categoría no se elimina si la usa un descuento automático o un cupón (`categoria_ids` no tiene llave foránea).
 - Editar un recordatorio que se repite conserva su día de partida (define el día de la semana o del mes).
 - `GET /api/recordatorios/despachar` trabaja como mucho una vez cada 15 s por instancia (es público).
+- Alerta automática `caja_abierta` ("Caja sin cerrar", migración 0018): caja con más de 24 h abierta (`lib/caja/alertas.ts`,
+  `conciliarAlertasCajas`). Se concilia con el resto de alertas y también en `despacharTodo()` (pulso / cron), así la
+  notificación sale aunque nadie abra el panel. Lleva a Auditoría → Cajas con la caja resaltada y se resuelve sola al cerrarla
+  (`cerrarCajaAbierta` la resuelve en la misma transacción).
 - Comprobación de datos usada (solo lectura): inventario = suma de movimientos = suma de lotes; total de la venta = subtotal −
   descuento = neto de sus líneas; descuento = suma de sus partes; usos de cupón = ventas completadas que lo usaron; un solo
   correlativo por sucursal. Pruebas: `test/auditoria-sistema.integracion.test.ts`.

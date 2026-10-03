@@ -1,4 +1,4 @@
-import { AlertTriangle, CalendarClock, CloudOff, Inbox, PackageMinus, PackageX, QrCode, Trophy, Wallet, type LucideIcon } from "lucide-react";
+import { AlarmClockOff, AlertTriangle, CalendarClock, CloudOff, Inbox, PackageMinus, PackageX, QrCode, Trophy, Wallet, type LucideIcon } from "lucide-react";
 import type { TipoAlerta } from "@/lib/alertas/reglas";
 
 /** Ícono, color y título de cada tipo de alerta (campanita y panel de inicio). */
@@ -12,4 +12,5 @@ export const ESTILO_ALERTA: Record<TipoAlerta, { icono: LucideIcon; clase: strin
   solicitud_reposicion: { icono: Inbox, clase: "bg-ficha-naranja text-ficha-naranja-foreground", titulo: "Pedido de sucursal" },
   revision_offline: { icono: CloudOff, clase: "bg-aviso/25 text-foreground", titulo: "Revisar venta" },
   evento_por_finalizar: { icono: Trophy, clase: "bg-ficha-verde text-ficha-verde-foreground", titulo: "Reto terminado" },
+  caja_abierta: { icono: AlarmClockOff, clase: "bg-aviso/25 text-foreground", titulo: "Caja sin cerrar" },
 };

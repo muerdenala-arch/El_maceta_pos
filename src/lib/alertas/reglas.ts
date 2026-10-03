@@ -12,7 +12,8 @@ export type TipoAlerta =
   | "qr_por_confirmar"
   | "solicitud_reposicion"
   | "revision_offline"
-  | "evento_por_finalizar";
+  | "evento_por_finalizar"
+  | "caja_abierta";
 
 /** Nombre corto de cada tipo (título de la notificación en el celular; mismos textos que la campanita). */
 export const TITULOS_ALERTA: Record<TipoAlerta, string> = {
@@ -25,6 +26,7 @@ export const TITULOS_ALERTA: Record<TipoAlerta, string> = {
   solicitud_reposicion: "Pedido de sucursal",
   revision_offline: "Revisar venta",
   evento_por_finalizar: "Reto terminado",
+  caja_abierta: "Caja sin cerrar",
 };
 
 /** Días de anticipación para avisar vencimientos. */
@@ -38,7 +40,7 @@ export function alertaDeStock(cantidad: number, minimo: number): "agotado" | "st
 }
 
 /** Tipos que se resuelven solos al corregirse la causa (el resto se marca como revisado a mano). */
-export const TIPOS_AUTOMATICOS: TipoAlerta[] = ["stock_bajo", "agotado", "por_vencer", "stock_negativo", "evento_por_finalizar"];
+export const TIPOS_AUTOMATICOS: TipoAlerta[] = ["stock_bajo", "agotado", "por_vencer", "stock_negativo", "evento_por_finalizar", "caja_abierta"];
 
 /** Alertas que recibe el encargado en su campanita: las de stock de su sucursal. */
 export const TIPOS_ENCARGADO: TipoAlerta[] = ["stock_bajo", "agotado", "stock_negativo"];
@@ -76,6 +78,7 @@ export function destinoAlerta(a: AlertaDestino): string {
     case "solicitud_reposicion":
       return "/admin/bodega";
     case "caja_diferencia":
+    case "caja_abierta":
       q.set("vista", "cajas");
       if (a.cajaId) q.set("caja", String(a.cajaId));
       return `/admin/auditoria?${q}`;
@@ -91,7 +94,7 @@ export function destinoAlerta(a: AlertaDestino): string {
 export function moduloDeAlerta(tipo: TipoAlerta): string {
   if (tipo === "stock_bajo" || tipo === "agotado" || tipo === "stock_negativo") return "/admin/inventario";
   if (tipo === "por_vencer" || tipo === "solicitud_reposicion") return "/admin/bodega";
-  if (tipo === "caja_diferencia") return "/admin/auditoria";
+  if (tipo === "caja_diferencia" || tipo === "caja_abierta") return "/admin/auditoria";
   if (tipo === "evento_por_finalizar") return "/admin/eventos";
   return "/admin/reportes";
 }
